@@ -114,12 +114,22 @@ public class OpenTSDBMain {
   }
   
   
+  private static Config tsdbConfig = null;
+  private static Thread tsdbConfigLoader = null;
+  
   /**
    * The OpenTSDB fat-jar main entry point
    * @param args See usage banner {@link OpenTSDBMain#mainUsage(PrintStream)}
    */
-  public static void main(String[] args) {
+  public static void main(final String[] args) {
       log.info("Starting.");
+      tsdbConfigLoader = new Thread("ConfigLoader") {
+    	  public void run() {
+    		  tsdbConfig = buildConfig(args);
+    	  }
+      };
+      tsdbConfigLoader.setDaemon(true);
+      tsdbConfigLoader.start();
       log.info(BuildData.revisionString());
       log.info(BuildData.buildString());
       try {
@@ -169,6 +179,70 @@ public class OpenTSDBMain {
   }
   
   
+  
+  
+  
+  
+  /**
+   * Starts the TSD.
+   * @param args The command line arguments
+   */
+  private static void launchTSD(String[] args) {
+	  try { tsdbConfigLoader.join(5000); } catch (Exception x) {/* No Op */}
+	  if(tsdbConfig==null) {
+		  System.err.println("TSDB Config Loader Timed Out. Probable Programmer Error");
+		  System.exit(-1);
+	  }
+	  final Config config = buildConfig(args);
+	  // Write the PID file
+	  writePid(config.getString("tsd.process.pid.file"), config.getBoolean("tsd.process.pid.ignore.existing"));
+	  // Configure external logback
+	  configureLogback(config);
+	  // Unload UI Content onto fs and check cache directory
+	  checkAndWriteUIContent(config);	
+	  // Notify on auto-metric
+	  if(config.auto_metric()) {
+		  log.info("\n\t==========================================\n\tAuto-Metric Enabled\n\t==========================================\n");
+	  } else {
+		  log.warn("\n\t==========================================\n\tAuto-Metric Disabled\n\t==========================================\n");
+	  }
+	  TSDTCPChannelFactory.init(config);
+  }
+  
+  
+  private static Config buildConfig(final String[] cmdLineArgs) {
+	  ConfigArgP cap = new ConfigArgP(cmdLineArgs);
+	  Config config = cap.getConfig();
+	  final ArgP argp = cap.getArgp();
+	  applyCommandLine(cap, argp);
+	  config.loadStaticVariables();  
+	  return config;
+  }
+
+  
+  private static void checkAndWriteUIContent(final Config config) {
+      try {
+          // Export the UI content
+          if(!config.getBoolean("tsd.ui.noexport")) {
+            loadContent(config.getString("tsd.http.staticroot"));
+          }
+          // Create the cache dir if it does not exist
+          File cacheDir = new File(config.getString("tsd.http.cachedir"));
+          if(cacheDir.exists()) {
+            if(!cacheDir.isDirectory()) {
+              throw new IllegalArgumentException("The http cache directory [" + cacheDir + "] is not a directory, but a file, which is bad");
+            }
+          } else {
+            if(!cacheDir.mkdirs()) {
+              throw new IllegalArgumentException("Failed to create the http cache directory [" + cacheDir + "]");
+            }
+          }
+      } catch (Exception ex) {
+        log.error("Failed to process tsd configuration", ex);
+        System.exit(-1);
+      }	  
+  }
+  
   /**
    * Applies and processes the pre-tsd command line
    * @param cap The main configuration wrapper
@@ -194,6 +268,7 @@ public class OpenTSDBMain {
       }
     }
   }
+
   
   /**
    * Applies the properties from the named source to the main configuration
@@ -228,6 +303,45 @@ public class OpenTSDBMain {
   }
   
   /**
+   * Loads properties from the passed URL
+   * @param url The url to load from
+   * @return the loaded properties
+   */
+  protected static Properties loadConfig(URL url) {
+    InputStream is = null;
+    try {
+      URLConnection connection = url.openConnection();
+      if(connection instanceof HttpURLConnection) {
+        ((HttpURLConnection)connection).setConnectTimeout(2000);
+      }
+      is = connection.getInputStream();
+      return loadConfig(url.toString(), is);     
+    } catch (Exception ex) {
+      throw new IllegalArgumentException("Failed to load configuration from [" + url + "]");
+    }finally {
+      if(is!=null) try { is.close(); } catch (Exception ex) { /* No Op */ }
+    }
+  }
+  
+  
+  /**
+   * Loads properties from the passed file
+   * @param file The file to load from
+   * @return the loaded properties
+   */
+  protected static Properties loadConfig(File file) {
+    InputStream is = null;
+    try {
+      is = new FileInputStream(file);
+      return loadConfig(file.getAbsolutePath(), is);     
+    } catch (Exception ex) {
+      throw new IllegalArgumentException("Failed to load configuration from [" + file.getAbsolutePath() + "]");
+    }finally {
+      if(is!=null) try { is.close(); } catch (Exception ex) { /* No Op */ }
+    }
+  }
+  
+  /**
    * Loads properties from the passed input stream
    * @param source The name of the source the properties are being loaded from
    * @param is The input stream to load from
@@ -250,222 +364,7 @@ public class OpenTSDBMain {
     }
   }
   
-  /**
-   * Loads properties from the passed file
-   * @param file The file to load from
-   * @return the loaded properties
-   */
-  protected static Properties loadConfig(File file) {
-    InputStream is = null;
-    try {
-      is = new FileInputStream(file);
-      return loadConfig(file.getAbsolutePath(), is);     
-    } catch (Exception ex) {
-      throw new IllegalArgumentException("Failed to load configuration from [" + file.getAbsolutePath() + "]");
-    }finally {
-      if(is!=null) try { is.close(); } catch (Exception ex) { /* No Op */ }
-    }
-  }
   
-  /**
-   * Loads properties from the passed URL
-   * @param url The url to load from
-   * @return the loaded properties
-   */
-  protected static Properties loadConfig(URL url) {
-    InputStream is = null;
-    try {
-      URLConnection connection = url.openConnection();
-      if(connection instanceof HttpURLConnection) {
-        ((HttpURLConnection)connection).setConnectTimeout(2000);
-      }
-      is = connection.getInputStream();
-      return loadConfig(url.toString(), is);     
-    } catch (Exception ex) {
-      throw new IllegalArgumentException("Failed to load configuration from [" + url + "]");
-    }finally {
-      if(is!=null) try { is.close(); } catch (Exception ex) { /* No Op */ }
-    }
-  }
-  
-    /** Prints usage and exits with the given retval. */
-    static void usage(final ArgP argp, final String errmsg, final int retval) {
-      System.err.println(errmsg);
-      System.err.println(new ConfigArgP().getDefaultUsage());
-      if (argp != null) {
-        System.err.print(argp.usage());
-      }
-      System.exit(retval);
-    }
-  
-  
-  
-  /**
-   * Starts the TSD.
-   * @param args The command line arguments
-   */
-  private static void launchTSD(String[] args) {
-    ConfigArgP cap = new ConfigArgP(args);
-    Config config = cap.getConfig();
-    ArgP argp = cap.getArgp();
-    applyCommandLine(cap, argp);
-    config.loadStaticVariables();   
-    // All options are now correctly set in config
-    setJVMName(config.getInt("tsd.network.port"), config.getString("tsd.network.bind"));
-    // Configure the logging
-    if(config.hasProperty("tsd.logback.file")) {
-      final String logBackFile = config.getString("tsd.logback.file");
-      final String rollPattern = config.hasProperty("tsd.logback.rollpattern") ? config.getString("tsd.logback.rollpattern") : null;
-      final boolean keepConsoleOpen = config.hasProperty("tsd.logback.console") ? config.getBoolean("tsd.logback.console") : false;       
-      log.info("\n\t===================================\n\tReconfiguring logback. Logging to file:\n\t{}\n\t===================================\n", logBackFile);
-      setLogbackInternal(logBackFile, rollPattern, keepConsoleOpen);
-    } else {      
-      final String logBackConfig;
-      if(config.hasProperty("tsd.logback.config")) {
-        logBackConfig = config.getString("tsd.logback.config");
-      } else {
-        logBackConfig = System.getProperty("tsd.logback.config", null);
-      }
-      if(logBackConfig!=null && !logBackConfig.trim().isEmpty() && new File(logBackConfig.trim()).canRead()) {
-        setLogbackExternal(logBackConfig.trim());
-      }
-    }   
-    if(config.auto_metric()) {
-      log.info("\n\t==========================================\n\tAuto-Metric Enabled\n\t==========================================\n");
-    } else {
-      log.warn("\n\t==========================================\n\tAuto-Metric Disabled\n\t==========================================\n");
-    }
-    try {
-        // Write the PID file
-        writePid(config.getString("tsd.process.pid.file"), config.getBoolean("tsd.process.pid.ignore.existing"));       
-        // Export the UI content
-        if(!config.getBoolean("tsd.ui.noexport")) {
-          loadContent(config.getString("tsd.http.staticroot"));
-        }
-        // Create the cache dir if it does not exist
-        File cacheDir = new File(config.getString("tsd.http.cachedir"));
-        if(cacheDir.exists()) {
-          if(!cacheDir.isDirectory()) {
-            throw new IllegalArgumentException("The http cache directory [" + cacheDir + "] is not a directory, but a file, which is bad");
-          }
-        } else {
-          if(!cacheDir.mkdirs()) {
-            throw new IllegalArgumentException("Failed to create the http cache directory [" + cacheDir + "]");
-          }
-        }
-    } catch (Exception ex) {
-      log.error("Failed to process tsd configuration", ex);
-      System.exit(-1);
-    }
-    
-    //  =====================================================================    
-    //  Command line processing complete, ready to start TSD.
-    //  The code from here to the end of the method is an exact duplicate
-    //  of {@link TSDMain#main(String[])} once configuration is complete.
-    //  At the time of this writing, this is at line 123 starting with the
-    //  code:  final ServerSocketChannelFactory factory;
-    // =====================================================================     
-     
-    log.info("Configuration complete. Starting TSDB");
-      final ServerSocketChannelFactory factory;
-      if (config.getBoolean("tsd.network.async_io")) {
-        int workers = Runtime.getRuntime().availableProcessors() * 2;
-        if (config.hasProperty("tsd.network.worker_threads")) {
-          try {
-          workers = config.getInt("tsd.network.worker_threads");
-          } catch (NumberFormatException nfe) {
-            usage(argp, "Invalid worker thread count", 1);
-          }
-        }
-        factory = new NioServerSocketChannelFactory(
-            Executors.newCachedThreadPool(), Executors.newCachedThreadPool(),
-            workers);
-      } else {
-        factory = new OioServerSocketChannelFactory(
-            Executors.newCachedThreadPool(), Executors.newCachedThreadPool());
-      }
-      
-      TSDB tsdb = null;
-      try {
-        tsdb = new TSDB(config);
-        tsdb.initializePlugins(true);
-        
-        // Make sure we don't even start if we can't find our tables.
-        tsdb.checkNecessaryTablesExist().joinUninterruptibly();
-
-        registerShutdownHook(tsdb);
-        final ServerBootstrap server = new ServerBootstrap(factory);
-
-        server.setPipelineFactory(new PipelineFactory(tsdb));
-        if (config.hasProperty("tsd.network.backlog")) {
-          server.setOption("backlog", config.getInt("tsd.network.backlog")); 
-        }
-        server.setOption("child.tcpNoDelay", 
-            config.getBoolean("tsd.network.tcp_no_delay"));
-        server.setOption("child.keepAlive", 
-            config.getBoolean("tsd.network.keep_alive"));
-        server.setOption("reuseAddress", 
-            config.getBoolean("tsd.network.reuse_address"));
-
-        // null is interpreted as the wildcard address.
-        InetAddress bindAddress = null;
-        if (config.hasProperty("tsd.network.bind")) {
-          bindAddress = InetAddress.getByName(config.getString("tsd.network.bind"));
-        }
-
-        // we validated the network port config earlier
-        final InetSocketAddress addr = new InetSocketAddress(bindAddress,
-            config.getInt("tsd.network.port"));
-        server.bind(addr);
-        log.info("Ready to serve on " + addr);
-      } catch (Throwable e) {
-        factory.releaseExternalResources();
-        try {
-          if (tsdb != null)
-            tsdb.shutdown().joinUninterruptibly();
-        } catch (Exception e2) {
-          log.error("Failed to shutdown HBase client", e2);
-        }
-        throw new RuntimeException("Initialization failed", e);
-      }
-      // The server is now running in separate threads, we can exit main.
-  }
-  
-  
-  /**
-   * Attempts to set the vm agent property that identifies the vm's display name.
-   * This is the name displayed for tools such as jconsole and jps when using auto-dicsovery.
-   * When using a fat-jar, this provides a much more identifiable name
-   * @param port The listening port
-   * @param iface The bound interface
-   */
-  protected static void setJVMName(final int port, final String iface) {
-    final Properties p = getAgentProperties();
-    if(p!=null) {
-      final String ifc = (iface==null || iface.trim().isEmpty()) ? "" : (iface.trim() + ":");
-      final String name = "opentsdb[" + ifc + port + "]";
-      p.setProperty("sun.java.command", name);
-      p.setProperty("sun.rt.javaCommand", name);
-      System.setProperty("sun.java.command", name);
-      System.setProperty("sun.rt.javaCommand", name);     
-    }
-  }
-  
-  /**
-   * Returns the agent properties
-   * @return the agent properties or null if reflective call failed
-   */
-  protected static Properties getAgentProperties() {
-    try {
-      Class<?> clazz = Class.forName("sun.misc.VMSupport");
-      Method m = clazz.getDeclaredMethod("getAgentProperties");
-      m.setAccessible(true);
-      Properties p = (Properties)m.invoke(null);
-      return p;
-    } catch (Throwable t) {
-      return null;
-    }   
-  }
   
   /**
    * Sets the logback system property, <b><code>tsdb.logback.file</code></b> and then
@@ -552,22 +451,6 @@ public class OpenTSDBMain {
   }
   
     
-    private static void registerShutdownHook(final TSDB tsdb) {
-        final class TSDBShutdown extends Thread {
-          public TSDBShutdown() {
-            super("TSDBShutdown");
-          }
-          public void run() {
-            try {
-              tsdb.shutdown().join();
-            } catch (Exception e) {
-              LoggerFactory.getLogger(TSDBShutdown.class)
-                .error("Uncaught exception during shutdown", e);
-            }
-          }
-        }
-        Runtime.getRuntime().addShutdownHook(new TSDBShutdown());
-      }
     
   
     /**
@@ -780,6 +663,27 @@ public class OpenTSDBMain {
     }  else { // end of was-not-a-jar
       log.warn("\n\tThe OpenTSDB classpath is not a jar file, so there is no content to unload.\n\tBuild the OpenTSDB jar and run 'java -jar <jar> --d <target>'.");
     }
+  }
+  
+  
+  private static void configureLogback(final Config config) {
+	    if(config.hasProperty("tsd.logback.file")) {
+	        final String logBackFile = config.getString("tsd.logback.file");
+	        final String rollPattern = config.hasProperty("tsd.logback.rollpattern") ? config.getString("tsd.logback.rollpattern") : null;
+	        final boolean keepConsoleOpen = config.hasProperty("tsd.logback.console") ? config.getBoolean("tsd.logback.console") : false;       
+	        log.info("\n\t===================================\n\tReconfiguring logback. Logging to file:\n\t{}\n\t===================================\n", logBackFile);
+	        setLogbackInternal(logBackFile, rollPattern, keepConsoleOpen);
+	      } else {      
+	        final String logBackConfig;
+	        if(config.hasProperty("tsd.logback.config")) {
+	          logBackConfig = config.getString("tsd.logback.config");
+	        } else {
+	          logBackConfig = System.getProperty("tsd.logback.config", null);
+	        }
+	        if(logBackConfig!=null && !logBackConfig.trim().isEmpty() && new File(logBackConfig.trim()).canRead()) {
+	          setLogbackExternal(logBackConfig.trim());
+	        }
+	      }   	  
   }
   
     /**

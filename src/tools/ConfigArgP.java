@@ -110,6 +110,7 @@ public class ConfigArgP {
    * @param args The command line arguments
    */
   public ConfigArgP(String...args) {
+	final long startTime = System.currentTimeMillis();
     InputStream is = null;
     commandLineArgs = Collections.unmodifiableSet(new LinkedHashSet<String>(Arrays.asList(args)));
     try {
@@ -169,7 +170,7 @@ public class ConfigArgP {
       nonOptionArgs = applyArgs(args);
       loadExternalConfigs(items);
       config = new Config(config);
-      
+      LOG.info("Loaded config in [{}] ms.", System.currentTimeMillis() - startTime);
     } catch (Exception ex) {
       if(ex instanceof IllegalArgumentException) {
         throw (IllegalArgumentException)ex;
