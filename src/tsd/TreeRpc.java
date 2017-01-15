@@ -12,6 +12,10 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,12 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.PatternSyntaxException;
-
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
-
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.stumbleupon.async.DeferredGroupException;
 
 import net.opentsdb.core.TSDB;
 import net.opentsdb.meta.TSMeta;
@@ -34,6 +32,9 @@ import net.opentsdb.tree.TreeBuilder;
 import net.opentsdb.tree.TreeRule;
 import net.opentsdb.uid.NoSuchUniqueId;
 import net.opentsdb.utils.JSON;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.stumbleupon.async.DeferredGroupException;
 
 /**
  * Handles API calls for trees such as fetching, editing or deleting trees, 
@@ -161,9 +162,9 @@ final class TreeRpc implements HttpRpc {
           // since we don't want to complicate the Tree class with a "delete 
           // description" flag, we can just double parse the hash map in delete
           // calls
-          final String json = query.getContent();
+          final ByteBuf json = query.getContentBuffer();
           final HashMap<String, String> properties = 
-            JSON.parseToObject(json, TR_HASH_MAP);
+            JSON.parseToObject(json, TR_HASH_MAP, query.getCharset());
           final String delete_all = properties.get("definition");
           if (delete_all != null && delete_all.toLowerCase().equals("true")) {
               delete_definition = true;

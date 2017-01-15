@@ -12,8 +12,8 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,12 +26,12 @@ public class RpcUtil {
     public static void allowedMethods(HttpMethod requestMethod, String... allowedMethods) {
         for(String method : allowedMethods) {
             LOG.debug(String.format("Trying Method: %s", method));
-            if (requestMethod.getName() == method) {
+            if (requestMethod.name() == method) {
                 LOG.debug(String.format("Method Allowed: %s", method));
                 return;
             }
         }
         throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED,
-                "Method not allowed", "The HTTP method [" + requestMethod.getName() + "] is not permitted for this endpoint");
+                "Method not allowed", "The HTTP method [" + requestMethod.name() + "] is not permitted for this endpoint");
     }
 }

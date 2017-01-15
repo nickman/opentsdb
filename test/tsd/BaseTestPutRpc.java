@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.hbase.async.HBaseClient;
 import org.hbase.async.PleaseThrottleException;
 import org.hbase.async.Scanner;
-import org.jboss.netty.util.HashedWheelTimer;
+import io.netty.util.HashedWheelTimer;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.powermock.core.classloader.annotations.PrepareForTest;

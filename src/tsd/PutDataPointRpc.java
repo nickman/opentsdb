@@ -27,11 +27,11 @@ import com.stumbleupon.async.TimeoutException;
 
 import org.hbase.async.HBaseException;
 import org.hbase.async.PleaseThrottleException;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
-import org.jboss.netty.util.Timeout;
-import org.jboss.netty.util.TimerTask;
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.util.Timeout;
+import io.netty.util.TimerTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -157,7 +157,7 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
           handleStorageException(tsdb, getDataPointFromString(cmd), arg);
           
           if (send_telnet_errors) {
-            if (chan.isConnected()) {
+            if (chan.isOpen()) {
               if (chan.isWritable()) {
                 chan.write(errmsg);
               } else {
@@ -221,7 +221,7 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
       throw rex;
     }
     
-    if (errmsg != null && chan.isConnected()) {
+    if (errmsg != null && chan.isOpen()) {
       if (chan.isWritable()) {
         chan.write(errmsg);
       } else {
@@ -248,7 +248,7 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
     // only accept POST
     if (query.method() != HttpMethod.POST) {
       throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED, 
-          "Method not allowed", "The HTTP method [" + query.method().getName() +
+          "Method not allowed", "The HTTP method [" + query.method().name() +
           "] is not permitted for this endpoint");
     }
     final List<IncomingDataPoint> dps;

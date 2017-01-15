@@ -17,24 +17,23 @@ import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mock;
 
 import java.net.SocketAddress;
-import java.nio.charset.Charset;
 
+import org.junit.Ignore;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.DefaultChannelPipeline;
+import io.netty.channel.DefaultChannelPromise;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.handler.codec.http.HttpVersion;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.utils.Config;
-
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.DefaultChannelFuture;
-import org.jboss.netty.channel.DefaultChannelPipeline;
-import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpRequest;
-import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
-import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
-import org.jboss.netty.handler.codec.http.HttpVersion;
-import org.junit.Ignore;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
  * Helper class that provides mockups for testing any OpenTSDB processes that
@@ -43,6 +42,7 @@ import org.junit.Ignore;
 @Ignore
 public final class NettyMocks {
 
+  static final BufferManager bufferManager = BufferManager.newInstance();
   /**
    * Sets up a TSDB object for HTTP RPC tests that has a Config object
    * @return A TSDB mock
@@ -63,12 +63,13 @@ public final class NettyMocks {
   public static Channel fakeChannel() {
     final Channel chan = mock(Channel.class);
     when(chan.toString()).thenReturn("[fake channel]");
-    when(chan.isConnected()).thenReturn(true);
+    when(chan.isOpen()).thenReturn(true);
     when(chan.isWritable()).thenReturn(true);
     
     final SocketAddress socket = mock(SocketAddress.class);
     when(socket.toString()).thenReturn("192.168.1.1:4243");
-    when(chan.getRemoteAddress()).thenReturn(socket);
+    when(chan.remoteAddress()).thenReturn(socket);
+    
     return chan;
   }
   
@@ -84,7 +85,7 @@ public final class NettyMocks {
    */
   public static HttpQuery getQuery(final TSDB tsdb, final String uri) {
     final Channel channelMock = NettyMocks.fakeChannel();
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
+    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.GET, uri);
     return new HttpQuery(tsdb, req, channelMock);
   }
@@ -189,11 +190,10 @@ public final class NettyMocks {
   public static HttpQuery contentQuery(final TSDB tsdb, final String uri, 
       final String content, final String type, final HttpMethod method) {
     final Channel channelMock = NettyMocks.fakeChannel();
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
+    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         method, uri);
     if (content != null) {
-      req.setContent(ChannelBuffers.copiedBuffer(content, 
-          Charset.forName("UTF-8")));
+    	req.content().writeBytes(bufferManager.wrap(content));
     }
     req.headers().set("Content-Type", type);
     return new HttpQuery(tsdb, req, channelMock);
@@ -201,18 +201,27 @@ public final class NettyMocks {
 
   /** @param the query to mock a future callback for */
   public static void mockChannelFuture(final HttpQuery query) {
-    final ChannelFuture future = new DefaultChannelFuture(query.channel(), false);
-    when(query.channel().write(any(ChannelBuffer.class))).thenReturn(future);
+    final DefaultChannelPromise future = new DefaultChannelPromise(query.channel());
+    when(query.channel().write(any(ByteBuf.class))).thenReturn(future);
     future.setSuccess();
+  }
+  
+  static class CtorDefaultChannelPipeline extends DefaultChannelPipeline {
+
+	protected CtorDefaultChannelPipeline(final Channel channel) {
+		super(channel);
+	}
+	  
   }
   
   /**
    * Returns a simple pipeline with an HttpRequestDecoder and an 
-   * HttpResponseEncoder. No mocking, returns an actual pipeline
+   * HttpResponseEncoder. No mocking, returns an actual pipeline but an
+   * extension with an accessible constructor
    * @return The pipeline
    */
   private DefaultChannelPipeline createHttpPipeline() {
-    DefaultChannelPipeline pipeline = new DefaultChannelPipeline();
+    DefaultChannelPipeline pipeline = new CtorDefaultChannelPipeline(null);
     pipeline.addLast("requestDecoder", new HttpRequestDecoder());
     pipeline.addLast("responseEncoder", new HttpResponseEncoder());
     return pipeline;

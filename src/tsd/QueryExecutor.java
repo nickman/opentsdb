@@ -24,10 +24,9 @@ import java.util.Map.Entry;
 
 import org.hbase.async.HBaseException;
 import org.hbase.async.RpcTimedOutException;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBufferOutputStream;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufOutputStream;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.jgrapht.experimental.dag.DirectedAcyclicGraph;
 import org.jgrapht.experimental.dag.DirectedAcyclicGraph.CycleFoundException;
 import org.jgrapht.graph.DefaultEdge;
@@ -64,6 +63,7 @@ import net.opentsdb.uid.NoSuchUniqueName;
 import net.opentsdb.uid.UniqueId.UniqueIdType;
 import net.opentsdb.utils.DateTime;
 import net.opentsdb.utils.JSON;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
  * TEMP class for handling V2 queries with expression support. So far we ONLY
@@ -108,6 +108,10 @@ public class QueryExecutor {
 
   /** The HTTP query from the user */
   private HttpQuery http_query;
+  
+  /** The buff allocator */
+  private final BufferManager bufAllocator = BufferManager.getInstance();
+  
   
   /**
    * Default Ctor that constructs a TSQuery and TSSubQueries from the new 
@@ -229,9 +233,9 @@ public class QueryExecutor {
      * Sends the serialized results to the caller. This should be the very
      * last callback executed.
      */
-    class CompleteCB implements Callback<Object, ChannelBuffer> {
+    class CompleteCB implements Callback<Object, ByteBuf> {
       @Override
-      public Object call(final ChannelBuffer cb) throws Exception {
+      public Object call(final ByteBuf cb) throws Exception {
         query.sendReply(cb);
         return null;
       }
@@ -469,15 +473,15 @@ public class QueryExecutor {
   }
   
   /**
-   * Writes the results to a ChannelBuffer to return to the caller. This will
+   * Writes the results to a ByteBuf to return to the caller. This will
    * iterate over all of the outputs and drop in meta data where appropriate.
    * @throws Exception if something went pear shaped
    */
-  private Deferred<ChannelBuffer> serialize() throws Exception {
+  private Deferred<ByteBuf> serialize() throws Exception {
     final long start = System.currentTimeMillis();
     // buffers and an array list to stored the deferreds
-    final ChannelBuffer response = ChannelBuffers.dynamicBuffer();
-    final OutputStream output_stream = new ChannelBufferOutputStream(response);
+    final ByteBuf response = bufAllocator.ioBuffer();
+    final OutputStream output_stream = new ByteBufOutputStream(response);
 
     final JsonGenerator json = JSON.getFactory().createGenerator(output_stream);
     json.writeStartObject();
@@ -535,8 +539,8 @@ public class QueryExecutor {
     }
   
     /** Final callback to close out the JSON array and return our results */
-    class FinalCB implements Callback<ChannelBuffer, Object> {
-      public ChannelBuffer call(final Object obj)
+    class FinalCB implements Callback<ByteBuf, Object> {
+      public ByteBuf call(final Object obj)
           throws Exception {
         json.writeEndArray();
         

@@ -13,43 +13,16 @@
 package net.opentsdb.tsd;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Splitter;
-import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.Atomics;
-import com.stumbleupon.async.Callback;
-import com.stumbleupon.async.Deferred;
-
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.opentsdb.tools.BuildData;
-import net.opentsdb.core.Aggregators;
-import net.opentsdb.core.TSDB;
-import net.opentsdb.query.filter.TagVFilter;
-import net.opentsdb.stats.StatsCollector;
-import net.opentsdb.utils.Config;
-import net.opentsdb.utils.JSON;
-import net.opentsdb.utils.PluginLoader;
+import com.stumbleupon.async.Deferred;
 
-import java.io.IOException;
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpMethod;
+import net.opentsdb.core.TSDB;
 
 /** The "dropcaches" command. */
 public final class DropCachesRpc implements TelnetRpc, HttpRpc {
@@ -66,7 +39,7 @@ public final class DropCachesRpc implements TelnetRpc, HttpRpc {
             throws IOException {
 
         // only accept GET/DELETE
-        RpcUtil.allowedMethods(query.method(), HttpMethod.GET.getName(), HttpMethod.DELETE.getName());
+        RpcUtil.allowedMethods(query.method(), HttpMethod.GET.name(), HttpMethod.DELETE.name());
 
         dropCaches(tsdb, query.channel());
 

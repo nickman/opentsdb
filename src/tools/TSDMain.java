@@ -22,12 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.channel.socket.ServerSocketChannelFactory;
-import org.jboss.netty.channel.socket.nio.NioServerBossPool;
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.channel.socket.nio.NioWorkerPool;
-import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
+import io.netty.bootstrap.ServerBootstrap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -144,33 +139,6 @@ final class TSDMain {
       usage(argp, e.getMessage(), 3);
     }
 
-    final ServerSocketChannelFactory factory;
-    int connections_limit = 0;
-    try {
-      connections_limit = config.getInt("tsd.core.connections.limit");
-    } catch (NumberFormatException nfe) {
-      usage(argp, "Invalid connections limit", 1);
-    }
-    if (config.getBoolean("tsd.network.async_io")) {
-      int workers = Runtime.getRuntime().availableProcessors() * 2;
-      if (config.hasProperty("tsd.network.worker_threads")) {
-        try {
-        workers = config.getInt("tsd.network.worker_threads");
-        } catch (NumberFormatException nfe) {
-          usage(argp, "Invalid worker thread count", 1);
-        }
-      }
-      final Executor executor = Executors.newCachedThreadPool();
-      final NioServerBossPool boss_pool = 
-          new NioServerBossPool(executor, 1, new Threads.BossThreadNamer());
-      final NioWorkerPool worker_pool = new NioWorkerPool(executor, 
-          workers, new Threads.WorkerThreadNamer());
-      factory = new NioServerSocketChannelFactory(boss_pool, worker_pool);
-    } else {
-      factory = new OioServerSocketChannelFactory(
-          Executors.newCachedThreadPool(), Executors.newCachedThreadPool(), 
-          new Threads.PrependThreadNamer());
-    }
 
     StartupPlugin startup = null;
     try {
@@ -180,7 +148,7 @@ final class TSDMain {
     } catch (Exception e) {
       throw new RuntimeException("Initialization failed", e);
     }
-
+    TSDServer server = null;
     try {
       tsdb = new TSDB(config);
       if (startup != null) {
@@ -195,39 +163,19 @@ final class TSDMain {
       tsdb.checkNecessaryTablesExist().joinUninterruptibly();
       
       registerShutdownHook();
-      final ServerBootstrap server = new ServerBootstrap(factory);
+      
       
       // This manager is capable of lazy init, but we force an init
       // here to fail fast.
       final RpcManager manager = RpcManager.instance(tsdb);
+      final PipelineFactory pipelineFactory = new PipelineFactory(tsdb, manager);
+      server = new TSDServer(tsdb, pipelineFactory); 
+      server.start();
 
-      server.setPipelineFactory(new PipelineFactory(tsdb, manager, connections_limit));
-      if (config.hasProperty("tsd.network.backlog")) {
-        server.setOption("backlog", config.getInt("tsd.network.backlog")); 
-      }
-      server.setOption("child.tcpNoDelay", 
-          config.getBoolean("tsd.network.tcp_no_delay"));
-      server.setOption("child.keepAlive", 
-          config.getBoolean("tsd.network.keep_alive"));
-      server.setOption("reuseAddress", 
-          config.getBoolean("tsd.network.reuse_address"));
-
-      // null is interpreted as the wildcard address.
-      InetAddress bindAddress = null;
-      if (config.hasProperty("tsd.network.bind")) {
-        bindAddress = InetAddress.getByName(config.getString("tsd.network.bind"));
-      }
-
-      // we validated the network port config earlier
-      final InetSocketAddress addr = new InetSocketAddress(bindAddress,
-          config.getInt("tsd.network.port"));
-      server.bind(addr);
-      if (startup != null) {
-        startup.setReady(tsdb);
-      }
-      log.info("Ready to serve on " + addr);
     } catch (Throwable e) {
-      factory.releaseExternalResources();
+      if(server!=null) {
+    	  server.stop();
+      }
       try {
         if (tsdb != null)
           tsdb.shutdown().joinUninterruptibly();

@@ -14,7 +14,7 @@ package net.opentsdb.tsd;
 
 import com.stumbleupon.async.Deferred;
 
-import org.jboss.netty.channel.Channel;
+import io.netty.channel.Channel;
 
 import net.opentsdb.core.TSDB;
 

@@ -19,8 +19,8 @@ import net.opentsdb.storage.MockBase;
 import org.hamcrest.CoreMatchers;
 import org.hbase.async.HBaseException;
 import org.hbase.async.PleaseThrottleException;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -114,7 +114,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
 //        .joinUninterruptibly());
 //    validateCounters(1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 //    verify(chan, never()).write(any());
-//    verify(chan, never()).isConnected();
+//    verify(chan, never()).isOpen();
 //    validateSEH(false);
 //    storage.dumpToSystemOut();
 //    System.out.println(MockBase.bytesToString(row));
@@ -136,7 +136,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly());
     validateCounters(1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, never()).isConnected();
+    verify(chan, never()).isOpen();
     validateSEH(false);
     
     final byte[] qualifier = new byte[] {0x73, 0x75, 0x6D, 0x3A, 0, 0};
@@ -158,7 +158,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
@@ -171,7 +171,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, never()).isConnected();
+    verify(chan, never()).isOpen();
     validateSEH(false);
     
     row = getRowKey(METRIC_STRING, 1356998400, TAGK_STRING, TAGV_STRING, 
@@ -193,7 +193,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, never()).isConnected();
+    verify(chan, never()).isOpen();
     validateSEH(false);
     
     row = getRowKey(METRIC_STRING, 1356998400, TAGK_STRING, TAGV_STRING, 
@@ -215,7 +215,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
 
@@ -229,7 +229,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
@@ -242,7 +242,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
@@ -255,7 +255,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
 
@@ -283,7 +283,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
   
@@ -299,7 +299,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
 
@@ -315,7 +315,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
 
@@ -330,7 +330,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
 
@@ -346,7 +346,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
 
@@ -362,7 +362,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
   
@@ -417,7 +417,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         METRIC_STRING, "1365465600", "42" }).joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
@@ -430,7 +430,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
@@ -443,7 +443,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
 
@@ -457,7 +457,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
 //        .joinUninterruptibly();
 //    validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 //    verify(chan, never()).write(any());
-//    verify(chan, never()).isConnected();
+//    verify(chan, never()).isOpen();
 //    validateSEH(false);
 //  }
   
@@ -470,7 +470,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
 
@@ -485,7 +485,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
 
@@ -498,7 +498,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
@@ -511,7 +511,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
@@ -526,7 +526,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
 //            + "\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
 //    final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
 //    rollup.execute(tsdb, query);
-//    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+//    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
 //    validateCounters(0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 //    validateSEH(false);
 //    
@@ -546,7 +546,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
     
@@ -567,7 +567,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
     
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
     row = getRowKey(METRIC_STRING, 1356998400, TAGK_STRING, TAGV_STRING, 
@@ -591,7 +591,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
     
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
     row = getRowKey(METRIC_STRING, 1356998400, TAGK_STRING, TAGV_STRING, 
@@ -616,7 +616,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
     
@@ -646,7 +646,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     validateCounters(0, 1, 0, 2, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0);
     validateSEH(false);
     
@@ -672,13 +672,13 @@ public class TestRollupRpc extends BaseTestPutRpc {
             TAGV_STRING + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response =
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertThat(response, CoreMatchers.containsString("\"error\":\"Missing interval\""));
     assertThat(response, CoreMatchers.containsString("\"failed\":1"));
     assertThat(response, CoreMatchers.containsString("\"success\":0"));
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     validateCounters(0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -691,9 +691,9 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response =
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertThat(response, CoreMatchers.containsString("\"error\":\"Missing interval\""));
     assertThat(response, CoreMatchers.containsString("\"failed\":1"));
     assertThat(response, CoreMatchers.containsString("\"success\":0"));
@@ -709,9 +709,9 @@ public class TestRollupRpc extends BaseTestPutRpc {
             TAGV_STRING + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response =
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertThat(response, CoreMatchers.containsString("\"error\":\"Missing aggregator\""));
     assertThat(response, CoreMatchers.containsString("\"failed\":1"));
     assertThat(response, CoreMatchers.containsString("\"success\":0"));
@@ -727,7 +727,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     validateCounters(0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
     
@@ -748,9 +748,9 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response =
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertThat(response, CoreMatchers.containsString("\"error\":\"Missing aggregator\""));
     assertThat(response, CoreMatchers.containsString("\"failed\":1"));
     assertThat(response, CoreMatchers.containsString("\"success\":0"));
@@ -766,7 +766,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     validateCounters(0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -779,7 +779,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + NSUN_TAGK + "\":\"" + TAGV_STRING + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     validateCounters(0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -792,7 +792,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + TAGK_STRING + "\":\"" + NSUN_TAGV + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     validateCounters(0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -807,7 +807,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(true);
   }
@@ -822,7 +822,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
     validateSEH(true);
   }
@@ -835,7 +835,7 @@ public class TestRollupRpc extends BaseTestPutRpc {
             + "\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
     rollup.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     validateCounters(0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }

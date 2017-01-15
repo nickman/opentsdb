@@ -12,9 +12,8 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.handler.codec.http.HttpRequest;
-
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.FullHttpRequest;
 import net.opentsdb.core.TSDB;
 
 /**
@@ -24,8 +23,8 @@ import net.opentsdb.core.TSDB;
  * @since 2.2
  */
 public final class HttpRpcPluginQuery extends AbstractHttpQuery {
-  public HttpRpcPluginQuery(final TSDB tsdb, final HttpRequest request, final Channel chan) {
-    super(tsdb, request, chan);
+  public HttpRpcPluginQuery(final TSDB tsdb, final FullHttpRequest request, final Channel channel) {
+    super(tsdb, request, channel);
   }
 
   /**

@@ -16,8 +16,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.DynamicChannelBuffer;
+import io.netty.buffer.ByteBuf;
+import net.opentsdb.utils.buffermgr.BufferManager;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +89,7 @@ public class GnuplotInstaller {
         FileOutputStream fos = null;
         try {
           is = GnuplotInstaller.class.getClassLoader().getResourceAsStream(GP_BATCH_FILE_NAME);
-          ChannelBuffer buff = new DynamicChannelBuffer(is.available());
+          ByteBuf buff = BufferManager.getInstance().buffer(is.available()); 
           buff.writeBytes(is, is.available());
           is.close(); is = null;
           fos = new FileOutputStream(GP_FILE);

@@ -20,36 +20,42 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
-import net.opentsdb.core.Const;
-import net.opentsdb.core.TSDB;
-import net.opentsdb.graph.Plot;
-import net.opentsdb.stats.Histogram;
-import net.opentsdb.stats.StatsCollector;
-import net.opentsdb.utils.PluginLoader;
-
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.channel.DefaultFileRegion;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpRequest;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
-import org.jboss.netty.util.CharsetUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.stumbleupon.async.Deferred;
+
 import ch.qos.logback.classic.spi.ThrowableProxy;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.DefaultFileRegion;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.util.CharsetUtil;
+import net.opentsdb.core.Const;
+import net.opentsdb.core.TSDB;
+import net.opentsdb.stats.Histogram;
+import net.opentsdb.stats.StatsCollector;
+import net.opentsdb.utils.PluginLoader;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
-import com.stumbleupon.async.Deferred;
 
 /**
  * Binds together an HTTP request and the channel on which it was received.
@@ -65,6 +71,9 @@ final class HttpQuery extends AbstractHttpQuery {
 
   /** The maximum implemented API version, set when the user doesn't */
   private static final int MAX_API_VERSION = 1;
+
+  /** The buff allocator */
+  private final BufferManager bufAllocator = BufferManager.getInstance();
 
   /**
    * Keep track of the latency of HTTP requests.
@@ -94,15 +103,30 @@ final class HttpQuery extends AbstractHttpQuery {
 
   /**
    * Constructor.
+   * @param tsdb The parent TSDB
    * @param request The request in this HTTP query.
-   * @param chan The channel on which the request was received.
+   * @param ctx The channel handler context
    */
-  public HttpQuery(final TSDB tsdb, final HttpRequest request, final Channel chan) {
-    super(tsdb, request, chan);
+  public HttpQuery(final TSDB tsdb, final FullHttpRequest request, final ChannelHandlerContext ctx) {
+    super(tsdb, request, ctx);
     this.show_stack_trace =
       tsdb.getConfig().getBoolean("tsd.http.show_stack_trace");
     this.serializer = new HttpJsonSerializer(this);
   }
+  
+  /**
+   * Constructor.
+   * @param tsdb The parent TSDB
+   * @param request The request in this HTTP query.
+   * @param chan The channel on which the request was received.
+   */
+  public HttpQuery(final TSDB tsdb, final FullHttpRequest request, final Channel channel) {
+    super(tsdb, request, channel);
+    this.show_stack_trace =
+      tsdb.getConfig().getBoolean("tsd.http.show_stack_trace");
+    this.serializer = new HttpJsonSerializer(this);
+  }
+  
 
   /**
    * Collects the stats and metrics tracked by this instance.
@@ -347,7 +371,7 @@ final class HttpQuery extends AbstractHttpQuery {
    */
   @Override
   public void internalError(final Exception cause) {
-    logError("Internal Server Error on " + request().getUri(), cause);
+    logError("Internal Server Error on " + request().uri(), cause);
 
     if (this.api_version > 0) {
       // always default to the latest version of the error formatter since we
@@ -401,7 +425,7 @@ final class HttpQuery extends AbstractHttpQuery {
    */
   @Override
   public void badRequest(final BadRequestException exception) {
-    logWarn("Bad Request on " + request().getUri() + ": " + exception.getMessage());
+    logWarn("Bad Request on " + request().uri() + ": " + exception.getMessage());
     if (this.api_version > 0) {
       // always default to the latest version of the error formatter since we
       // need to return something
@@ -438,7 +462,7 @@ final class HttpQuery extends AbstractHttpQuery {
    */
   @Override
   public void notFound() {
-    logWarn("Not Found: " + request().getUri());
+    logWarn("Not Found: " + request().uri());
     if (this.api_version > 0) {
       // always default to the latest version of the error formatter since we
       // need to return something
@@ -527,7 +551,7 @@ final class HttpQuery extends AbstractHttpQuery {
    * @param data Raw byte array to send as-is after the HTTP headers.
    */
   public void sendReply(final byte[] data) {
-    sendBuffer(HttpResponseStatus.OK, ChannelBuffers.wrappedBuffer(data));
+    sendBuffer(HttpResponseStatus.OK, bufAllocator.ioBuffer(data.length).writeBytes(data));
   }
 
   /**
@@ -537,7 +561,7 @@ final class HttpQuery extends AbstractHttpQuery {
    * @since 2.0
    */
   public void sendReply(final HttpResponseStatus status, final byte[] data) {
-    sendBuffer(status, ChannelBuffers.wrappedBuffer(data));
+    sendBuffer(status, bufAllocator.ioBuffer(data.length).writeBytes(data));
   }
 
   /**
@@ -564,7 +588,7 @@ final class HttpQuery extends AbstractHttpQuery {
    */
   public void sendReply(final String buf) {
     sendBuffer(HttpResponseStatus.OK,
-               ChannelBuffers.copiedBuffer(buf, CharsetUtil.UTF_8));
+    		bufAllocator.ioBuffer(buf.length()).writeBytes(buf.getBytes(CharsetUtil.UTF_8)));
   }
 
   /**
@@ -574,27 +598,26 @@ final class HttpQuery extends AbstractHttpQuery {
    */
   public void sendReply(final HttpResponseStatus status,
                         final StringBuilder buf) {
-    sendBuffer(status, ChannelBuffers.copiedBuffer(buf.toString(),
-                                                   CharsetUtil.UTF_8));
+    sendBuffer(status, bufAllocator.ioBuffer(buf.length()).writeBytes(buf.toString().getBytes(CharsetUtil.UTF_8)));
   }
 
   /**
-   * Sends the ChannelBuffer with a 200 status
+   * Sends the ByteBuf with a 200 status
    * @param buf The buffer to send
    * @since 2.0
    */
-  public void sendReply(final ChannelBuffer buf) {
+  public void sendReply(final ByteBuf buf) {
     sendBuffer(HttpResponseStatus.OK, buf);
   }
 
   /**
-   * Sends the ChannelBuffer with the given status
+   * Sends the ByteBuf with the given status
    * @param status HttpResponseStatus to reply with
    * @param buf The buffer to send
    * @since 2.0
    */
   public void sendReply(final HttpResponseStatus status,
-      final ChannelBuffer buf) {
+      final ByteBuf buf) {
     sendBuffer(status, buf);
   }
 
@@ -625,58 +648,77 @@ final class HttpQuery extends AbstractHttpQuery {
    * caching.
    */
   @SuppressWarnings("resource") // Clears warning about RandomAccessFile not
-      // being closed. It is closed in operationComplete().
+  // being closed. It is closed in operationComplete().
   public void sendFile(final HttpResponseStatus status,
-                       final String path,
-                       final int max_age) throws IOException {
-    if (max_age < 0) {
-      throw new IllegalArgumentException("Negative max_age=" + max_age
-                                         + " for path=" + path);
-    }
-    if (!channel().isConnected()) {
-      done();
-      return;
-    }
-    RandomAccessFile file;
-    try {
-      file = new RandomAccessFile(path, "r");
-    } catch (FileNotFoundException e) {
-      logWarn("File not found: " + e.getMessage());
-      if (getQueryString() != null && !getQueryString().isEmpty()) {
-        getQueryString().remove("png");  // Avoid potential recursion.
-      }
-      this.sendReply(HttpResponseStatus.NOT_FOUND, serializer.formatNotFoundV1());
-      return;
-    }
-    final long length = file.length();
-    {
-      final String mimetype = guessMimeTypeFromUri(path);
-      response().headers().set(HttpHeaders.Names.CONTENT_TYPE,
-                         mimetype == null ? "text/plain" : mimetype);
-      final long mtime = new File(path).lastModified();
-      if (mtime > 0) {
-        response().headers().set(HttpHeaders.Names.AGE,
-                           (System.currentTimeMillis() - mtime) / 1000);
-      } else {
-        logWarn("Found a file with mtime=" + mtime + ": " + path);
-      }
-      response().headers().set(HttpHeaders.Names.CACHE_CONTROL,
-                         "max-age=" + max_age);
-      HttpHeaders.setContentLength(response(), length);
-      channel().write(response());
-    }
-    final DefaultFileRegion region = new DefaultFileRegion(file.getChannel(),
-                                                           0, length);
-    final ChannelFuture future = channel().write(region);
-    future.addListener(new ChannelFutureListener() {
-      public void operationComplete(final ChannelFuture future) {
-        region.releaseExternalResources();
-        done();
-      }
-    });
-    if (!HttpHeaders.isKeepAlive(request())) {
-      future.addListener(ChannelFutureListener.CLOSE);
-    }
+		  final String path,
+		  final int max_age) throws IOException {
+	  if (max_age < 0) {
+		  throw new IllegalArgumentException("Negative max_age=" + max_age
+				  + " for path=" + path);
+	  }
+	  if (!channel().isOpen()) {
+		  done();
+		  return;
+	  }
+	  RandomAccessFile file;
+	  try {
+		  file = new RandomAccessFile(path, "r");
+	  } catch (FileNotFoundException e) {
+		  logWarn("File not found: " + e.getMessage());
+		  if (getQueryString() != null && !getQueryString().isEmpty()) {
+			  getQueryString().remove("png");  // Avoid potential recursion.
+		  }
+		  this.sendReply(HttpResponseStatus.NOT_FOUND, serializer.formatNotFoundV1());
+		  return;
+	  }
+	  final long length = file.length();
+	  HttpUtil.setContentLength(request(), length);
+	  final String mimetype = guessMimeTypeFromUri(path);
+	  response().headers().set(HttpHeaderNames.CONTENT_TYPE,
+			  mimetype == null ? "text/plain" : mimetype);
+	  final long mtime = new File(path).lastModified();
+	  if (mtime > 0) {
+		  response().headers().set(HttpHeaderNames.AGE,
+				  (System.currentTimeMillis() - mtime) / 1000);
+	  } else {
+		  logWarn("Found a file with mtime=" + mtime + ": " + path);
+	  }
+	  response().headers().set(HttpHeaderNames.CACHE_CONTROL,
+			  "max-age=" + max_age);
+
+	  HttpUtil.setContentLength(response(), length);
+//	  channel().write(response());
+	  final DefaultFileRegion region = new DefaultFileRegion(file.getChannel(),  0, length);
+	  final ByteBuf fb = bufAllocator.ioBuffer((int)length);
+	  region.transferTo(new WritableByteChannel(){
+		@Override
+		public boolean isOpen() {
+			return true;
+		}
+		@Override
+		public void close() throws IOException { /* No Op */}
+		@Override
+		public int write(final ByteBuffer src) throws IOException {
+			final int start = fb.writerIndex();
+			fb.writeBytes(src);
+			return fb.writerIndex() - start;
+		}		  
+	  }, 0);
+	  FullHttpResponse fhr = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, fb);
+	  fhr.headers().add(request().headers());
+	  final ChannelFuture future = ctx().writeAndFlush(fhr);
+//	  ctx().write(fb);
+//	  final ChannelFuture future = ctx().writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT); 
+			  
+	  future.addListener(new ChannelFutureListener() {
+		  public void operationComplete(final ChannelFuture future) {
+			  //        region.release();
+			  done();
+		  }
+	  });
+	  if (!HttpUtil.isKeepAlive(request())) {
+		  future.addListener(ChannelFutureListener.CLOSE);
+	  }
   }
 
   /**
@@ -686,7 +728,7 @@ final class HttpQuery extends AbstractHttpQuery {
   public void done() {
     final int processing_time = processingTimeMillis();
     httplatency.add(processing_time);
-    logInfo("HTTP " + request().getUri() + " done in " + processing_time + "ms");
+    logInfo("HTTP " + request().uri() + " done in " + processing_time + "ms");
     deferred.callback(null);
   }
 
@@ -696,7 +738,7 @@ final class HttpQuery extends AbstractHttpQuery {
    * @param buf The content of the reply to send.
    */
   private void sendBuffer(final HttpResponseStatus status,
-                          final ChannelBuffer buf) {
+                          final ByteBuf buf) {
     final String contentType = (api_version < 1 ? guessMimeType(buf) :
       serializer.responseContentType());
     sendBuffer(status, buf, contentType);
@@ -706,8 +748,8 @@ final class HttpQuery extends AbstractHttpQuery {
    * Returns the result of an attempt to guess the MIME type of the response.
    * @param buf The content of the reply to send.
    */
-  private String guessMimeType(final ChannelBuffer buf) {
-    final String mimetype = guessMimeTypeFromUri(request().getUri());
+  private String guessMimeType(final ByteBuf buf) {
+    final String mimetype = guessMimeTypeFromUri(request().uri());
     return mimetype == null ? guessMimeTypeFromContents(buf) : mimetype;
   }
 
@@ -751,8 +793,8 @@ final class HttpQuery extends AbstractHttpQuery {
    * @param buf The content of the reply to send.
    * @return The MIME type guessed from {@code buf}.
    */
-  private String guessMimeTypeFromContents(final ChannelBuffer buf) {
-    if (!buf.readable()) {
+  private String guessMimeTypeFromContents(final ByteBuf buf) {
+    if (!buf.isReadable()) {
       logWarn("Sending an empty result?! buf=" + buf);
       return "text/plain";
     }

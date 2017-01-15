@@ -31,9 +31,9 @@ import net.opentsdb.stats.StatsCollector;
 import net.opentsdb.utils.JSON;
 
 import org.hbase.async.RegionClientStats;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,7 +75,7 @@ public final class StatsRpc implements TelnetRpc, HttpRpc {
     // only accept GET/POST
     if (query.method() != HttpMethod.GET && query.method() != HttpMethod.POST) {
       throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED, 
-          "Method not allowed", "The HTTP method [" + query.method().getName() +
+          "Method not allowed", "The HTTP method [" + query.method().name() +
           "] is not permitted for this endpoint");
     }
     

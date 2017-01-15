@@ -12,47 +12,52 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
-import static org.jboss.netty.channel.Channels.pipeline;
+import java.nio.charset.Charset;
 
-import java.util.concurrent.ThreadFactory;
-import net.opentsdb.auth.AuthenticationChannelHandler;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelHandler;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.handler.codec.frame.FrameDecoder;
-import org.jboss.netty.handler.codec.string.StringEncoder;
-import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
-import org.jboss.netty.handler.codec.http.HttpContentDecompressor;
-import org.jboss.netty.handler.codec.http.HttpContentCompressor;
-import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
-import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
-import org.jboss.netty.handler.timeout.IdleStateHandler;
-import org.jboss.netty.util.Timer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.LineBasedFrameDecoder;
+import io.netty.handler.codec.http.HttpContentCompressor;
+import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.string.StringEncoder;
+import io.netty.handler.timeout.IdleStateHandler;
+import io.netty.util.Timer;
 import net.opentsdb.core.TSDB;
 
 /**
  * Creates a newly configured {@link ChannelPipeline} for a new channel.
  * This class is supposed to be a singleton.
- * NOTE: On creation (as of 2.3) the property given in the config for 
- * "tsd.core.connections.limit" will be used to limit the number of concurrent
- * connections supported by the pipeline. The default is zero.
  */
-public final class PipelineFactory implements ChannelPipelineFactory {
-
+@ChannelHandler.Sharable
+public final class PipelineFactory extends ChannelInitializer<Channel> {
+	
+	// Why this instead of UTF-8 ? I don't know. TODO: find out
+	public static final Charset ISO8859 = Charset.forName("ISO-8859-1");
   // Those are entirely stateless and thus a single instance is needed.
-  private static final StringEncoder ENCODER = new StringEncoder();
-  private static final WordSplitter DECODER = new WordSplitter();
-
+  private static final StringEncoder ENCODER = new StringEncoder(ISO8859);
+  
+  private static final StringArrayDecoder STR_ARRAY_DECODER = new StringArrayDecoder();
+  
+//  private static final WordSplitter DECODER = new WordSplitter(); // ISO-8859-1
+  public static final ByteBuf SPACE = Unpooled.wrappedBuffer(" ".getBytes(ISO8859)).asReadOnly();
   // Those are sharable but maintain some state, so a single instance per
   // PipelineFactory is needed.
-  private final ConnectionManager connmgr;
+  private final ConnectionManager connmgr = new ConnectionManager();
   private final DetectHttpOrRpc HTTP_OR_RPC = new DetectHttpOrRpc();
   private final Timer timer;
-  private final ChannelHandler timeoutHandler;
+  private final IdleStateHandler timeoutHandler;
+//  private final ChannelHandler timeoutHandlerX;
 
   /** Stateless handler for RPCs. */
   private final RpcHandler rpchandler;
@@ -72,8 +77,7 @@ public final class PipelineFactory implements ChannelPipelineFactory {
    * serializers
    */
   public PipelineFactory(final TSDB tsdb) {
-    this(tsdb, RpcManager.instance(tsdb), 
-        tsdb.getConfig().getInt("tsd.core.connections.limit"));
+    this(tsdb, RpcManager.instance(tsdb));
   }
 
   /**
@@ -82,32 +86,15 @@ public final class PipelineFactory implements ChannelPipelineFactory {
    * @param tsdb The TSDB to use.
    * @param manager instance of a ready-to-use {@link RpcManager}.
    * @throws RuntimeException if there is an issue loading plugins
-   * @throws Exception if the HttpQuery handler is unable to load serializers
+   * @throws Exception if the HttpQuery handler is unable to load 
+   * serializers
    */
   public PipelineFactory(final TSDB tsdb, final RpcManager manager) {
-    this(tsdb, RpcManager.instance(tsdb), 
-        tsdb.getConfig().getInt("tsd.core.connections.limit"));
-  }
-  
-  /**
-   * Constructor that initializes the RPC router and loads HTTP formatter 
-   * plugins using an already-configured {@link RpcManager}.
-   * @param tsdb The TSDB to use.
-   * @param manager instance of a ready-to-use {@link RpcManager}.
-   * @param connections_limit The maximum number of concurrent connections 
-   * supported by the TSD.
-   * @throws RuntimeException if there is an issue loading plugins
-   * @throws Exception if the HttpQuery handler is unable to load serializers
-   * @since 2.3
-   */
-  public PipelineFactory(final TSDB tsdb, final RpcManager manager, 
-      final int connections_limit) {
     this.tsdb = tsdb;
-    socketTimeout = tsdb.getConfig().getInt("tsd.core.socket.timeout");
+    this.socketTimeout = tsdb.getConfig().getInt("tsd.core.socket.timeout");
     timer = tsdb.getTimer();
-    timeoutHandler = new IdleStateHandler(timer, 0, 0, socketTimeout);
-    rpchandler = new RpcHandler(tsdb, manager);
-    connmgr = new ConnectionManager(connections_limit);
+    this.timeoutHandler = new IdleStateHandler(0, 0, this.socketTimeout);
+    this.rpchandler = new RpcHandler(tsdb, manager);
     try {
       HttpQuery.initializeSerializerMaps(tsdb);
     } catch (RuntimeException e) {
@@ -116,64 +103,81 @@ public final class PipelineFactory implements ChannelPipelineFactory {
       throw new RuntimeException("Failed to initialize formatter plugins", e);
     }
   }
+  
+  private static boolean isHttp(int magic1, int magic2) {
+  	return
+  			magic1 == 'G' && magic2 == 'E' || // GET
+  			magic1 == 'P' && magic2 == 'O' || // POST
+  			magic1 == 'P' && magic2 == 'U' || // PUT
+  			magic1 == 'H' && magic2 == 'E' || // HEAD
+  			magic1 == 'O' && magic2 == 'P' || // OPTIONS
+  			magic1 == 'P' && magic2 == 'A' || // PATCH
+  			magic1 == 'D' && magic2 == 'E' || // DELETE
+  			magic1 == 'T' && magic2 == 'R' || // TRACE
+  			magic1 == 'C' && magic2 == 'O';   // CONNECT
+  }  
 
-  @Override
-  public ChannelPipeline getPipeline() throws Exception {
-   final ChannelPipeline pipeline = pipeline();
+	@Override
+	protected void initChannel(final Channel ch) throws Exception {
+		final ChannelPipeline pipeline = ch.pipeline();		
+	  pipeline.addLast("connmgr", connmgr);
+	  pipeline.addLast("detect", HTTP_OR_RPC);
+	}
+  
+  
 
-    pipeline.addLast("connmgr", connmgr);
-    pipeline.addLast("detect", HTTP_OR_RPC);
-    return pipeline;
-  }
 
   /**
    * Dynamically changes the {@link ChannelPipeline} based on the request.
    * If a request uses HTTP, then this changes the pipeline to process HTTP.
    * Otherwise, the pipeline is changed to processes an RPC.
    */
-  final class DetectHttpOrRpc extends FrameDecoder {
+	@ChannelHandler.Sharable
+  final class DetectHttpOrRpc extends SimpleChannelInboundHandler<ByteBuf> {
+	private final Logger log = LoggerFactory.getLogger(getClass());
+	@Override
+	protected void channelRead0(final ChannelHandlerContext ctx, final ByteBuf in) throws Exception {
+  		if (in.readableBytes() < 5) {
+  			return;
+  		}
+  		log.debug("Detecting Http vs. Telnet. Pipeline is {}", ctx.pipeline().names());
+  		final int magic1 = in.getUnsignedByte(in.readerIndex());
+  		final int magic2 = in.getUnsignedByte(in.readerIndex() + 1);
+  		if(isHttp(magic1, magic2)) {
+  			log.debug("Switching to Http [{}]", ctx.channel());
+  			switchToHttp(ctx, 512 * 1024); //tsdb.getConfig().max_chunked_requests());
+  		} else {
+  			log.debug("Switching to Telnet [{}]", ctx.channel());
+  			switchToTelnet(ctx);
+  		}
+  		ctx.pipeline().remove(this);
+  		in.retain();
+  		log.info("Sending [{}] up pipeline {}", in, ctx.pipeline().names());
+  		ctx.fireChannelRead(in);  		
+	}
+	
 
-    @Override
-    protected Object decode(final ChannelHandlerContext ctx,
-                            final Channel chan,
-                            final ChannelBuffer buffer) throws Exception {
-      if (buffer.readableBytes() < 1) {  // Yes sometimes we can be called
-        return null;                     // with an empty buffer...
-      }
+  	private void switchToTelnet(final ChannelHandlerContext ctx) {
+  		ChannelPipeline p = ctx.pipeline();
+  		p.addLast("framer", new LineBasedFrameDecoder(1024, true, true));
+  		p.addLast("encoder", ENCODER);
+//  		p.addLast("decoder", new DelimiterBasedFrameDecoder(1024, true, true, SPACE)); //new DelimiterBasedFrameDecoder(1024, true, SPACE));
+  		p.addLast("arrDecoder", new StringArrayDecoder());
+  		p.addLast("handler", rpchandler);
+  	}
 
-      final int firstbyte = buffer.getUnsignedByte(buffer.readerIndex());
-      final ChannelPipeline pipeline = ctx.getPipeline();
-      // None of the commands in the RPC protocol start with a capital ASCII
-      // letter for the time being, and all HTTP commands do (GET, POST, etc.)
-      // so use this as a cheap way to differentiate the two.
-      if ('A' <= firstbyte && firstbyte <= 'Z') {
-        pipeline.addLast("decoder", new HttpRequestDecoder());
-        if (tsdb.getConfig().enable_chunked_requests()) {
-          pipeline.addLast("aggregator", new HttpChunkAggregator(
-              tsdb.getConfig().max_chunked_requests()));
-        }
-        // allow client to encode the payload (ie : with gziped json)
-        pipeline.addLast("inflater", new HttpContentDecompressor());
-        pipeline.addLast("encoder", new HttpResponseEncoder());
-        pipeline.addLast("deflater", new HttpContentCompressor());
-      } else {
-        pipeline.addLast("framer", new LineBasedFrameDecoder(1024));
-        pipeline.addLast("encoder", ENCODER);
-        pipeline.addLast("decoder", DECODER);
-      }
-
-      if (tsdb.getAuth() != null) {
-        pipeline.addLast("authentication", new AuthenticationChannelHandler(tsdb));
-      }
-
-      pipeline.addLast("timeout", timeoutHandler);
-      pipeline.remove(this);
-      pipeline.addLast("handler", rpchandler);
-
-      // Forward the buffer to the next handler.
-      return buffer.readBytes(buffer.readableBytes());
-    }
-
+  	private void switchToHttp(final ChannelHandlerContext ctx, final int maxRequestSize) {
+  		ChannelPipeline p = ctx.pipeline();
+  		p.addLast("compressor", new HttpContentCompressor());
+  		p.addLast("httpHandler", new HttpServerCodec());  // TODO: config ?
+  		p.addLast("decompressor", new HttpContentDecompressor());
+  		p.addLast("aggregator", new HttpObjectAggregator(maxRequestSize)); 
+	  	p.addLast("handler", rpchandler);
+  	}  
   }
-  
+	
+	
+//p.addLast("logger", new LoggingHandler(getClass(), LogLevel.INFO));
+	
 }
+ 

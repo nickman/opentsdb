@@ -94,7 +94,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     rpc.execute(tsdb, query);
     
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"alias\":\"A plus B\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -119,7 +119,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -149,7 +149,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"alias\":\"A plus B\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -179,7 +179,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"alias\":\"A plus B\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,1.0,4.0,0.0]"));
     assertTrue(response.contains("[1431561660000,0.0,20.0,8.0]"));
@@ -210,7 +210,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"alias\":\"A plus B\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,1.0,4.0,0.0]"));
     assertTrue(response.contains("[1431561660000,0.0,20.0,8.0]"));
@@ -243,7 +243,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
 //    
 //    rpc.execute(tsdb, query);
 //    final String response = 
-//        query.response().getContent().toString(Charset.forName("UTF-8"));
+//        query.response().content().toString(Charset.forName("UTF-8"));
 //    assertTrue(response.contains("\"alias\":\"A plus B\""));
 //    assertTrue(response.contains("\"dps\":[[1431561540000,0.0,0.0,0.0]"));
 //    assertTrue(response.contains("[1431561600000,1.0,4.0,0.0]"));
@@ -274,7 +274,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
 System.out.println(response);
     assertTrue(response.contains("\"alias\":\"A plus B\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,47.0]"));
@@ -306,7 +306,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -352,7 +352,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -385,7 +385,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
     assertTrue(response.contains("[1431561720000,16.0,22.0]"));
     assertTrue(response.contains("\"firstTimestamp\":1431561600000"));
@@ -414,7 +414,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -449,7 +449,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -490,7 +490,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -522,7 +522,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"dps\":[]"));
     assertTrue(response.contains("\"firstTimestamp\":0"));
     assertTrue(response.contains("\"series\":0"));
@@ -544,7 +544,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"Boo!\""));
   }
@@ -567,7 +567,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"No such name for '" + 
         NSUN_METRIC + "'"));
@@ -594,7 +594,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"Self referencing"));
   }
@@ -620,7 +620,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"Circular reference found:"));
   }
@@ -638,7 +638,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"No intersections found"));
   }
@@ -671,7 +671,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"No intersections found"));
   }
@@ -693,7 +693,7 @@ System.out.println(response);
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"No intersections found"));
   }

@@ -23,10 +23,9 @@ import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.TreeMap;
 
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBufferOutputStream;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufOutputStream;
+import io.netty.handler.codec.http.HttpResponseStatus;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -56,6 +55,7 @@ import net.opentsdb.tsd.QueryRpc.LastPointQuery;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.DateTime;
 import net.opentsdb.utils.JSON;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
  * Implementation of the base serializer class with JSON as the format
@@ -66,6 +66,10 @@ import net.opentsdb.utils.JSON;
  * @since 2.0
  */
 class HttpJsonSerializer extends HttpSerializer {
+	
+  /** The buff allocator */
+  private final BufferManager bufAllocator = BufferManager.getInstance();
+  
 
   /** Type reference for incoming data points */
   static TypeReference<ArrayList<IncomingDataPoint>> TR_INCOMING =
@@ -138,9 +142,9 @@ class HttpJsonSerializer extends HttpSerializer {
       throw new BadRequestException("Missing request content");
     }
 
-    // convert to a string so we can handle character encoding properly
-    final String content = query.getContent().trim();
-    final int firstbyte = content.charAt(0);
+    // convert to a string so we can handle character encoding properly    
+    final ByteBuf content = query.getContentBuffer();
+    final int firstbyte = content.getChar(0);
     try {
       if (firstbyte == '{') {
         final IncomingDataPoint dp = 
@@ -172,8 +176,8 @@ class HttpJsonSerializer extends HttpSerializer {
     }
 
     // convert to a string so we can handle character encoding properly
-    final String content = query.getContent().trim();
-    final int firstbyte = content.charAt(0);
+    final ByteBuf content = query.getContentBuffer();
+    final int firstbyte = content.getChar(0);
     try {
       if (firstbyte == '{') {
         final T dp =
@@ -200,14 +204,14 @@ class HttpJsonSerializer extends HttpSerializer {
    */
   @Override
   public HashMap<String, String> parseSuggestV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
     }
     try {
-      return JSON.parseToObject(query.getContent(), 
+      return JSON.parseToObject(json, 
           new TypeReference<HashMap<String, String>>(){});
     } catch (IllegalArgumentException iae) {
       throw new BadRequestException("Unable to parse the given JSON", iae);
@@ -221,8 +225,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public HashMap<String, List<String>> parseUidAssignV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -241,8 +245,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public HashMap<String, String> parseUidRenameV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -261,8 +265,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public TSQuery parseQueryV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -286,8 +290,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public LastPointQuery parseLastPointQueryV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -305,8 +309,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public UIDMeta parseUidMetaV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -324,8 +328,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public TSMeta parseTSMetaV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -347,8 +351,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public Tree parseTreeV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -407,8 +411,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public TreeRule parseTreeRuleV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -424,8 +428,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public List<TreeRule> parseTreeRulesV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -443,8 +447,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public Map<String, Object> parseTreeTSUIDsListV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -460,8 +464,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public Annotation parseAnnotationV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -477,8 +481,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public List<Annotation> parseAnnotationsV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -494,8 +498,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public AnnotationBulkDelete parseAnnotationBulkDeleteV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -511,8 +515,8 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws BadRequestException if the content was missing or parsing failed
    */
   public SearchQuery parseSearchQueryV1() {
-    final String json = query.getContent();
-    if (json == null || json.isEmpty()) {
+    final ByteBuf json = query.getContentBuffer();
+    if (json.readableBytes()==0) {
       throw new BadRequestException(HttpResponseStatus.BAD_REQUEST,
           "Missing message content",
           "Supply valid JSON formatted data in the body of your request");
@@ -534,7 +538,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON formatted byte array
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatPutV1(final Map<String, Object> results) {
+  public ByteBuf formatPutV1(final Map<String, Object> results) {
     return this.serializeJSON(results);
   }
   
@@ -545,7 +549,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @throws JSONException if serialization failed
    */
   @Override
-  public ChannelBuffer formatSuggestV1(final List<String> suggestions) {
+  public ByteBuf formatSuggestV1(final List<String> suggestions) {
     return this.serializeJSON(suggestions);
   }
   
@@ -554,7 +558,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatSerializersV1() {
+  public ByteBuf formatSerializersV1() {
     return serializeJSON(HttpQuery.getSerializerStatus());
   }
   
@@ -564,7 +568,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatAggregatorsV1(final Set<String> aggregators) {
+  public ByteBuf formatAggregatorsV1(final Set<String> aggregators) {
     return this.serializeJSON(aggregators);
   }
   
@@ -574,7 +578,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatVersionV1(final Map<String, String> version) {
+  public ByteBuf formatVersionV1(final Map<String, String> version) {
     return this.serializeJSON(version);
   }
   
@@ -584,7 +588,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatDropCachesV1(final Map<String, String> response) {
+  public ByteBuf formatDropCachesV1(final Map<String, String> response) {
     return this.serializeJSON(response);
   }
   
@@ -595,7 +599,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatUidAssignV1(final 
+  public ByteBuf formatUidAssignV1(final 
       Map<String, TreeMap<String, String>> response) {
     return this.serializeJSON(response);
   }
@@ -606,7 +610,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatUidRenameV1(final Map<String, String> response) {
+  public ByteBuf formatUidRenameV1(final Map<String, String> response) {
     return this.serializeJSON(response);
   }
   /**
@@ -614,9 +618,9 @@ class HttpJsonSerializer extends HttpSerializer {
    * @param data_query The TSQuery object used to fetch the results
    * @param results The data fetched from storage
    * @param globals An optional list of global annotation objects
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    */
-  public ChannelBuffer formatQueryV1(final TSQuery data_query, 
+  public ByteBuf formatQueryV1(final TSQuery data_query, 
       final List<DataPoints[]> results, final List<Annotation> globals) {
     try {
       return formatQueryAsyncV1(data_query, results, globals)
@@ -633,11 +637,11 @@ class HttpJsonSerializer extends HttpSerializer {
    * @param data_query The TSQuery object used to fetch the results
    * @param results The data fetched from storage
    * @param globals An optional list of global annotation objects
-   * @return A Deferred<ChannelBuffer> object to pass on to the caller
+   * @return A Deferred<ByteBuf> object to pass on to the caller
    * @throws IOException if serialization failed
    * @since 2.2
    */
-  public Deferred<ChannelBuffer> formatQueryAsyncV1(final TSQuery data_query, 
+  public Deferred<ByteBuf> formatQueryAsyncV1(final TSQuery data_query, 
       final List<DataPoints[]> results, final List<Annotation> globals) 
           throws IOException {
     
@@ -646,8 +650,8 @@ class HttpJsonSerializer extends HttpSerializer {
     final String jsonp = this.query.getQueryStringParam("jsonp");
     
     // buffers and an array list to stored the deferreds
-    final ChannelBuffer response = ChannelBuffers.dynamicBuffer();
-    final OutputStream output = new ChannelBufferOutputStream(response);
+    final ByteBuf response = bufAllocator.ioBuffer();
+    final OutputStream output = new ByteBufOutputStream(response);
     // too bad an inner class can't modify a primitive. This is a work around 
     final List<Boolean> timeout_flag = new ArrayList<Boolean>(1);
     timeout_flag.add(false);
@@ -925,8 +929,8 @@ class HttpJsonSerializer extends HttpSerializer {
     }
   
     /** Final callback to close out the JSON array and return our results */
-    class FinalCB implements Callback<ChannelBuffer, Object> {
-      public ChannelBuffer call(final Object obj)
+    class FinalCB implements Callback<ByteBuf, Object> {
+      public ByteBuf call(final Object obj)
           throws Exception {
         
         // Call this here so we rollup sub metrics into a summary. It's not
@@ -966,7 +970,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatLastPointQueryV1(
+  public ByteBuf formatLastPointQueryV1(
       final List<IncomingDataPoint> data_points) {
     return this.serializeJSON(data_points);
   }
@@ -977,7 +981,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatUidMetaV1(final UIDMeta meta) {
+  public ByteBuf formatUidMetaV1(final UIDMeta meta) {
     return this.serializeJSON(meta);
   }
   
@@ -987,7 +991,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatTSMetaV1(final TSMeta meta) {
+  public ByteBuf formatTSMetaV1(final TSMeta meta) {
     return this.serializeJSON(meta);
   }
   
@@ -997,7 +1001,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatTSMetaListV1(final List<TSMeta> metas) {
+  public ByteBuf formatTSMetaListV1(final List<TSMeta> metas) {
     return this.serializeJSON(metas);
   }
   
@@ -1007,7 +1011,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatBranchV1(final Branch branch) {
+  public ByteBuf formatBranchV1(final Branch branch) {
     return this.serializeJSON(branch);
   }
   
@@ -1017,7 +1021,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatTreeV1(final Tree tree) {
+  public ByteBuf formatTreeV1(final Tree tree) {
     return this.serializeJSON(tree);
   }
   
@@ -1028,7 +1032,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatTreesV1(final List<Tree> trees) {
+  public ByteBuf formatTreesV1(final List<Tree> trees) {
     return this.serializeJSON(trees);
   }
   
@@ -1038,7 +1042,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatTreeRuleV1(final TreeRule rule) {
+  public ByteBuf formatTreeRuleV1(final TreeRule rule) {
     return serializeJSON(rule);
   }
   
@@ -1052,7 +1056,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatTreeCollisionNotMatchedV1(
+  public ByteBuf formatTreeCollisionNotMatchedV1(
       final Map<String, String> results, final boolean is_collisions) {
     return serializeJSON(results);
   }
@@ -1066,7 +1070,7 @@ class HttpJsonSerializer extends HttpSerializer {
    * @return A JSON structure
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatTreeTestV1(final 
+  public ByteBuf formatTreeTestV1(final 
       HashMap<String, HashMap<String, Object>> results) {
     return serializeJSON(results);
   }
@@ -1074,30 +1078,30 @@ class HttpJsonSerializer extends HttpSerializer {
   /**
    * Format an annotation object
    * @param note The annotation object to format
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatAnnotationV1(final Annotation note) {
+  public ByteBuf formatAnnotationV1(final Annotation note) {
     return serializeJSON(note);
   }
   
   /**
    * Format a list of annotation objects
    * @param notes The annotation objects to format
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatAnnotationsV1(final List<Annotation> notes) {
+  public ByteBuf formatAnnotationsV1(final List<Annotation> notes) {
     return serializeJSON(notes);
   }
   
   /**
    * Format the results of a bulk annotation deletion
    * @param notes The annotation deletion request to return
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatAnnotationBulkDeleteV1(
+  public ByteBuf formatAnnotationBulkDeleteV1(
       final AnnotationBulkDelete request) {
     return serializeJSON(request);
   }
@@ -1105,74 +1109,74 @@ class HttpJsonSerializer extends HttpSerializer {
   /**
    * Format a list of statistics
    * @param note The statistics list to format
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatStatsV1(final List<IncomingDataPoint> stats) {
+  public ByteBuf formatStatsV1(final List<IncomingDataPoint> stats) {
     return serializeJSON(stats);
   }
   
   /**
    * Format a list of thread statistics
    * @param stats The thread statistics list to format
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    * @throws JSONException if serialization failed
    * @since 2.2
    */
-  public ChannelBuffer formatThreadStatsV1(final List<Map<String, Object>> stats) {
+  public ByteBuf formatThreadStatsV1(final List<Map<String, Object>> stats) {
     return serializeJSON(stats);
   }
   
   /**
    * format a list of region client statistics
    * @param stats The list of region client stats to format
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    * @throws JSONException if serialization failed
    * @since 2.2
    */
-  public ChannelBuffer formatRegionStatsV1(final List<Map<String, Object>> stats) {
+  public ByteBuf formatRegionStatsV1(final List<Map<String, Object>> stats) {
     return serializeJSON(stats);
   }
 
   /**
    * Format a list of JVM statistics
    * @param stats The JVM stats map to format
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    * @throws JSONException if serialization failed
    * @since 2.2
    */
-  public ChannelBuffer formatJVMStatsV1(final Map<String, Map<String, Object>> stats) {
+  public ByteBuf formatJVMStatsV1(final Map<String, Map<String, Object>> stats) {
     return serializeJSON(stats);
   }
   
   /**
    * Format the query stats
    * @param query_stats Map of query statistics
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    * @throws BadRequestException if the plugin has not implemented this method
    * @since 2.2
    */
-  public ChannelBuffer formatQueryStatsV1(final Map<String, Object> query_stats) {
+  public ByteBuf formatQueryStatsV1(final Map<String, Object> query_stats) {
     return serializeJSON(query_stats);
   }
   
   /**
    * Format the response from a search query
    * @param note The query (hopefully filled with results) to serialize
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatSearchResultsV1(final SearchQuery results) {
+  public ByteBuf formatSearchResultsV1(final SearchQuery results) {
     return serializeJSON(results);
   }
   
   /**
    * Format the running configuration
    * @param config The running config to serialize
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatConfigV1(final Config config) {
+  public ByteBuf formatConfigV1(final Config config) {
     TreeMap<String, String> map = new TreeMap<String, String>(config.getMap());
     for (Map.Entry<String, String> entry : map.entrySet()) {
       if (entry.getKey().toUpperCase().contains("PASS")) {
@@ -1185,10 +1189,10 @@ class HttpJsonSerializer extends HttpSerializer {
   /**
    * Format the loaded filter configurations
    * @param config The filters to serialize
-   * @return A ChannelBuffer object to pass on to the caller
+   * @return A ByteBuf object to pass on to the caller
    * @throws JSONException if serialization failed
    */
-  public ChannelBuffer formatFilterConfigV1(
+  public ByteBuf formatFilterConfigV1(
       final Map<String, Map<String, String>> config) {
     return serializeJSON(config);
   }
@@ -1197,15 +1201,15 @@ class HttpJsonSerializer extends HttpSerializer {
    * Helper object for the format calls to wrap the JSON response in a JSONP
    * function if requested. Used for code dedupe.
    * @param obj The object to serialize
-   * @return A ChannelBuffer to pass on to the query
+   * @return A ByteBuf to pass on to the query
    * @throws JSONException if serialization failed
    */
-  private ChannelBuffer serializeJSON(final Object obj) {
+  private ByteBuf serializeJSON(final Object obj) {
     if (query.hasQueryStringParam("jsonp")) {
-      return ChannelBuffers.wrappedBuffer(
-          JSON.serializeToJSONPBytes(query.getQueryStringParam("jsonp"), 
-          obj));
+      return bufAllocator.ioBuffer().writeBytes(
+    		  JSON.serializeToJSONPBytes(query.getQueryStringParam("jsonp"), 
+              obj));
     }
-    return ChannelBuffers.wrappedBuffer(JSON.serializeToBytes(obj));
+    return bufAllocator.ioBuffer().writeBytes(JSON.serializeToBytes(obj));
   }
 }

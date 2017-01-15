@@ -18,27 +18,28 @@ import static org.powermock.api.mockito.PowerMockito.mock;
 
 import java.nio.charset.Charset;
 
-import net.opentsdb.core.TSDB;
-import net.opentsdb.storage.MockBase;
-import net.opentsdb.utils.Config;
-
 import org.hbase.async.GetRequest;
 import org.hbase.async.HBaseClient;
 import org.hbase.async.KeyValue;
 import org.hbase.async.RowLock;
 import org.hbase.async.Scanner;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpRequest;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
-import org.jboss.netty.handler.codec.http.HttpVersion;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
+
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
+import net.opentsdb.core.TSDB;
+import net.opentsdb.storage.MockBase;
+import net.opentsdb.utils.Config;
 
 @PowerMockIgnore({"javax.management.*", "javax.xml.*",
   "ch.qos.*", "org.slf4j.*",
@@ -108,7 +109,7 @@ public final class TestAnnotationRpc {
   @Test (expected = BadRequestException.class)
   public void badMethod() throws Exception {
     final Channel channelMock = NettyMocks.fakeChannel();
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
+    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.TRACE, "/api/annotation");
     final HttpQuery query = new HttpQuery(tsdb, req, channelMock);
     rpc.execute(tsdb, query);
@@ -120,7 +121,7 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?tsuid=000001000001000001&start_time=1388450562");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test
@@ -128,7 +129,7 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?start_time=1328140800");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test
@@ -136,7 +137,7 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/annotations?start_time=1328140800");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test (expected = BadRequestException.class)
@@ -173,8 +174,8 @@ public final class TestAnnotationRpc {
     "/api/annotation?tsuid=000001000001000001&start_time=1388450564" + 
     "&description=Boo&method_override=post");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
@@ -187,8 +188,8 @@ public final class TestAnnotationRpc {
     "/api/annotation?start_time=1328140802" + 
     "&description=Boo&method_override=post");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
@@ -209,8 +210,8 @@ public final class TestAnnotationRpc {
     "/api/annotation?tsuid=000001000001000001&start_time=1388450562" + 
     "&description=Boo&method_override=post");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"My Notes\""));
@@ -222,8 +223,8 @@ public final class TestAnnotationRpc {
     "/api/annotation?start_time=1328140800" + 
     "&description=Boo&method_override=post");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"Notes\""));
@@ -235,8 +236,8 @@ public final class TestAnnotationRpc {
     "/api/annotation", "{\"tsuid\":\"000001000001000001\",\"startTime\":" +
     "1388450562,\"description\":\"Boo\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"My Notes\""));
@@ -248,8 +249,8 @@ public final class TestAnnotationRpc {
     "/api/annotation", "{\"startTime\":1328140800" + 
     ",\"description\":\"Boo\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"Notes\""));
@@ -261,8 +262,8 @@ public final class TestAnnotationRpc {
     "/api/annotation?tsuid=000001000001000001&start_time=1388450562" + 
     "&description=Boo&method_override=put");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
@@ -275,8 +276,8 @@ public final class TestAnnotationRpc {
     "/api/annotation?start_time=1328140800" + 
     "&description=Boo&method_override=put");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
@@ -289,7 +290,7 @@ public final class TestAnnotationRpc {
       "/api/annotation?tsuid=000001000001000001&start_time=1388450562" + 
       "&method_override=post");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().status());
   }
   
   @Test
@@ -298,7 +299,7 @@ public final class TestAnnotationRpc {
       "/api/annotation?tsuid=000001000001000001&start_time=1388450562" + 
       "&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     assertEquals(3, storage.numColumns(tsuid_row_key));
   }
   
@@ -308,7 +309,7 @@ public final class TestAnnotationRpc {
       "/api/annotation?start_time=1328140800" + 
       "&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     assertEquals(1, storage.numColumns(global_row_key));
   }
 
@@ -346,8 +347,8 @@ public final class TestAnnotationRpc {
     "1388450562,\"description\":\"Boo\"},{\"tsuid\":\"000001000001000002\"," + 
     "\"startTime\":1388450562,\"description\":\"Gum\"}]");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"My Notes\""));
@@ -361,8 +362,8 @@ public final class TestAnnotationRpc {
     ",\"description\":\"Boo\"},{\"startTime\":1388450562,\"description\":" +
     "\"Gum\"}]");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"Notes\""));
@@ -385,8 +386,8 @@ public final class TestAnnotationRpc {
     "1328140800,\"description\":\"Boo\"},{\"tsuid\":\"000001000001000002\"," + 
     "\"startTime\":1328140800,\"description\":\"Gum\"}]");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
@@ -399,8 +400,8 @@ public final class TestAnnotationRpc {
     "[{\"startTime\":1328140800,\"description\":\"Boo\"},{" + 
     "\"startTime\":1328140800,\"description\":\"Gum\"}]");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
@@ -414,8 +415,8 @@ public final class TestAnnotationRpc {
     "/api/annotation/bulk?tsuids=000001000001000001,000001000001000002" +
     "&start_time=1388450560000&end_time=1388450562000&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":1"));
     assertEquals(3, storage.numColumns(tsuid_row_key));
@@ -427,8 +428,8 @@ public final class TestAnnotationRpc {
     "/api/annotation/bulk?tsuids=000001000001000001,000001000001000002" +
     "&start_time=1388450550000&end_time=1388450560000&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":0"));
     assertEquals(4, storage.numColumns(tsuid_row_key));
@@ -440,8 +441,8 @@ public final class TestAnnotationRpc {
     "/api/annotation/bulk?tsuids=000001000001000001,000001000001000002" +
     "&start_time=1000000000000&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":2"));
     assertEquals(2, storage.numColumns(tsuid_row_key));
@@ -453,8 +454,8 @@ public final class TestAnnotationRpc {
     "/api/annotation/bulk?start_time=1328140799000&end_time=1328140800000" +
     "&global=true&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":1"));
     assertEquals(1, storage.numColumns(global_row_key));
@@ -466,8 +467,8 @@ public final class TestAnnotationRpc {
     "/api/annotation/bulk?start_time=1328140600000&end_time=1328140700000" +
     "&global=true&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":0"));
     assertEquals(2, storage.numColumns(global_row_key));
@@ -479,8 +480,8 @@ public final class TestAnnotationRpc {
     "/api/annotation/bulk?start_time=1000000000000" +
     "&global=true&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":2"));
     assertEquals(-1, storage.numColumns(global_row_key));
@@ -515,8 +516,8 @@ public final class TestAnnotationRpc {
     "\"000001000001000002\"],\"startTime\":\"1388450560000\",\"endTime\":" +
     "\"1388450562000\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":1"));
     assertEquals(3, storage.numColumns(tsuid_row_key));
@@ -528,8 +529,8 @@ public final class TestAnnotationRpc {
     "/api/annotation/bulk", "{\"startTime\":\"1328140799000\",\"endTime\":" +
         "\"1328140800000\",\"global\":true}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String data = query.response().getContent()
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String data = query.response().content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":1"));
     assertEquals(1, storage.numColumns(global_row_key));

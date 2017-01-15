@@ -15,7 +15,7 @@
 //import java.io.File;
 //import java.lang.reflect.Method;
 //
-//import org.jboss.netty.channel.Channel;
+//import io.netty.channel.Channel;
 //import org.junit.Test;
 //import org.junit.runner.RunWith;
 //

@@ -19,23 +19,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import com.google.common.base.Objects;
-import com.stumbleupon.async.Deferred;
-
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpRequest;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
-import org.jboss.netty.handler.codec.http.HttpVersion;
-import org.jboss.netty.handler.codec.http.QueryStringDecoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.base.Objects;
+import com.stumbleupon.async.Deferred;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.QueryStringDecoder;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.stats.QueryStats;
 
@@ -51,10 +58,12 @@ public abstract class AbstractHttpQuery {
   private final long start_time = System.nanoTime();
 
   /** The request in this HTTP query. */
-  private final HttpRequest request;
+  private final FullHttpRequest request;
 
   /** The channel on which the request was received. */
   private final Channel chan;
+  /** The channel context on which the request was received. */
+  private final ChannelHandlerContext ctx;
 
   /** Shortcut to the request method */
   private final HttpMethod method;
@@ -67,8 +76,8 @@ public abstract class AbstractHttpQuery {
   protected final Deferred<Object> deferred = new Deferred<Object>();
   
   /** The response object we'll fill with data */
-  private final DefaultHttpResponse response =
-    new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+  private final FullHttpResponse response =
+    new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
 
   /** The {@code TSDB} instance we belong to */
   protected final TSDB tsdb;
@@ -78,21 +87,41 @@ public abstract class AbstractHttpQuery {
   
   /**
    * Set up required internal state.  For subclasses.
-   * 
+   *
+   * @param tsdb The parent TSDB
    * @param request the incoming HTTP request
    * @param chan the {@link Channel} the request was received on
+   * @param ctx The channel handler comtext
    */
-  protected AbstractHttpQuery(final TSDB tsdb, final HttpRequest request, final Channel chan) {
+  protected AbstractHttpQuery(final TSDB tsdb, final FullHttpRequest request, final ChannelHandlerContext ctx) {
     this.tsdb = tsdb;
     this.request = request;
-    this.chan = chan;
-    this.method = request.getMethod();
+    this.ctx = ctx;
+    this.chan = ctx.channel();
+    this.method = request.method();
   }
+  
+  /**
+   * Set up required internal state.  For subclasses.
+   * 
+   * @param tsdb The parent TSDB
+   * @param request the incoming HTTP request
+   * @param chan the {@link Channel} the request was received on
+
+   */
+  protected AbstractHttpQuery(final TSDB tsdb, final FullHttpRequest request, final Channel channel) {
+    this.tsdb = tsdb;
+    this.request = request;
+    this.ctx = null;
+    this.chan = channel;
+    this.method = request.method();
+  }
+  
   
   /**
    * Returns the underlying Netty {@link HttpRequest} of this query.
    */
-  public HttpRequest request() {
+  public FullHttpRequest request() {
     return request;
   }
 
@@ -102,7 +131,7 @@ public abstract class AbstractHttpQuery {
   }
 
   /** Returns the response object, allowing serializers to set headers */
-  public DefaultHttpResponse response() {
+  public FullHttpResponse response() {
     return this.response;
   }
 
@@ -112,10 +141,18 @@ public abstract class AbstractHttpQuery {
   public Channel channel() {
     return chan;
   }
+  
+  /**
+   * Returns the underlying Netty {@link ChannelHandlerContext} of this query.
+   */
+  public ChannelHandlerContext ctx() {
+    return ctx;
+  }
+  
 
   /** @return The remote address and port in the format <ip>:<port> */
   public String getRemoteAddress() {
-    return chan.getRemoteAddress().toString();
+    return chan.remoteAddress().toString();
   }
   
   /**
@@ -126,8 +163,8 @@ public abstract class AbstractHttpQuery {
    */
   public Map<String, String> getPrintableHeaders() {
     final Map<String, String> headers = new HashMap<String, String>(
-        request.getHeaders().size());
-    for (final Entry<String, String> header : request.getHeaders()) {
+        request.headers().size());
+    for (final Entry<String, String> header : request.headers()) {
       if (header.getKey().toLowerCase().equals("cookie")) {
         // null out the cookies
         headers.put(header.getKey(), "*******");
@@ -152,8 +189,8 @@ public abstract class AbstractHttpQuery {
    */
   public Map<String, String> getHeaders() {
     final Map<String, String> headers = new HashMap<String, String>(
-        request.getHeaders().size());
-    for (final Entry<String, String> header : request.getHeaders()) {
+        request.headers().size());
+    for (final Entry<String, String> header : request.headers()) {
       // http://tools.ietf.org/html/rfc2616#section-4.2
       if (headers.containsKey(header.getKey())) {
         headers.put(header.getKey(), 
@@ -188,7 +225,7 @@ public abstract class AbstractHttpQuery {
   public Map<String, List<String>> getQueryString() {
     if (querystring == null) {
       try {
-        querystring = new QueryStringDecoder(request.getUri()).getParameters();
+        querystring = new QueryStringDecoder(request.uri()).parameters();
       } catch (IllegalArgumentException e) {
         throw new BadRequestException("Bad query string: " + e.getMessage());
       }
@@ -263,7 +300,7 @@ public abstract class AbstractHttpQuery {
    * @throws NullPointerException if the URI is null
    */
   public String getQueryPath() {
-    return new QueryStringDecoder(request.getUri()).getPath();
+    return new QueryStringDecoder(request.uri()).path();
   }
   
   /**
@@ -322,19 +359,23 @@ public abstract class AbstractHttpQuery {
   }
   
   /** @return True if the request has content, false if not. */
-  public boolean hasContent() {
-    return this.request.getContent() != null &&
-      this.request.getContent().readable();
+  public boolean hasContent() {  	
+    return this.request.content() != null &&
+      this.request.content().isReadable();
   }
 
-  /**
-   * Decodes the request content to a string using the appropriate character set
-   * @return Decoded content or an empty string if the request did not include
-   * content
-   * @throws UnsupportedCharsetException if the parsed character set is invalid
-   */
-  public String getContent() {
-    return this.request.getContent().toString(this.getCharset());
+//  /**
+//   * Decodes the request content to a string using the appropriate character set
+//   * @return Decoded content or an empty string if the request did not include
+//   * content
+//   * @throws UnsupportedCharsetException if the parsed character set is invalid
+//   */
+//  public String getContent() {
+//    return this.request.content().toString(this.getCharset());
+//  }
+  
+  public ByteBuf getContentBuffer() {
+  	return this.request.content();
   }
   
   /**
@@ -343,7 +384,7 @@ public abstract class AbstractHttpQuery {
    */
   public void done() {
     final int processing_time = processingTimeMillis();
-   final String url = request.getUri();
+   final String url = request.uri();
    final String msg = String.format("HTTP %s done in %d ms", url, processing_time);
    if (url.startsWith("/api/put") && LOG.isDebugEnabled()) {
      // NOTE: Suppresses too many log lines from /api/put.
@@ -351,7 +392,7 @@ public abstract class AbstractHttpQuery {
    } else {
      logInfo(msg);
    }
-    logInfo("HTTP " + request.getUri() + " done in " + processing_time + "ms");
+    logInfo("HTTP " + request.uri() + " done in " + processing_time + "ms");
   }
   
   /**
@@ -385,7 +426,7 @@ public abstract class AbstractHttpQuery {
    * @param status The response code to reply with
    */
   public void sendStatusOnly(final HttpResponseStatus status) {
-    if (!chan.isConnected()) {
+    if (!chan.isOpen()) {
       done();
       return;
     }
@@ -411,30 +452,53 @@ public abstract class AbstractHttpQuery {
    * @param buf The content of the reply to send.
    */
   public void sendBuffer(final HttpResponseStatus status,
-                          final ChannelBuffer buf,
+                          final ByteBuf buf,
                           final String contentType) {
-    if (!chan.isConnected()) {
+    if (!chan.isOpen()) {
       done();
       return;
     }
-    response.headers().set(HttpHeaders.Names.CONTENT_TYPE, contentType);
+    final DefaultFullHttpResponse dr = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, buf);
+    dr.headers().add(response.headers());
+    dr.headers().set(HttpHeaderNames.CONTENT_TYPE, contentType);
 
     // TODO(tsuna): Server, X-Backend, etc. headers.
     // only reset the status if we have the default status, otherwise the user
     // already set it
-    response.setStatus(status);
-    response.setContent(buf);
-    final boolean keepalive = HttpHeaders.isKeepAlive(request);
+    dr.setStatus(status);
+    
+    
+    final boolean keepalive = HttpUtil.isKeepAlive(request);
     if (keepalive) {
-      HttpHeaders.setContentLength(response, buf.readableBytes());
+    	dr.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);    	
     }
-    final ChannelFuture future = chan.write(response);
+    HttpUtil.setContentLength(dr, buf.readableBytes());
+    
+    
+    //final HttpResponse resp = response.copy(buf);
+//    LOG.info("---> Sending initial response: [{}]", dr);
+    final ChannelFuture future = chan.writeAndFlush(dr);
+//    final ChannelFuture future = ctx.writeAndFlush(dr);
+    future.addListener(new ChannelFutureListener() {
+		@Override
+		public void operationComplete(ChannelFuture f) throws Exception {
+			if(f.isSuccess()) {				
+//				LOG.info("---->  RESPONSE Complete");
+			} else {
+				LOG.error("---->  RESPONSE Failed", f.cause());
+			}
+			
+		}
+	});
+    
+//    final ChannelFuture future = chan.write(response.copy(buf));
     if (stats != null) {
       future.addListener(new SendSuccess());
     }
     if (!keepalive) {
       future.addListener(ChannelFutureListener.CLOSE);
     }
+//    chan.pipeline().flush();
     done();
   }
   
@@ -467,37 +531,21 @@ public abstract class AbstractHttpQuery {
     return LOG;
   }
 
-  protected final String logChannel() {
-    if (request.containsHeader("X-Forwarded-For")) {
-        String inetAddress;
-        String proxyChain = request.getHeader("X-Forwarded-For");
-        int firstComma = proxyChain.indexOf(',');
-        if (firstComma != -1) {
-          inetAddress = proxyChain.substring(0, proxyChain.indexOf(','));
-        } else {
-          inetAddress = proxyChain;
-        }
-        return "[id: 0x" + Integer.toHexString(chan.hashCode()) + ", /" + inetAddress + " => " + chan.getLocalAddress() + ']';
-    } else {
-        return chan.toString();
-    }
-  }
-
   protected final void logInfo(final String msg) {
     if (logger().isInfoEnabled()) {
-      logger().info(logChannel() + ' ' + msg);
+      logger().info(chan.toString() + ' ' + msg);
     }
   }
 
   protected final void logWarn(final String msg) {
     if (logger().isWarnEnabled()) {
-      logger().warn(logChannel() + ' ' + msg);
+      logger().warn(chan.toString() + ' ' + msg);
     }
   }
 
   protected final void logError(final String msg, final Exception e) {
     if (logger().isErrorEnabled()) {
-      logger().error(logChannel() + ' ' + msg, e);
+      logger().error(chan.toString() + ' ' + msg, e);
     }
   }
 

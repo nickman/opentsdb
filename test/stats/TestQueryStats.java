@@ -34,7 +34,7 @@ import net.opentsdb.core.TSQuery;
 import net.opentsdb.stats.QueryStats.QueryStat;
 import net.opentsdb.utils.DateTime;
 
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -221,7 +221,7 @@ public final class TestQueryStats {
     assertEquals(1, ((Collection<QueryStats>)map.get("completed")).size());
     final QueryStats completed = ((Collection<QueryStats>)map.get("completed"))
         .iterator().next();
-    assertEquals(200, completed.getHttpResponse().getCode());
+    assertEquals(200, completed.getHttpResponse().code());
   }
   
   @Test
@@ -237,7 +237,7 @@ public final class TestQueryStats {
     assertEquals(1, ((Collection<QueryStats>)map.get("completed")).size());
     final QueryStats completed = ((Collection<QueryStats>)map.get("completed"))
         .iterator().next();
-    assertEquals(408, completed.getHttpResponse().getCode());
+    assertEquals(408, completed.getHttpResponse().code());
     assertTrue(completed.getException().startsWith("Timeout!\n"));
   }
   

@@ -14,27 +14,33 @@ package net.opentsdb.tsd;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelEvent;
-import org.jboss.netty.channel.ChannelException;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
-import org.jboss.netty.channel.group.DefaultChannelGroup;
-import org.jboss.netty.handler.codec.embedder.CodecEmbedderException;
 
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelException;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.handler.codec.CodecException;
+//import io.netty.handler.codec.embedder.CodecEmbedderException;
+import io.netty.util.concurrent.DefaultEventExecutor;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 import net.opentsdb.stats.StatsCollector;
+
+
 
 /**
  * Keeps track of all existing connections.
  */
-final class ConnectionManager extends SimpleChannelHandler {
+@ChannelHandler.Sharable
+final class ConnectionManager extends ChannelInboundHandlerAdapter {
 
   private static final Logger LOG = LoggerFactory.getLogger(ConnectionManager.class);
 
@@ -55,7 +61,15 @@ final class ConnectionManager extends SimpleChannelHandler {
   private final AtomicInteger open_connections = new AtomicInteger();
 
   private static final DefaultChannelGroup channels =
-    new DefaultChannelGroup("all-channels");
+		  new DefaultChannelGroup("all-channels", new DefaultEventExecutor(new ThreadFactory(){
+			  final AtomicInteger serial = new AtomicInteger();
+			  @Override
+			  public Thread newThread(final Runnable r) {
+				  final Thread t = new Thread(r, "ChannelGroupThread#" + serial.incrementAndGet());
+				  t.setDaemon(true);
+				  return t;
+			  }
+		  }));
 
   static void closeAllConnections() {
     channels.close().awaitUninterruptibly();
@@ -65,7 +79,7 @@ final class ConnectionManager extends SimpleChannelHandler {
    * Default Ctor with no concurrent connection limit.
    */
   public ConnectionManager() {
-    connections_limit = 0;
+    this(Integer.MAX_VALUE);
   }
   
   /**
@@ -97,42 +111,35 @@ final class ConnectionManager extends SimpleChannelHandler {
     collector.record("connectionmgr.exceptions", exceptions_unknown, 
         "type=unknown");
   }
-
-  @Override
-  public void channelOpen(final ChannelHandlerContext ctx,
-                          final ChannelStateEvent e) throws IOException {
-    if (connections_limit > 0) {
-      final int channel_size = open_connections.incrementAndGet();
-      if (channel_size > connections_limit) {
-        throw new ConnectionRefusedException("Channel size (" + channel_size + ") exceeds total "
-            + "connection limit (" + connections_limit + ")");
-        // exceptionCaught will close the connection and increment the counter.
-      }
-    }
-    channels.add(e.getChannel());
-    connections_established.incrementAndGet();
-  }
-
-  @Override
-  public void channelClosed(final ChannelHandlerContext ctx,
-                          final ChannelStateEvent e) throws IOException {
-    open_connections.decrementAndGet();
-  }
   
-  @Override
-  public void handleUpstream(final ChannelHandlerContext ctx,
-                             final ChannelEvent e) throws Exception {
-    if (e instanceof ChannelStateEvent) {
-      LOG.info(e.toString());
-    }
-    super.handleUpstream(ctx, e);
-  }
+	@Override
+	public void channelActive(ChannelHandlerContext ctx) throws Exception {
+		if (connections_limit > 0) {
+			final int channel_size = open_connections.incrementAndGet();
+	        if (channel_size > connections_limit) {
+	            throw new ConnectionRefusedException("Channel size (" + channel_size + ") exceeds total "
+	                    + "connection limit (" + connections_limit + ")");
+	        }
+		}
+		final Channel channel = ctx.channel();
+    	LOG.info("Channel Activated [{}]", channel);
+    	channels.add(channel);
+    	connections_established.incrementAndGet();
+    	channel.closeFuture().addListener(new GenericFutureListener<Future<Void>>() {
+    		public void operationComplete(Future<Void> future) throws Exception {
+    			connections_established.decrementAndGet();
+    			LOG.info("Channel Closed [{}]", channel);
+    		};
+		});
+    	super.channelActive(ctx);
+	}
+
+  
 
   @Override
   public void exceptionCaught(final ChannelHandlerContext ctx,
-                              final ExceptionEvent e) {
-    final Throwable cause = e.getCause();
-    final Channel chan = ctx.getChannel();
+                              final Throwable cause) {
+    final Channel chan = ctx.channel();
     if (cause instanceof ClosedChannelException) {
       exceptions_closed.incrementAndGet();
       LOG.warn("Attempt to write to closed channel " + chan);
@@ -153,27 +160,30 @@ final class ConnectionManager extends SimpleChannelHandler {
       } else if (cause instanceof ConnectionRefusedException) {
         connections_rejected.incrementAndGet();
         if (LOG.isDebugEnabled()) {
-          LOG.debug("Refusing connection from " + chan, e.getCause());
+          LOG.debug("Refusing connection from " + chan, cause);
         }
         chan.close();
         return;
       }
     }
-    if (cause instanceof CodecEmbedderException) {
+    if (cause instanceof CodecException) {
     	// payload was not compressed as it was announced to be
     	LOG.warn("Http codec error : " + cause.getMessage());
-    	e.getChannel().close();
+    	ctx.channel().close();
     	return;
     }
     exceptions_unknown.incrementAndGet();
     LOG.error("Unexpected exception from downstream for " + chan, cause);
-    e.getChannel().close();
+    ctx.channel().close();
   }
 
   /** Simple exception for refusing a connection. */
   private static class ConnectionRefusedException extends ChannelException {
     
-    /**
+    /**  */
+	private static final long serialVersionUID = -1910093286383635799L;
+
+	/**
      * Default ctor with a message.
      * @param message A descriptive message for the exception.
      */
@@ -181,6 +191,6 @@ final class ConnectionManager extends SimpleChannelHandler {
       super(message);
     }
 
-    private static final long serialVersionUID = 5348377149312597939L;    
+    
   }
 }

@@ -19,8 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
 
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
@@ -58,7 +58,7 @@ final class SearchRpc implements HttpRpc {
   
     final HttpMethod method = query.getAPIMethod();
     if (method != HttpMethod.GET && method != HttpMethod.POST) {
-      throw new BadRequestException("Unsupported method: " + method.getName());
+      throw new BadRequestException("Unsupported method: " + method.name());
     }
     
     // the uri will be /api/vX/search/<type> or /api/search/<type>

@@ -15,7 +15,7 @@ package net.opentsdb.auth;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.stats.StatsCollector;
 import com.stumbleupon.async.Deferred;
-import org.jboss.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpRequest;
 
 import java.util.Map;
 

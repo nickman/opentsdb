@@ -26,9 +26,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.hbase.async.HBaseException;
 import org.hbase.async.RpcTimedOutException;
 import org.hbase.async.Bytes.ByteMap;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.buffer.ByteBuf;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,7 +89,7 @@ final class QueryRpc implements HttpRpc {
     if (query.method() != HttpMethod.GET && query.method() != HttpMethod.POST &&
         query.method() != HttpMethod.DELETE) {
       throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED, 
-          "Method not allowed", "The HTTP method [" + query.method().getName() +
+          "Method not allowed", "The HTTP method [" + query.method().name() +
           "] is not permitted for this endpoint");
     }
     if (query.method() == HttpMethod.DELETE && 
@@ -248,8 +248,8 @@ final class QueryRpc implements HttpRpc {
         }
         
         /** Simply returns the buffer once serialization is complete and logs it */
-        class SendIt implements Callback<Object, ChannelBuffer> {
-          public Object call(final ChannelBuffer buffer) throws Exception {
+        class SendIt implements Callback<Object, ByteBuf> {
+          public Object call(final ByteBuf buffer) throws Exception {
             query.sendReply(buffer);
             query_success.incrementAndGet();
             return null;
@@ -318,7 +318,7 @@ final class QueryRpc implements HttpRpc {
    */
   private void handleExpressionQuery(final TSDB tsdb, final HttpQuery query) {
     final net.opentsdb.query.pojo.Query v2_query = 
-        JSON.parseToObject(query.getContent(), net.opentsdb.query.pojo.Query.class);
+        JSON.parseToObject(query.getContentBuffer(), net.opentsdb.query.pojo.Query.class);
     v2_query.validate();
     final QueryExecutor executor = new QueryExecutor(tsdb, v2_query);
     executor.execute(query);

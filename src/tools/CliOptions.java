@@ -22,14 +22,14 @@ import net.opentsdb.utils.Config;
 
 import org.slf4j.LoggerFactory;
 
-import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Slf4JLoggerFactory;
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
 
 /** Helper functions to parse arguments passed to {@code main}.  */
 final class CliOptions {
 
   static {
-    InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
+    InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
   }
 
   /** Adds common TSDB options to the given {@code argp}.  */

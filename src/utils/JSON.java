@@ -14,13 +14,8 @@ package net.opentsdb.utils;
 
 import java.io.IOException;
 import java.io.InputStream;
-
-import net.opentsdb.search.SearchQuery;
-import net.opentsdb.search.SearchQuery.SearchType;
-import net.opentsdb.tree.TreeRule;
-import net.opentsdb.tree.TreeRule.TreeRuleType;
-import net.opentsdb.uid.UniqueId;
-import net.opentsdb.uid.UniqueId.UniqueIdType;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
@@ -32,6 +27,15 @@ import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.util.JSONPObject;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
+import net.opentsdb.search.SearchQuery;
+import net.opentsdb.search.SearchQuery.SearchType;
+import net.opentsdb.tree.TreeRule;
+import net.opentsdb.tree.TreeRule.TreeRuleType;
+import net.opentsdb.uid.UniqueId;
+import net.opentsdb.uid.UniqueId.UniqueIdType;
 
 /**
  * This class simply provides a static initialization and configuration of the
@@ -74,6 +78,9 @@ import com.fasterxml.jackson.databind.util.JSONPObject;
  * @since 2.0
  */
 public final class JSON {
+  /** The UTF charset */
+  public static final Charset UTF8 = Charset.forName("UTF8");
+	
   /**
    * Jackson de/serializer initialized, configured and shared
    */
@@ -169,6 +176,110 @@ public final class JSON {
       throw new JSONException(e);
     }
   }
+  
+  
+  
+  /**
+   * Deserializes a JSON containing ByteBuf to a specific class type
+   * <b>Note:</b> If you get mapping exceptions you may need to provide a 
+   * TypeReference
+   * @param buf The buffer to deserialize
+   * @param pojo The class type of the object used for deserialization
+   * @param charset The character set of the stream. Defaults to UTF8 if null.
+   * @return An object of the {@code pojo} type
+   * @throws IllegalArgumentException if the data or class was null or parsing 
+   * failed
+   * @throws JSONException if the data could not be parsed
+   */
+  public static final <T> T parseToObject(final ByteBuf buf, final Class<T> pojo, final Charset charset) {
+    if (buf == null || buf.readableBytes()<1)
+      throw new IllegalArgumentException("Incoming data was null or empty");
+    if (pojo == null)
+      throw new IllegalArgumentException("Missing class type");
+    final Charset chs = charset==null ? UTF8 : charset;
+    final ByteBufInputStream bbis = new ByteBufInputStream(buf);
+    final InputStreamReader isr = new InputStreamReader(bbis, chs);
+    
+    try {
+      return jsonMapper.readValue(isr, pojo);
+    } catch (JsonParseException e) {
+      throw new IllegalArgumentException(e);
+    } catch (JsonMappingException e) {
+      throw new IllegalArgumentException(e);
+    } catch (IOException e) {
+      throw new JSONException(e);
+    } finally {
+    	try { isr.close(); } catch (Exception x) {/* No Op */}
+    	try { bbis.close(); } catch (Exception x) {/* No Op */}
+    }
+  }
+  
+  /**
+   * Deserializes a JSON containing ByteBuf to a specific class type
+   * <b>Note:</b> If you get mapping exceptions you may need to provide a 
+   * TypeReference
+   * @param buf The buffer to deserialize
+   * @param pojo The class type of the object used for deserialization
+   * @param charset The character set of the stream. Defaults to UTF8 if null.
+   * @return An object of the {@code pojo} type
+   * @throws IllegalArgumentException if the data or class was null or parsing 
+   * failed
+   * @throws JSONException if the data could not be parsed
+   */
+  public static final <T> T parseToObject(final ByteBuf buf, final Class<T> pojo) {
+	  return parseToObject(buf, pojo, UTF8);
+  }
+  
+  
+  /**
+   * Deserializes a JSON containing ByteBuf to a specific class type
+   * <b>Note:</b> If you get mapping exceptions you may need to provide a 
+   * TypeReference
+   * @param buf The buffer to deserialize
+   * @param type A type definition for a complex object
+   * @param charset The character set of the stream. Defaults to UTF8 if null.
+   * @return An object of the {@code pojo} type
+   * @throws IllegalArgumentException if the data or class was null or parsing 
+   * failed
+   * @throws JSONException if the data could not be parsed
+   */
+  public static final <T> T parseToObject(final ByteBuf buf, final TypeReference<T> type, final Charset charset) {
+    if (buf == null || buf.readableBytes()<1)
+      throw new IllegalArgumentException("Incoming data was null or empty");
+    if (type == null)
+      throw new IllegalArgumentException("Missing class type");
+    final Charset chs = charset==null ? UTF8 : charset;
+    final ByteBufInputStream bbis = new ByteBufInputStream(buf);
+    final InputStreamReader isr = new InputStreamReader(bbis, chs);
+    try {
+      return jsonMapper.readValue(isr, type);
+    } catch (JsonParseException e) {
+      throw new IllegalArgumentException(e);
+    } catch (JsonMappingException e) {
+      throw new IllegalArgumentException(e);
+    } catch (IOException e) {
+      throw new JSONException(e);
+    } finally {
+    	try { isr.close(); } catch (Exception x) {/* No Op */}
+    	try { bbis.close(); } catch (Exception x) {/* No Op */}
+    }
+  }
+  
+  /**
+   * Deserializes a JSON containing ByteBuf to a specific class type and assuming a UTF8 character set 
+   * <b>Note:</b> If you get mapping exceptions you may need to provide a 
+   * TypeReference
+   * @param buf The buffer to deserialize
+   * @param type A type definition for a complex object
+   * @return An object of the {@code pojo} type
+   * @throws IllegalArgumentException if the data or class was null or parsing 
+   * failed
+   * @throws JSONException if the data could not be parsed
+   */
+  public static final <T> T parseToObject(final ByteBuf buf, final TypeReference<T> type) {
+	  return parseToObject(buf, type, UTF8);
+  }
+  
 
   /**
    * Deserializes a JSON formatted byte array to a specific class type

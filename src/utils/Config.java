@@ -298,6 +298,18 @@ public class Config {
   }
 
   /**
+   * Returns the given property as a String
+   * @param property The property to load
+   * @param defaultValue The value to return if the specified property is not defined
+   * @return The property value as a string
+   * @throws NullPointerException if the property did not exist
+   */
+  public final String getString(final String property, final String defaultValue) {
+    String value = properties.get(property);
+    return value==null ? defaultValue : value;
+  }
+  
+  /**
    * Returns the given property as an integer
    * @param property The property to load
    * @return A parsed integer or an exception if the value could not be parsed
@@ -308,6 +320,22 @@ public class Config {
     return Integer.parseInt(sanitize(properties.get(property)));
   }
 
+  /**
+   * Returns the given property as an integer
+   * @param property The property to load
+   * @param defaultValue The value to return if the specified property is not defined
+   * @return A parsed integer or an exception if the value could not be parsed
+   * @throws NumberFormatException if the property could not be parsed
+   * @throws NullPointerException if the property did not exist
+   */
+  public final int getInt(final String property, final int defaultValue) {
+  	try {
+  		return getInt(property);
+  	} catch (Exception ex) {
+  		return defaultValue;
+  	}
+  }
+  
   /**
    * Returns the given string trimed or null if is null 
    * @param string The string be trimmed of 
@@ -387,6 +415,27 @@ public class Config {
       return true;
     return false;
   }
+  
+  /**
+   * Returns the given property as a boolean
+   * 
+   * Property values are case insensitive and the following values will result
+   * in a True return value: - 1 - True - Yes
+   * 
+   * Any other values, including an empty string, will result in a False
+   * 
+   * @param property The property to load
+   * @param defaultValue The value to return if the specified property is not defined
+   * @return A parsed boolean
+   */
+  public final boolean getBoolean(final String property, final boolean defaultValue) {
+  	try {
+  		return getBoolean(property);
+  	} catch (Exception ex) {
+  		return defaultValue;
+  	}
+  }
+  
 
   /**
    * Returns the directory name, making sure the end is an OS dependent slash

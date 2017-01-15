@@ -26,17 +26,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.hbase.async.Bytes;
 import org.hbase.async.Bytes.ByteMap;
+import org.hbase.async.GetRequest;
+import org.hbase.async.GetResultOrException;
+import org.hbase.async.KeyValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
-
-import org.hbase.async.Bytes;
-import org.hbase.async.GetRequest;
-import org.hbase.async.GetResultOrException;
-import org.hbase.async.KeyValue;
 
 import net.opentsdb.meta.Annotation;
 import net.opentsdb.rollup.RollupInterval;
@@ -182,9 +181,9 @@ public class SaltMultiGetter {
     }
   }
   
-  //////////////////////////////////////////////////////////////////////////////////////////
-  //// Call back to handle result
-  /////////////////////////////////////////////////////////////////////////////////////////
+//  //////////////////////////////////////////////////////////////////////////////////////////
+//  //// Call back to handle result
+//  /////////////////////////////////////////////////////////////////////////////////////////
   final class MulGetCB implements Callback<Object, List<GetResultOrException>> {
     private final int concurrency_index;
     private final Set<byte[]> tsuids;

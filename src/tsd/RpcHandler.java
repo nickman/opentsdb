@@ -14,28 +14,33 @@ package net.opentsdb.tsd;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.google.common.base.Strings;
-import com.google.common.net.HttpHeaders;
-import com.stumbleupon.async.Deferred;
-
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpRequest;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
-import org.jboss.netty.handler.codec.http.HttpVersion;
-import org.jboss.netty.handler.timeout.IdleState;
-import org.jboss.netty.handler.timeout.IdleStateAwareChannelUpstreamHandler;
-import org.jboss.netty.handler.timeout.IdleStateEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.base.Strings;
+import com.stumbleupon.async.Deferred;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.DecoderResult;
+import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.stats.StatsCollector;
 
@@ -43,7 +48,8 @@ import net.opentsdb.stats.StatsCollector;
  * Stateless handler for all RPCs: telnet-style, built-in or plugin
  * HTTP.
  */
-final class RpcHandler extends IdleStateAwareChannelUpstreamHandler {
+@ChannelHandler.Sharable
+final class RpcHandler extends IdleStateHandler {
 
   private static final Logger LOG = LoggerFactory.getLogger(RpcHandler.class);
   
@@ -78,6 +84,7 @@ final class RpcHandler extends IdleStateAwareChannelUpstreamHandler {
     this(tsdb, RpcManager.instance(tsdb));
   }
   
+  
   /**
    * Constructor that loads the CORS domain list and prepares for handling 
    * requests.
@@ -86,7 +93,10 @@ final class RpcHandler extends IdleStateAwareChannelUpstreamHandler {
    * @throws IllegalArgumentException if there was an error with the CORS domain
    * list
    */
+  
   public RpcHandler(final TSDB tsdb, final RpcManager manager) {
+	super(0,0,tsdb.getConfig().getInt("tsd.core.socket.timeout"), TimeUnit.SECONDS);  // tsd.core.connections.limit ?
+	
     this.tsdb = tsdb;
     this.rpc_manager = manager;
 
@@ -122,31 +132,35 @@ final class RpcHandler extends IdleStateAwareChannelUpstreamHandler {
       LOG.info("Loaded CORS headers (" + cors_headers + ")");
     }
   }
-
+  
   @Override
-  public void messageReceived(final ChannelHandlerContext ctx,
-                              final MessageEvent msgevent) {
-    try {
-      final Object message = msgevent.getMessage();
+  public void channelRead(final ChannelHandlerContext ctx, final Object message) throws Exception {
+	  LOG.debug("Handling message [{}]", message.getClass().getSimpleName());
+  	final Channel channel = ctx.channel();
+    try {      
       if (message instanceof String[]) {
-        handleTelnetRpc(msgevent.getChannel(), (String[]) message);
-      } else if (message instanceof HttpRequest) {
-        handleHttpQuery(tsdb, msgevent.getChannel(), (HttpRequest) message);
+        handleTelnetRpc(channel, (String[]) message);
+      } else if (message instanceof HttpObject) {
+        handleHttpQuery(tsdb, ctx, (HttpObject) message);
       } else {
-        logError(msgevent.getChannel(), "Unexpected message type "
+        logError(channel, "Unexpected message type "
                  + message.getClass() + ": " + message);
         exceptions_caught.incrementAndGet();
       }
     } catch (Exception e) {
-      Object pretty_message = msgevent.getMessage();
+      Object pretty_message = message;
       if (pretty_message instanceof String[]) {
         pretty_message = Arrays.toString((String[]) pretty_message);
       }
-      logError(msgevent.getChannel(), "Unexpected exception caught"
+      logError(channel, "Unexpected exception caught"
                + " while serving " + pretty_message, e);
       exceptions_caught.incrementAndGet();
     }
+
+//  	super.channelRead(ctx, msg);
   }
+  
+
   
   /**
    * Finds the right handler for a telnet-style RPC and executes it.
@@ -173,20 +187,20 @@ final class RpcHandler extends IdleStateAwareChannelUpstreamHandler {
    * can be detected early, here.
    */
   private AbstractHttpQuery createQueryInstance(final TSDB tsdb,
-        final HttpRequest request,
-        final Channel chan) 
+        final FullHttpRequest request,
+        final ChannelHandlerContext ctx) 
             throws BadRequestException {
-    final String uri = request.getUri();
+    final String uri = request.uri();
     if (Strings.isNullOrEmpty(uri)) {
       throw new BadRequestException("Request URI is empty");
     } else if (uri.charAt(0) != '/') {
       throw new BadRequestException("Request URI doesn't start with a slash");
     } else if (rpc_manager.isHttpRpcPluginPath(uri)) {
       http_plugin_rpcs_received.incrementAndGet();
-      return new HttpRpcPluginQuery(tsdb, request, chan);
+      return new HttpRpcPluginQuery(tsdb, request, ctx.channel());
     } else {
       http_rpcs_received.incrementAndGet();
-      HttpQuery builtinQuery = new HttpQuery(tsdb, request, chan);
+      HttpQuery builtinQuery = new HttpQuery(tsdb, request, ctx);
       return builtinQuery;
     }
   }
@@ -208,18 +222,18 @@ final class RpcHandler extends IdleStateAwareChannelUpstreamHandler {
       if (cors_domains == null || domain == null || domain.isEmpty()) {
         throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED, 
             "Method not allowed", "The HTTP method [" + 
-            query.method().getName() + "] is not permitted");
+            query.method().name() + "] is not permitted");
       }
       
       if (cors_domains.contains("*") || 
           cors_domains.contains(domain.toUpperCase())) {
 
         // when a domain has matched successfully, we need to add the header
-        query.response().headers().add(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
+        query.response().headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN,
             domain);
-        query.response().headers().add(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
+        query.response().headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS,
             "GET, POST, PUT, DELETE");
-        query.response().headers().add(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
+        query.response().headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS,
             cors_headers);
 
         // if the method requested was for OPTIONS then we'll return an OK
@@ -240,7 +254,7 @@ final class RpcHandler extends IdleStateAwareChannelUpstreamHandler {
     }
     return false;
   }
-
+  
   /**
    * Finds the right handler for an HTTP query (either built-in or user plugin) 
    * and executes it. Also handles simple and pre-flight CORS requests if 
@@ -248,63 +262,145 @@ final class RpcHandler extends IdleStateAwareChannelUpstreamHandler {
    * @param chan The channel on which the query was received.
    * @param req The parsed HTTP request.
    */
-  private void handleHttpQuery(final TSDB tsdb, final Channel chan, final HttpRequest req) {
-    AbstractHttpQuery abstractQuery = null;
-    try {
-      abstractQuery = createQueryInstance(tsdb, req, chan);
-      if (!tsdb.getConfig().enable_chunked_requests() && req.isChunked()) {
-        logError(abstractQuery, "Received an unsupported chunked request: "
-            + abstractQuery.request());
-        abstractQuery.badRequest(new BadRequestException("Chunked request not supported."));
-        return;
-      }
-      // NOTE: Some methods in HttpQuery have side-effects (getQueryBaseRoute and 
-      // setSerializer for instance) so invocation order is important here.
-      final String route = abstractQuery.getQueryBaseRoute();
-      if (abstractQuery.getClass().isAssignableFrom(HttpRpcPluginQuery.class)) {
-        if (applyCorsConfig(req, abstractQuery)) {
-          return;
-        }
-        final HttpRpcPluginQuery pluginQuery = (HttpRpcPluginQuery) abstractQuery;
-        final HttpRpcPlugin rpc = rpc_manager.lookupHttpRpcPlugin(route);
-      if (rpc != null) {
-          rpc.execute(tsdb, pluginQuery);
-      } else {
-          pluginQuery.notFound();
-        }
-      } else if (abstractQuery.getClass().isAssignableFrom(HttpQuery.class)) {
-        final HttpQuery builtinQuery = (HttpQuery) abstractQuery;
-        builtinQuery.setSerializer();
-        if (applyCorsConfig(req, abstractQuery)) {
-          return;
-        }
-        final HttpRpc rpc = rpc_manager.lookupHttpRpc(route);
-        if (rpc != null) {
-          rpc.execute(tsdb, builtinQuery);
-        } else {
-          builtinQuery.notFound();
-        }
-      } else {
-        throw new IllegalStateException("Unknown instance of AbstractHttpQuery: " 
-            + abstractQuery.getClass().getName());
-      }
-    } catch (BadRequestException ex) {
-      if (abstractQuery == null) {
-        LOG.warn("{} Unable to create query for {}. Reason: {}", chan, req, ex);
-        sendStatusAndClose(chan, HttpResponseStatus.BAD_REQUEST);
-      } else {
-        abstractQuery.badRequest(ex);
-      }
-    } catch (Exception ex) {
-      exceptions_caught.incrementAndGet();
-      if (abstractQuery == null) {
-        LOG.warn("{} Unexpected error handling HTTP request {}. Reason: {} ", chan, req, ex);
-        sendStatusAndClose(chan, HttpResponseStatus.INTERNAL_SERVER_ERROR);
-      } else {
-        abstractQuery.internalError(ex);
-      }
-    }
+  private void handleHttpQuery(final TSDB tsdb, final ChannelHandlerContext ctx, final HttpObject req) {
+	  FullHttpRequest fullRequest = null;
+	  DecoderResult result = req.decoderResult();
+	  if (!result.isSuccess()) {
+		  throw new BadRequestException(result.cause());
+	  }
+
+	  if (req instanceof FullHttpRequest) {
+		  fullRequest = (FullHttpRequest) req;
+	  }	 else {
+		  // FIXME: what do we do here ?
+	  }
+	  AbstractHttpQuery abstractQuery = null;
+	  try {
+		  abstractQuery = createQueryInstance(tsdb, fullRequest, ctx);
+		  if (!tsdb.getConfig().enable_chunked_requests() && HttpUtil.isTransferEncodingChunked(fullRequest)) {
+			  logError(abstractQuery, "Received an unsupported chunked request: "
+					  + abstractQuery.request());
+			  abstractQuery.badRequest(new BadRequestException("Chunked request not supported."));
+			  return;
+		  }
+		  // NOTE: Some methods in HttpQuery have side-effects (getQueryBaseRoute and 
+		  // setSerializer for instance) so invocation order is important here.
+		  final String route = abstractQuery.getQueryBaseRoute();
+		  if (abstractQuery.getClass().isAssignableFrom(HttpRpcPluginQuery.class)) {
+			  if (applyCorsConfig(fullRequest, abstractQuery)) {
+				  return;
+			  }
+			  final HttpRpcPluginQuery pluginQuery = (HttpRpcPluginQuery) abstractQuery;
+			  final HttpRpcPlugin rpc = rpc_manager.lookupHttpRpcPlugin(route);
+			  if (rpc != null) {
+				  rpc.execute(tsdb, pluginQuery);
+			  } else {
+				  pluginQuery.notFound();
+			  }
+		  } else if (abstractQuery.getClass().isAssignableFrom(HttpQuery.class)) {
+			  final HttpQuery builtinQuery = (HttpQuery) abstractQuery;
+			  builtinQuery.setSerializer();
+			  if (applyCorsConfig(fullRequest, abstractQuery)) {
+				  return;
+			  }
+			  final HttpRpc rpc = rpc_manager.lookupHttpRpc(route);
+			  if (rpc != null) {
+				  rpc.execute(tsdb, builtinQuery);
+			  } else {
+				  builtinQuery.notFound();
+			  }
+		  } else {
+			  throw new IllegalStateException("Unknown instance of AbstractHttpQuery: " 
+					  + abstractQuery.getClass().getName());
+		  }
+	  } catch (BadRequestException ex) {
+		  if (abstractQuery == null) {
+			  LOG.warn("{} Unable to create query for {}. Reason: {}", ctx.channel(), req, ex);
+			  sendStatusAndClose(ctx.channel(), HttpResponseStatus.BAD_REQUEST);
+		  } else {
+			  abstractQuery.badRequest(ex);
+		  }
+	  } catch (Exception ex) {
+		  exceptions_caught.incrementAndGet();
+		  if (abstractQuery == null) {
+			  LOG.warn("{} Unexpected error handling HTTP request {}. Reason: {} ", ctx.channel(), req, ex);
+			  sendStatusAndClose(ctx.channel(), HttpResponseStatus.INTERNAL_SERVER_ERROR);
+		  } else {
+			  abstractQuery.internalError(ex);
+		  }
+	  } finally {
+	  	if(fullRequest!=null) {
+	  		fullRequest.touch("RpcHandler");
+//	  		fullRequest.release();
+	  	}
+	  }
   }
+  
+
+//  /**
+//   * Finds the right handler for an HTTP query (either built-in or user plugin) 
+//   * and executes it. Also handles simple and pre-flight CORS requests if 
+//   * configured, rejecting requests that do not match a domain in the list.
+//   * @param chan The channel on which the query was received.
+//   * @param req The parsed HTTP request.
+//   */
+//  private void handleHttpQuery(final TSDB tsdb, final Channel chan, final HttpRequest req) {
+//    AbstractHttpQuery abstractQuery = null;
+//    try {
+//      abstractQuery = createQueryInstance(tsdb, req, chan);
+//      if (!tsdb.getConfig().enable_chunked_requests() && req.isChunked()) {
+//        logError(abstractQuery, "Received an unsupported chunked request: "
+//            + abstractQuery.request());
+//        abstractQuery.badRequest(new BadRequestException("Chunked request not supported."));
+//        return;
+//      }
+//      // NOTE: Some methods in HttpQuery have side-effects (getQueryBaseRoute and 
+//      // setSerializer for instance) so invocation order is important here.
+//      final String route = abstractQuery.getQueryBaseRoute();
+//      if (abstractQuery.getClass().isAssignableFrom(HttpRpcPluginQuery.class)) {
+//        if (applyCorsConfig(req, abstractQuery)) {
+//          return;
+//        }
+//        final HttpRpcPluginQuery pluginQuery = (HttpRpcPluginQuery) abstractQuery;
+//        final HttpRpcPlugin rpc = rpc_manager.lookupHttpRpcPlugin(route);
+//      if (rpc != null) {
+//          rpc.execute(tsdb, pluginQuery);
+//      } else {
+//          pluginQuery.notFound();
+//        }
+//      } else if (abstractQuery.getClass().isAssignableFrom(HttpQuery.class)) {
+//        final HttpQuery builtinQuery = (HttpQuery) abstractQuery;
+//        builtinQuery.setSerializer();
+//        if (applyCorsConfig(req, abstractQuery)) {
+//          return;
+//        }
+//        final HttpRpc rpc = rpc_manager.lookupHttpRpc(route);
+//        if (rpc != null) {
+//          rpc.execute(tsdb, builtinQuery);
+//        } else {
+//          builtinQuery.notFound();
+//        }
+//      } else {
+//        throw new IllegalStateException("Unknown instance of AbstractHttpQuery: " 
+//            + abstractQuery.getClass().getName());
+//      }
+//    } catch (BadRequestException ex) {
+//      if (abstractQuery == null) {
+//        LOG.warn("{} Unable to create query for {}. Reason: {}", chan, req, ex);
+//        sendStatusAndClose(chan, HttpResponseStatus.BAD_REQUEST);
+//      } else {
+//        abstractQuery.badRequest(ex);
+//      }
+//    } catch (Exception ex) {
+//      exceptions_caught.incrementAndGet();
+//      if (abstractQuery == null) {
+//        LOG.warn("{} Unexpected error handling HTTP request {}. Reason: {} ", chan, req, ex);
+//        sendStatusAndClose(chan, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+//      } else {
+//        abstractQuery.internalError(ex);
+//      }
+//    }
+//  }
   
   /**
    * Helper method for sending a status-only HTTP response.  This is used in cases where 
@@ -312,7 +408,7 @@ final class RpcHandler extends IdleStateAwareChannelUpstreamHandler {
    * and we still want to return an error status to the client.
    */
   private void sendStatusAndClose(final Channel chan, final HttpResponseStatus status) {
-    if (chan.isConnected()) {
+    if (chan.isOpen()) {
       final DefaultHttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
       final ChannelFuture future = chan.write(response);
       future.addListener(ChannelFutureListener.CLOSE);
@@ -373,13 +469,25 @@ final class RpcHandler extends IdleStateAwareChannelUpstreamHandler {
 
   @Override
   public void channelIdle(ChannelHandlerContext ctx, IdleStateEvent e) {
-    if (e.getState() == IdleState.ALL_IDLE) {
-      final String channel_info = e.getChannel().toString();
+    if (e.state() == IdleState.ALL_IDLE) {
+      final String channel_info = ctx.channel().toString();
       LOG.debug("Closing idle socket: " + channel_info);
-      e.getChannel().close();
+      ctx.channel().close();
       LOG.info("Closed idle socket: " + channel_info);
     }
   }
+  
+  @Override
+	public void channelReadComplete(final ChannelHandlerContext ctx) throws Exception {
+		ctx.flush();		
+	}
+  
+  @Override
+	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+	  LOG.error("Caught exception", cause);
+	  super.exceptionCaught(ctx, cause);
+	}
+  
 
   // ---------------- //
   // Logging helpers. //

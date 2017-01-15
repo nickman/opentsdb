@@ -22,8 +22,6 @@ import java.io.PrintStream;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.Collections;
@@ -32,27 +30,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 import javax.management.ObjectName;
 
-import net.opentsdb.core.TSDB;
-import net.opentsdb.tools.ConfigArgP.ConfigurationItem;
-import net.opentsdb.tsd.PipelineFactory;
-import net.opentsdb.utils.Config;
-import net.opentsdb.utils.Threads;
-
-import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.socket.ServerSocketChannelFactory;
-import org.jboss.netty.channel.socket.nio.NioServerBossPool;
-import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.channel.socket.nio.NioWorkerPool;
-import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,6 +43,14 @@ import ch.qos.logback.classic.joran.JoranConfigurator;
 import ch.qos.logback.core.BasicStatusManager;
 import ch.qos.logback.core.joran.spi.JoranException;
 import ch.qos.logback.core.status.StatusListener;
+import io.netty.buffer.ByteBuf;
+import net.opentsdb.core.TSDB;
+import net.opentsdb.tools.ConfigArgP.ConfigurationItem;
+import net.opentsdb.tsd.PipelineFactory;
+import net.opentsdb.tsd.RpcManager;
+import net.opentsdb.utils.Config;
+import net.opentsdb.utils.PluginLoader;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
  * <p>Title: Main</p>
@@ -316,6 +306,8 @@ public class OpenTSDBMain {
     config.loadStaticVariables();   
     // All options are now correctly set in config
     setJVMName(config.getInt("tsd.network.port"), config.getString("tsd.network.bind"));
+    // Initialize Buffer Manager
+    BufferManager.getInstance(config);
     // Configure the logging
     if(config.hasProperty("tsd.logback.file")) {
       final String logBackFile = config.getString("tsd.logback.file");
@@ -362,81 +354,128 @@ public class OpenTSDBMain {
       System.exit(-1);
     }
     
+    StartupPlugin startup = null;
+    try {
+      startup = loadStartupPlugins(config);
+    } catch (IllegalArgumentException e) {
+      usage(argp, e.getMessage(), 3);
+    } catch (Exception e) {
+      throw new RuntimeException("Startup Plugin Initialization failed", e);
+    }
+    
+    
     //  =====================================================================    
     //  Command line processing complete, ready to start TSD.
     //  The code from here to the end of the method is an exact duplicate
     //  of {@link TSDMain#main(String[])} once configuration is complete.
-    //  At the time of this writing, this is at line 123 starting with the
-    //  code:  final ServerSocketChannelFactory factory;
     // =====================================================================     
      
     log.info("Configuration complete. Starting TSDB");
-      final ServerSocketChannelFactory factory;
-      if (config.getBoolean("tsd.network.async_io")) {
-        int workers = Runtime.getRuntime().availableProcessors() * 2;
-        if (config.hasProperty("tsd.network.worker_threads")) {
-          try {
-          workers = config.getInt("tsd.network.worker_threads");
-          } catch (NumberFormatException nfe) {
-            usage(argp, "Invalid worker thread count", 1);
-          }
-        }
-        final Executor executor = Executors.newCachedThreadPool();
-        final NioServerBossPool boss_pool = 
-            new NioServerBossPool(executor, 1, new Threads.BossThreadNamer());
-        final NioWorkerPool worker_pool = new NioWorkerPool(executor, 
-            workers, new Threads.WorkerThreadNamer());
-        factory = new NioServerSocketChannelFactory(boss_pool, worker_pool);
-      } else {
-        factory = new OioServerSocketChannelFactory(
-            Executors.newCachedThreadPool(), Executors.newCachedThreadPool());
+    TSDServer server = null;
+    TSDB tsdb = null;
+    try {
+      tsdb = new TSDB(config);
+      if (startup != null) {
+        tsdb.setStartupPlugin(startup);
+      }
+      tsdb.initializePlugins(true);
+      if (config.getBoolean("tsd.storage.hbase.prefetch_meta")) {
+        tsdb.preFetchHBaseMeta();
       }
       
-      TSDB tsdb = null;
-      try {
-        tsdb = new TSDB(config);
-        tsdb.initializePlugins(true);
-        
-        // Make sure we don't even start if we can't find our tables.
-        tsdb.checkNecessaryTablesExist().joinUninterruptibly();
+      // Make sure we don't even start if we can't find our tables.
+      tsdb.checkNecessaryTablesExist().joinUninterruptibly();
+      
+      registerShutdownHook(tsdb);
+      
+      
+      // This manager is capable of lazy init, but we force an init
+      // here to fail fast.
+      final RpcManager manager = RpcManager.instance(tsdb);
+      final PipelineFactory pipelineFactory = new PipelineFactory(tsdb, manager);
+      server = new TSDServer(tsdb, pipelineFactory); 
+      server.start();
 
-        registerShutdownHook(tsdb);
-        final ServerBootstrap server = new ServerBootstrap(factory);
-
-        server.setPipelineFactory(new PipelineFactory(tsdb));
-        if (config.hasProperty("tsd.network.backlog")) {
-          server.setOption("backlog", config.getInt("tsd.network.backlog")); 
-        }
-        server.setOption("child.tcpNoDelay", 
-            config.getBoolean("tsd.network.tcp_no_delay"));
-        server.setOption("child.keepAlive", 
-            config.getBoolean("tsd.network.keep_alive"));
-        server.setOption("reuseAddress", 
-            config.getBoolean("tsd.network.reuse_address"));
-
-        // null is interpreted as the wildcard address.
-        InetAddress bindAddress = null;
-        if (config.hasProperty("tsd.network.bind")) {
-          bindAddress = InetAddress.getByName(config.getString("tsd.network.bind"));
-        }
-
-        // we validated the network port config earlier
-        final InetSocketAddress addr = new InetSocketAddress(bindAddress,
-            config.getInt("tsd.network.port"));
-        server.bind(addr);
-        log.info("Ready to serve on " + addr);
-      } catch (Throwable e) {
-        factory.releaseExternalResources();
-        try {
-          if (tsdb != null)
-            tsdb.shutdown().joinUninterruptibly();
-        } catch (Exception e2) {
-          log.error("Failed to shutdown HBase client", e2);
-        }
-        throw new RuntimeException("Initialization failed", e);
+    } catch (Throwable e) {
+      if(server!=null) {
+    	  server.stop();
       }
+      try {
+        if (tsdb != null)
+          tsdb.shutdown().joinUninterruptibly();
+      } catch (Exception e2) {
+        log.error("Failed to shutdown HBase client", e2);
+      }
+      throw new RuntimeException("Initialization failed", e);
+    }
+    
       // The server is now running in separate threads, we can exit main.
   }
+  
+  private static void registerShutdownHook(final TSDB tsdb) {
+	    final class TSDBShutdown extends Thread {
+	      public TSDBShutdown() {
+	        super("TSDBShutdown");
+	      }
+	      public void run() {
+	        try {
+	          if (RpcManager.isInitialized()) {
+	            // Check that its actually been initialized.  We don't want to
+	            // create a new instance only to shutdown!
+	            RpcManager.instance(tsdb).shutdown().join();
+	          }
+	          if (tsdb != null) {
+	            tsdb.shutdown().join();
+	          }
+	        } catch (Exception e) {
+	          LoggerFactory.getLogger(TSDBShutdown.class)
+	            .error("Uncaught exception during shutdown", e);
+	        }
+	      }
+	    }
+	    Runtime.getRuntime().addShutdownHook(new TSDBShutdown());
+	  }
+  
+  
+  private static StartupPlugin loadStartupPlugins(Config config) {
+	    Logger log = LoggerFactory.getLogger(TSDMain.class);
+
+	    // load the startup plugin if enabled
+	    StartupPlugin startup = null;
+
+	    if (config.getBoolean("tsd.startup.enable")) {
+	      log.debug("Startup Plugin is Enabled");
+	      final String plugin_path = config.getString("tsd.core.plugin_path");
+	      final String plugin_class = config.getString("tsd.startup.plugin");
+
+	      log.debug("Plugin Path: " + plugin_path);
+	      try {
+	        TSDB.loadPluginPath(plugin_path);
+	      } catch (Exception e) {
+	        log.error("Error loading plugins from plugin path: " + plugin_path, e);
+	      }
+
+	      log.debug("Attempt to Load: " + plugin_class);
+	      startup = PluginLoader.loadSpecificPlugin(plugin_class, StartupPlugin.class);
+	      if (startup == null) {
+	        throw new IllegalArgumentException("Unable to locate startup plugin: " +
+	                config.getString("tsd.startup.plugin"));
+	      }
+	      try {
+	        startup.initialize(config);
+	      } catch (Exception e) {
+	        throw new RuntimeException("Failed to initialize startup plugin", e);
+	      }
+	      log.info("Successfully initialized startup plugin [" +
+	              startup.getClass().getCanonicalName() + "] version: "
+	              + startup.version());
+	    } else {
+	      startup = null;
+	    }
+
+	    return startup;
+	  }
+  
   
   
   /**
@@ -558,23 +597,6 @@ public class OpenTSDBMain {
     return newArgs;
   }
   
-    
-    private static void registerShutdownHook(final TSDB tsdb) {
-        final class TSDBShutdown extends Thread {
-          public TSDBShutdown() {
-            super("TSDBShutdown");
-          }
-          public void run() {
-            try {
-              tsdb.shutdown().join();
-            } catch (Exception e) {
-              LoggerFactory.getLogger(TSDBShutdown.class)
-                .error("Uncaught exception during shutdown", e);
-            }
-          }
-        }
-        Runtime.getRuntime().addShutdownHook(new TSDBShutdown());
-      }
     
   
     /**
@@ -707,7 +729,8 @@ public class OpenTSDBMain {
    * Loads the Static UI content files from the classpath JAR to the configured static root directory
    * @param the name of the content directory to write the content to
    */
-  private static void loadContent(String contentDirectory) {    
+  private static void loadContent(String contentDirectory) {  
+	final BufferManager bufferManager = BufferManager.getInstance();
     File gpDir = new File(contentDirectory);
     final long startTime = System.currentTimeMillis();
     int filesLoaded = 0;
@@ -718,7 +741,7 @@ public class OpenTSDBMain {
     File file = new File(codeSourcePath);
     if( codeSourcePath.endsWith(".jar") && file.exists() && file.canRead() ) {
       JarFile jar = null;
-      ChannelBuffer contentBuffer = ChannelBuffers.dynamicBuffer(300000);
+      final ByteBuf contentBuffer = bufferManager.directBuffer(300000);
       try {
         jar = new JarFile(file);
         final Enumeration<JarEntry> entries = jar.entries(); 
@@ -736,16 +759,20 @@ public class OpenTSDBMain {
             if( !contentFile.getParentFile().exists() ) {
               contentFile.getParentFile().mkdirs();
             }
+            
             if( contentFile.exists() ) {
               if( contentFile.lastModified() >= contentTime ) {
-                log.debug("File in directory was newer [{}]", name);
+                log.info("File in directory was newer [{}]", name);
                 fileNewer++;
                 continue;
               }
               contentFile.delete();
             }
-            log.debug("Writing content file [{}]", contentFile );
+            log.info("Writing content file [{}]", contentFile );
             contentFile.createNewFile();
+            if(!contentFile.canWrite()) {
+            	throw new RuntimeException("Cannot write file:" + contentFile);
+            }
             if( !contentFile.canWrite() ) {
               log.warn("Content file [{}] not writable", contentFile);
               fileFailures++;
@@ -754,9 +781,14 @@ public class OpenTSDBMain {
             FileOutputStream fos = null;
             InputStream jis = null;
             try {
+              log.info("Processing [{}], Size:[{}]", contentFile, contentSize);
               fos = new FileOutputStream(contentFile);
               jis = jar.getInputStream(entry);
-              contentBuffer.writeBytes(jis, contentSize);
+              log.info("Available: {}", jis.available());
+              int bytesTransfered = 0;
+              while(bytesTransfered < contentSize) {
+            	  bytesTransfered += contentBuffer.writeBytes(jis, contentSize - bytesTransfered);
+              }
               contentBuffer.readBytes(fos, contentSize);
               fos.flush();
               jis.close(); jis = null;
@@ -783,6 +815,7 @@ public class OpenTSDBMain {
         log.error("Failed to export ui content", ex);       
       } finally {
         if( jar!=null ) try { jar.close(); } catch (Exception x) { /* No Op */}
+        bufferManager.release(contentBuffer);
       }
     }  else { // end of was-not-a-jar
       log.warn("\n\tThe OpenTSDB classpath is not a jar file, so there is no content to unload.\n\tBuild the OpenTSDB jar and run 'java -jar <jar> --d <target>'.");

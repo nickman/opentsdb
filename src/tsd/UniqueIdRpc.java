@@ -24,8 +24,8 @@ import java.util.TreeMap;
 import org.hbase.async.Bytes;
 import org.hbase.async.Bytes.ByteMap;
 import org.hbase.async.PutRequest;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
 
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
@@ -90,7 +90,7 @@ final class UniqueIdRpc implements HttpRpc {
     // only accept GET And POST
     if (query.method() != HttpMethod.GET && query.method() != HttpMethod.POST) {
       throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED, 
-          "Method not allowed", "The HTTP method [" + query.method().getName() +
+          "Method not allowed", "The HTTP method [" + query.method().name() +
           "] is not permitted for this endpoint");
     }
     
@@ -246,7 +246,7 @@ final class UniqueIdRpc implements HttpRpc {
       
     } else {
       throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED, 
-          "Method not allowed", "The HTTP method [" + method.getName() +
+          "Method not allowed", "The HTTP method [" + method.name() +
           "] is not permitted for this endpoint");
     }
   }
@@ -447,7 +447,7 @@ final class UniqueIdRpc implements HttpRpc {
       query.sendStatusOnly(HttpResponseStatus.NO_CONTENT);
     } else {
       throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED, 
-          "Method not allowed", "The HTTP method [" + method.getName() +
+          "Method not allowed", "The HTTP method [" + method.name() +
           "] is not permitted for this endpoint");
     }
   }
@@ -494,7 +494,7 @@ final class UniqueIdRpc implements HttpRpc {
     // only accept GET and POST
     if (query.method() != HttpMethod.GET && query.method() != HttpMethod.POST) {
       throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED,
-          "Method not allowed", "The HTTP method[" + query.method().getName() +
+          "Method not allowed", "The HTTP method[" + query.method().name() +
           "] is not permitted for this endpoint");
     }
 

@@ -38,7 +38,7 @@ import net.opentsdb.storage.MockDataPoints;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.DateTime;
 
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -493,7 +493,7 @@ public final class TestQueryRpc {
           "\"rateOptions\":{\"counter\":false}}]}");
     NettyMocks.mockChannelFuture(query);
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
 
   @Test
@@ -509,9 +509,9 @@ public final class TestQueryRpc {
           "[{\"metric\":\"nonexistent\",\"aggregator\":\"sum\",\"rate\":true," +
           "\"rateOptions\":{\"counter\":false}}]}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String json = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("No such name for 'foo': 'metrics'"));
   }
 
@@ -522,7 +522,7 @@ public final class TestQueryRpc {
     NettyMocks.mockChannelFuture(query);
     rpc.execute(tsdb, query);
     final String json = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertEquals("[]", json);
   }
   
@@ -538,7 +538,7 @@ public final class TestQueryRpc {
     NettyMocks.mockChannelFuture(query);
     rpc.execute(tsdb, query);
     final String json = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("\"metric\":\"system.cpu.user\""));
   }
   
@@ -555,7 +555,7 @@ public final class TestQueryRpc {
     NettyMocks.mockChannelFuture(query);
     rpc.execute(tsdb, query);
     final String json = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("\"metric\":\"system.cpu.user\""));
   }
   
@@ -570,9 +570,9 @@ public final class TestQueryRpc {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query?start=1h-ago&m=sum:sys.cpu.user");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String json = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("No such name for 'foo': 'metrics'"));
   }
   
@@ -608,7 +608,7 @@ public final class TestQueryRpc {
     NettyMocks.mockChannelFuture(query);
     rpc.execute(tsdb, query);
     final String json = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("\"metric\":\"system.cpu.user\""));
   }
   
@@ -626,7 +626,7 @@ public final class TestQueryRpc {
     NettyMocks.mockChannelFuture(query);
     rpc.execute(tsdb, query);
     final String json = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("\"metric\":\"system.cpu.user\""));
   }
   
@@ -635,9 +635,9 @@ public final class TestQueryRpc {
     HttpQuery query = NettyMocks.deleteQuery(tsdb,
       "/api/query?start=1356998400&m=sum:sys.cpu.user", "");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String json =
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("Deleting data is not enabled"));
   }
   
@@ -652,9 +652,9 @@ public final class TestQueryRpc {
         "/api/query/gexp?start=1h-ago&exp=scale(sum:sys.cpu.user,1)");
     NettyMocks.mockChannelFuture(query);
     rpc.execute(tsdb, query);
-    assertEquals(query.response().getStatus(), HttpResponseStatus.OK);
+    assertEquals(query.response().status(), HttpResponseStatus.OK);
     final String json = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("\"metric\":\"system.cpu.user\""));
   }
   
@@ -668,9 +668,9 @@ public final class TestQueryRpc {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/gexp?start=1h-ago&exp=scale(sum:sys.cpu.user,notanumber)");
     rpc.execute(tsdb, query);
-    assertEquals(query.response().getStatus(), HttpResponseStatus.BAD_REQUEST);
+    assertEquals(query.response().status(), HttpResponseStatus.BAD_REQUEST);
     final String json = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("factor"));
   }
   

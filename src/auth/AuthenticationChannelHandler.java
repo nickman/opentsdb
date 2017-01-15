@@ -12,36 +12,24 @@ package net.opentsdb.auth;
 // of the GNU Lesser General Public License along with this program.  If not,
 // see <http://www.gnu.org/licenses/>.
 
-import net.opentsdb.core.TSDB;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
-import org.jboss.netty.handler.codec.http.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelEvent;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
-
-import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
+import net.opentsdb.core.TSDB;
 
 /**
  * @since 2.3
  */
-public class AuthenticationChannelHandler extends SimpleChannelUpstreamHandler {
+public class AuthenticationChannelHandler extends ChannelInboundHandlerAdapter {
   private static final Logger LOG = LoggerFactory.getLogger(AuthenticationChannelHandler.class);
-  private TSDB tsdb = null;
   private AuthenticationPlugin authentication = null;
 
   public AuthenticationChannelHandler(TSDB tsdb) {
@@ -51,54 +39,58 @@ public class AuthenticationChannelHandler extends SimpleChannelUpstreamHandler {
       LOG.info("No Authentication Plugin Configured");
     }
   }
+  
+  
 
   @Override
-  public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
-    e.getCause().printStackTrace();
-    e.getChannel().close();
+  public void exceptionCaught(ChannelHandlerContext ctx, Throwable e) {
+    e.printStackTrace();
+    ctx.channel().close();
   }
-
+  
   @Override
-  public void messageReceived(ChannelHandlerContext ctx, MessageEvent authEvent) {
-    if (this.authentication == null) {
-      LOG.info("Attempted to use null authentication plugin. This should not happen");
-      LOG.debug("Removing Authentication Handler from Connection");
-      ctx.getPipeline().remove(this);
-    }
-    try {
-      final Object authCommand = authEvent.getMessage();
-      String authResponse = "AUTH_FAIL\r\n";
-      // Telnet Auth
-      if (authCommand instanceof String[]) {
-        LOG.debug("Passing auth command to Authentication Plugin");
-        if (this.authentication.authenticateTelnet((String[]) authCommand)) {
-          LOG.debug("Authentication Completed");
-          authResponse = "AUTH_SUCCESS.\r\n";
-          LOG.debug("Removing Authentication Handler from Connection");
-          ctx.getPipeline().remove(this);
-        }
-        ChannelFuture future = authEvent.getChannel().write(authResponse);
+  public void channelRead(final ChannelHandlerContext ctx, final Object authCommand) throws Exception {
+	  if (this.authentication == null) {
+		  LOG.info("Attempted to use null authentication plugin. This should not happen");
+		  LOG.debug("Removing Authentication Handler from Connection");
+		  ctx.pipeline().remove(this);
+	  }
+	  try {	      
+	      String authResponse = "AUTH_FAIL\r\n";
+	      // Telnet Auth
+	      if (authCommand instanceof String[]) {
+	        LOG.debug("Passing auth command to Authentication Plugin");
+	        if (this.authentication.authenticateTelnet((String[]) authCommand)) {
+	          LOG.debug("Authentication Completed");
+	          authResponse = "AUTH_SUCCESS.\r\n";
+	          LOG.debug("Removing Authentication Handler from Connection");
+	          ctx.pipeline().remove(this);
+	        }
+	        ctx.channel().writeAndFlush(authResponse);
+	      // HTTTP Auth
+	      } else if (authCommand instanceof HttpRequest) {
+	        HttpResponseStatus status;
+	        if (this.authentication.authenticateHTTP((HttpRequest) authCommand)) {
+	          LOG.debug("Authentication Completed");
+	          ctx.pipeline().remove(this);
+	        } else {
+	          LOG.debug("Authentication Failed");
+	          status = HttpResponseStatus.FORBIDDEN;
+	          HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, status);
+	          ctx.channel().writeAndFlush(response);
+	        }
+	      // Unknown Authentication
+	      } else {
+	        LOG.error("Unexpected message type "
+	                + authCommand.getClass() + ": " + authCommand);
+	      }
+		  
+	  } catch (Exception e) {
+		  LOG.error("Unexpected exception caught"
+	                + " while serving: " + e);
+	  }
 
-      // HTTTP Auth
-      } else if (authCommand instanceof HttpRequest) {
-        HttpResponseStatus status;
-        if (this.authentication.authenticateHTTP((HttpRequest) authCommand)) {
-          LOG.debug("Authentication Completed");
-          ctx.getPipeline().remove(this);
-        } else {
-          LOG.debug("Authentication Failed");
-          status = HttpResponseStatus.FORBIDDEN;
-          HttpResponse response = new DefaultHttpResponse(HTTP_1_1, status);
-          ChannelFuture future = authEvent.getChannel().write(response);
-        }
-      // Unknown Authentication
-      } else {
-        LOG.error("Unexpected message type "
-                + authCommand.getClass() + ": " + authCommand);
-      }
-    } catch (Exception e) {
-      LOG.error("Unexpected exception caught"
-              + " while serving: " + e);
-    }
+
   }
+
 }

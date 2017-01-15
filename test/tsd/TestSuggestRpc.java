@@ -12,25 +12,25 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.when;
+
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.opentsdb.core.TSDB;
-
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.when;
-
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpRequest;
-import org.jboss.netty.handler.codec.http.HttpVersion;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
+
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpVersion;
+import net.opentsdb.core.TSDB;
 
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({TSDB.class})
@@ -63,7 +63,7 @@ public final class TestSuggestRpc {
         "/api/suggest?type=metrics&q=s");
     s.execute(tsdb, query);
     assertEquals("[\"sys.cpu.0.system\",\"sys.mem.free\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(Charset.forName("UTF-8")));
   }
   
   @Test
@@ -73,7 +73,7 @@ public final class TestSuggestRpc {
     query.getQueryBaseRoute();
     s.execute(tsdb, query);
     assertEquals("[\"sys.cpu.0.system\",\"sys.mem.free\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(Charset.forName("UTF-8")));
   }
 
   @Test
@@ -82,7 +82,7 @@ public final class TestSuggestRpc {
         "/api/suggest?type=metrics&q=s&max=1");
     s.execute(tsdb, query);
     assertEquals("[\"sys.cpu.0.system\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(Charset.forName("UTF-8")));
   }
   
   @Test
@@ -92,7 +92,7 @@ public final class TestSuggestRpc {
     query.getQueryBaseRoute();
     s.execute(tsdb, query);
     assertEquals("[\"sys.cpu.0.system\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(Charset.forName("UTF-8")));
   }
   
   @Test
@@ -101,7 +101,7 @@ public final class TestSuggestRpc {
         "/api/suggest?type=tagk&q=h");
     s.execute(tsdb, query);
     assertEquals("[\"host\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(Charset.forName("UTF-8")));
   }
   
   @Test
@@ -111,7 +111,7 @@ public final class TestSuggestRpc {
     query.getQueryBaseRoute();
     s.execute(tsdb, query);
     assertEquals("[\"host\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(Charset.forName("UTF-8")));
   }
   
   @Test
@@ -120,7 +120,7 @@ public final class TestSuggestRpc {
         "/api/suggest?type=tagv&q=w");
     s.execute(tsdb, query);
     assertEquals("[\"web01.mysite.com\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(Charset.forName("UTF-8")));
   }
   
   @Test
@@ -130,13 +130,13 @@ public final class TestSuggestRpc {
     query.getQueryBaseRoute();
     s.execute(tsdb, query);
     assertEquals("[\"web01.mysite.com\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(Charset.forName("UTF-8")));
   }
   
   @Test (expected = BadRequestException.class)
   public void badMethod() throws Exception {
     final Channel channelMock = NettyMocks.fakeChannel();
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
+    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.GET, "/api/suggest?type=metrics&q=h");
     req.setMethod(HttpMethod.PUT);
     s.execute(tsdb, new HttpQuery(tsdb, req, channelMock));

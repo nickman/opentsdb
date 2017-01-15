@@ -34,9 +34,9 @@ import com.google.common.util.concurrent.Atomics;
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
 
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -522,7 +522,8 @@ public final class RpcManager {
           super("ShutdownNetty");
         }
         public void run() {
-          chan.getFactory().releaseExternalResources();
+          //chan.factory().releaseExternalResources();
+        	// FIXME: We need a ref to the TSDServer
         }
       }
       new ShutdownNetty().start();  // Stop accepting new connections.
@@ -589,7 +590,7 @@ public final class RpcManager {
       throws IOException {
 
       // only accept GET / POST
-      RpcUtil.allowedMethods(query.method(), HttpMethod.GET.getName(), HttpMethod.POST.getName());
+      RpcUtil.allowedMethods(query.method(), HttpMethod.GET.name(), HttpMethod.POST.name());
 
       if (query.apiVersion() > 0) {
         query.sendReply(
@@ -604,7 +605,7 @@ public final class RpcManager {
   private static final class Version implements TelnetRpc, HttpRpc {
     public Deferred<Object> execute(final TSDB tsdb, final Channel chan,
                                     final String[] cmd) {
-      if (chan.isConnected()) {
+      if (chan.isOpen()) {
         chan.write(BuildData.revisionString() + '\n'
                    + BuildData.buildString() + '\n');
       }
@@ -615,7 +616,7 @@ public final class RpcManager {
       IOException {
 
       // only accept GET / POST
-      RpcUtil.allowedMethods(query.method(), HttpMethod.GET.getName(), HttpMethod.POST.getName());
+      RpcUtil.allowedMethods(query.method(), HttpMethod.GET.name(), HttpMethod.POST.name());
 
       final HashMap<String, String> version = new HashMap<String, String>();
       version.put("version", BuildData.version);
@@ -631,7 +632,7 @@ public final class RpcManager {
       if (query.apiVersion() > 0) {
         query.sendReply(query.serializer().formatVersionV1(version));
       } else {
-        final boolean json = query.request().getUri().endsWith("json");
+        final boolean json = query.request().uri().endsWith("json");
         if (json) {
           query.sendReply(JSON.serializeToBytes(version));
         } else {
@@ -653,7 +654,7 @@ public final class RpcManager {
     public void execute(final TSDB tsdb, final HttpQuery query)
       throws IOException {
       // only accept GET / POST
-      RpcUtil.allowedMethods(query.method(), HttpMethod.GET.getName(), HttpMethod.POST.getName());
+      RpcUtil.allowedMethods(query.method(), HttpMethod.GET.name(), HttpMethod.POST.name());
 
       switch (query.apiVersion()) {
         case 0:
@@ -672,7 +673,7 @@ public final class RpcManager {
     @Override
     public void execute(TSDB tsdb, HttpQuery query) throws IOException {
       // only accept GET/POST
-      RpcUtil.allowedMethods(query.method(), HttpMethod.GET.getName(), HttpMethod.POST.getName());
+      RpcUtil.allowedMethods(query.method(), HttpMethod.GET.name(), HttpMethod.POST.name());
 
       final String[] uri = query.explodeAPIPath();
       final String endpoint = uri.length > 1 ? uri[1].toLowerCase() : "";

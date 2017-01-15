@@ -15,10 +15,14 @@ package net.opentsdb.utils;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.jboss.netty.util.HashedWheelTimer;
-import org.jboss.netty.util.ThreadNameDeterminer;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.netty.util.HashedWheelTimer;
+
 
 /**
  * Utilities dealing with threads, timers and the like.
@@ -27,34 +31,40 @@ public class Threads {
   /** Used to count HashedWheelTimers */
   final static AtomicInteger TIMER_ID = new AtomicInteger();
   
-  /** Helps give useful names to the Netty threads */
-  public static class BossThreadNamer implements ThreadNameDeterminer {
-    final static AtomicInteger tid = new AtomicInteger();
-    @Override
-    public String determineThreadName(String currentThreadName,
-        String proposedThreadName) throws Exception {
-      return "OpenTSDB I/O Boss #" + tid.incrementAndGet();
-    }
-  }
+//=================================================================================
+//	Issue #918: Netty 4.1+ has no thread name determiner.
+//  We can make our own if it's an issue
+//=================================================================================
   
-  /** Helps give useful names to the Netty threads */
-  public static class WorkerThreadNamer implements ThreadNameDeterminer {
-    final static AtomicInteger tid = new AtomicInteger();
-    @Override
-    public String determineThreadName(String currentThreadName,
-        String proposedThreadName) throws Exception {
-      return "OpenTSDB I/O Worker #" + tid.incrementAndGet();
-    }
-  }
+//  /** Helps give useful names to the Netty threads */
+//  public static class BossThreadNamer implements ThreadNameDeterminer {
+//    final static AtomicInteger tid = new AtomicInteger();
+//    @Override
+//    public String determineThreadName(String currentThreadName,
+//        String proposedThreadName) throws Exception {
+//      return "OpenTSDB I/O Boss #" + tid.incrementAndGet();
+//    }
+//  }
+//  
+//  /** Helps give useful names to the Netty threads */
+//  public static class WorkerThreadNamer implements ThreadNameDeterminer {
+//    final static AtomicInteger tid = new AtomicInteger();
+//    @Override
+//    public String determineThreadName(String currentThreadName,
+//        String proposedThreadName) throws Exception {
+//      return "OpenTSDB I/O Worker #" + tid.incrementAndGet();
+//    }
+//  }
   
-  /** Simple prepends "OpenTSDB" to all threads */
-  public static class PrependThreadNamer implements ThreadNameDeterminer {
-    @Override
-    public String determineThreadName(String currentThreadName, String proposedThreadName)
-        throws Exception {
-      return "OpenTSDB " + proposedThreadName;
-    }
-  }
+//  /** Simple prepends "OpenTSDB" to all threads */
+//  public static class PrependThreadNamer implements ThreadNameDeterminer {
+//    @Override
+//    public String determineThreadName(String currentThreadName, String proposedThreadName)
+//        throws Exception {
+//      return "OpenTSDB " + proposedThreadName;
+//    }
+//  }
+  
   
   /**
    * Returns a new HashedWheelTimer with a name and default ticks
@@ -84,16 +94,33 @@ public class Threads {
    */
   public static HashedWheelTimer newTimer(final int ticks, 
       final int ticks_per_wheel, final String name) {
-    class TimerThreadNamer implements ThreadNameDeterminer {
-      @Override
-      public String determineThreadName(String currentThreadName,
-          String proposedThreadName) throws Exception {
-        return "OpenTSDB Timer " + name + " #" + TIMER_ID.incrementAndGet();
-      }
-    }
-    return new HashedWheelTimer(Executors.defaultThreadFactory(), 
-        new TimerThreadNamer(), ticks, MILLISECONDS, ticks_per_wheel);
+    return new HashedWheelTimer(new ThreadFactoryBuilder().setDaemon(true).setNameFormat("OpenTSDB Timer-%d " + name + " #" + TIMER_ID.incrementAndGet()).setPriority(Thread.NORM_PRIORITY).build(),
+    		ticks, TimeUnit.MILLISECONDS, ticks_per_wheel, true);
+
   }
   
+	/**
+	 * Creates a new ThreadFactory 
+	 * @param nameFormat The name format as defined in {@link ThreadFactoryBuilder#setNameFormat(String)}
+	 * @param daemon true for daemon threads, false otherwise
+	 * @param priority The priority of the threads
+	 * @return the new ThreadFactory
+	 */
+	public static ThreadFactory newThreadFactory(final String nameFormat, final boolean daemon, final int priority) {
+		return new ThreadFactoryBuilder()
+				.setDaemon(daemon)
+				.setNameFormat(nameFormat)
+				.setPriority(priority)
+				.build();
+	  }
+  
+	/**
+	 * Creates a new ThreadFactory that creates daemon threads of normal priority 
+	 * @param nameFormat The name format as defined in {@link ThreadFactoryBuilder#setNameFormat(String)}
+	 * @return the new ThreadFactory
+	 */
+	  public static ThreadFactory newThreadFactory(final String nameFormat) {
+		  return newThreadFactory(nameFormat, true, Thread.NORM_PRIORITY); 
+	  }
   
 }

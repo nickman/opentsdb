@@ -16,8 +16,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -128,7 +128,7 @@ final class AnnotationRpc implements HttpRpc {
       
     } else {
       throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED, 
-          "Method not allowed", "The HTTP method [" + method.getName() +
+          "Method not allowed", "The HTTP method [" + method.name() +
           "] is not permitted for this endpoint");
     }
   }
@@ -147,7 +147,7 @@ final class AnnotationRpc implements HttpRpc {
       executeBulkDelete(tsdb, query);
     } else {
       throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED, 
-          "Method not allowed", "The HTTP method [" + query.method().getName() +
+          "Method not allowed", "The HTTP method [" + query.method().name() +
           "] is not permitted for this endpoint");
     }
   }

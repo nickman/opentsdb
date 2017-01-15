@@ -40,7 +40,7 @@ import net.opentsdb.uid.NoSuchUniqueId;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.DateTime;
 
-import org.jboss.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ByteBuf;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -200,7 +200,7 @@ public final class TestHttpJsonSerializer {
     HttpJsonSerializer serdes = new HttpJsonSerializer(query);
     final List<String> metrics = new ArrayList<String>();
     metrics.add("sys.cpu.0.system"); 
-    ChannelBuffer cb = serdes.formatSuggestV1(metrics);
+    ByteBuf cb = serdes.formatSuggestV1(metrics);
     assertNotNull(cb);
     assertEquals("[\"sys.cpu.0.system\"]", 
         cb.toString(Charset.forName("UTF-8")));
@@ -212,7 +212,7 @@ public final class TestHttpJsonSerializer {
     HttpJsonSerializer serdes = new HttpJsonSerializer(query);
     final List<String> metrics = new ArrayList<String>();
     metrics.add("sys.cpu.0.system"); 
-    ChannelBuffer cb = serdes.formatSuggestV1(metrics);
+    ByteBuf cb = serdes.formatSuggestV1(metrics);
     assertNotNull(cb);
     assertEquals("func([\"sys.cpu.0.system\"])", 
         cb.toString(Charset.forName("UTF-8")));
@@ -231,7 +231,7 @@ public final class TestHttpJsonSerializer {
     HttpJsonSerializer serdes = new HttpJsonSerializer(query);
     final HashMap<String, String> map = new HashMap<String, String>(2);
     map.put("result", "true");
-    ChannelBuffer cb = serdes.formatUidRenameV1(map);
+    ByteBuf cb = serdes.formatUidRenameV1(map);
     assertNotNull(cb);
     assertEquals("{\"result\":\"true\"}",
         cb.toString(Charset.forName("UTF-8")));
@@ -244,7 +244,7 @@ public final class TestHttpJsonSerializer {
     final HashMap<String, String> map = new HashMap<String, String>(2);
     map.put("result", "false");
     map.put("error", "known");
-    ChannelBuffer cb = serdes.formatUidRenameV1(map);
+    ByteBuf cb = serdes.formatUidRenameV1(map);
     assertNotNull(cb);
     final String json = cb.toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("\"error\":\"known\""));
@@ -284,7 +284,7 @@ public final class TestHttpJsonSerializer {
     final List<DataPoints[]> results = new ArrayList<DataPoints[]>(1);
     results.add(new DataPoints[] { new MockDataPoints().getMock() });
 
-    ChannelBuffer cb = serdes.formatQueryAsyncV1(data_query, results, 
+    ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
     final String json = cb.toString(Charset.forName("UTF-8"));
@@ -307,7 +307,7 @@ public final class TestHttpJsonSerializer {
     final List<DataPoints[]> results = new ArrayList<DataPoints[]>(1);
     results.add(new DataPoints[] { new MockDataPoints().getMock() });
 
-    ChannelBuffer cb = serdes.formatQueryAsyncV1(data_query, results, 
+    ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
     final String json = cb.toString(Charset.forName("UTF-8"));
@@ -329,7 +329,7 @@ public final class TestHttpJsonSerializer {
     final List<DataPoints[]> results = new ArrayList<DataPoints[]>(1);
     results.add(new DataPoints[] { new MockDataPoints().getMock() });
 
-    final ChannelBuffer cb = serdes.formatQueryAsyncV1(data_query, results, 
+    final ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
     final String json = cb.toString(Charset.forName("UTF-8"));
@@ -357,7 +357,7 @@ public final class TestHttpJsonSerializer {
     final List<DataPoints[]> results = new ArrayList<DataPoints[]>(1);
     results.add(new DataPoints[] { new MockDataPoints().getMock() });
 
-    final ChannelBuffer cb = serdes.formatQueryAsyncV1(data_query, results, 
+    final ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
     final String json = cb.toString(Charset.forName("UTF-8"));
@@ -384,7 +384,7 @@ public final class TestHttpJsonSerializer {
     final List<DataPoints[]> results = new ArrayList<DataPoints[]>(1);
     results.add(new DataPoints[] { new MockDataPoints().getMock() });
 
-    final ChannelBuffer cb = serdes.formatQueryAsyncV1(data_query, results, 
+    final ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
     final String json = cb.toString(Charset.forName("UTF-8"));
@@ -413,7 +413,7 @@ public final class TestHttpJsonSerializer {
     final List<DataPoints[]> results = new ArrayList<DataPoints[]>(1);
     results.add(new DataPoints[] { new MockDataPoints().getMock() });
 
-    final ChannelBuffer cb = serdes.formatQueryAsyncV1(data_query, results, 
+    final ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
     final String json = cb.toString(Charset.forName("UTF-8"));
@@ -440,7 +440,7 @@ public final class TestHttpJsonSerializer {
     data_query.setEnd("1357000500");
     validateTestQuery(data_query);
 
-    ChannelBuffer cb = serdes.formatQueryAsyncV1(data_query, results, 
+    ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
     final String json = cb.toString(Charset.forName("UTF-8"));
@@ -458,7 +458,7 @@ public final class TestHttpJsonSerializer {
     validateTestQuery(data_query);
     final List<DataPoints[]> results = new ArrayList<DataPoints[]>(1);
 
-    ChannelBuffer cb = serdes.formatQueryAsyncV1(data_query, results, 
+    ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
     final String json = cb.toString(Charset.forName("UTF-8"));
@@ -582,7 +582,7 @@ public final class TestHttpJsonSerializer {
     status.put("stack", stack);
     output.add(status);
 
-    ChannelBuffer cb = serdes.formatThreadStatsV1(output);
+    ByteBuf cb = serdes.formatThreadStatsV1(output);
     assertNotNull(cb);
     final String json = cb.toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("\"threadID\":1"));

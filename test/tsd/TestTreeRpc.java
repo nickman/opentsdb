@@ -22,6 +22,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeMap;
 
+import org.hbase.async.DeleteRequest;
+import org.hbase.async.GetRequest;
+import org.hbase.async.HBaseClient;
+import org.hbase.async.KeyValue;
+import org.hbase.async.PutRequest;
+import org.hbase.async.Scanner;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
+import org.powermock.core.classloader.annotations.PrepareForTest;
+import org.powermock.modules.junit4.PowerMockRunner;
+
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.meta.TSMeta;
 import net.opentsdb.meta.UIDMeta;
@@ -36,24 +56,6 @@ import net.opentsdb.uid.UniqueId;
 import net.opentsdb.uid.UniqueId.UniqueIdType;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.JSON;
-
-import org.hbase.async.DeleteRequest;
-import org.hbase.async.GetRequest;
-import org.hbase.async.HBaseClient;
-import org.hbase.async.KeyValue;
-import org.hbase.async.PutRequest;
-import org.hbase.async.Scanner;
-import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpRequest;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
-import org.jboss.netty.handler.codec.http.HttpVersion;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.powermock.core.classloader.annotations.PowerMockIgnore;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
 
 @RunWith(PowerMockRunner.class)
 @PowerMockIgnore({"javax.management.*", "javax.xml.*",
@@ -142,7 +144,7 @@ public final class TestTreeRpc {
   
   @Test (expected = BadRequestException.class)
   public void handleTreeBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
+    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.TRACE, "/api/tree");
     final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
     rpc.execute(tsdb, query);
@@ -154,10 +156,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"name\":\"Test Tree\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"name\":\"2nd Tree\""));
   }
   
@@ -167,10 +169,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree?treeid=2");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"name\":\"2nd Tree\""));
-    assertFalse(query.response().getContent().toString(MockBase.ASCII())
+    assertFalse(query.response().content().toString(MockBase.ASCII())
         .contains("\"name\":\"Test Tree\""));
   }
   
@@ -193,7 +195,7 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree?name=NewTree&method_override=post");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals(1, storage.numColumns(TREE_TABLE, new byte[] { 0, 3 }));
   }
   
@@ -221,7 +223,7 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, 
       "/api/tree", "{\"name\":\"New Tree\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals(1, storage.numColumns(TREE_TABLE, new byte[] { 0, 3 }));
   }
 
@@ -231,10 +233,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree?treeid=1&method_override=post&description=HelloWorld");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"description\":\"HelloWorld\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"name\":\"Test Tree\""));
   }
   
@@ -252,7 +254,7 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree?treeid=1&method_override=post");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().status());
   }
   
   @Test
@@ -261,10 +263,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, 
       "/api/tree", "{\"treeId\":1,\"description\":\"Hello World\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"description\":\"Hello World\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"name\":\"Test Tree\""));
   }
   
@@ -282,7 +284,7 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree?treeid=1&method_override=put");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().status());
   }
   
   @Test
@@ -291,10 +293,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree?treeid=1&method_override=put&description=HelloWorld");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"description\":\"HelloWorld\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"name\":\"\""));
   }
   
@@ -304,10 +306,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.putQuery(tsdb, 
       "/api/tree", "{\"treeId\":1,\"description\":\"Hello World\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"description\":\"Hello World\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"name\":\"\""));
   }
 
@@ -319,7 +321,7 @@ public final class TestTreeRpc {
     // make sure the root is there BEFORE we delete
     assertEquals(4, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     // make sure the definition is still there but the root is gone
     assertEquals(3, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
     assertEquals(-1, storage.numColumns(TREE_TABLE, 
@@ -336,7 +338,7 @@ public final class TestTreeRpc {
     // make sure the root is there BEFORE we delete
     assertEquals(4, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     // make sure the definition has been deleted too
     assertEquals(-1, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
     assertEquals(-1, storage.numColumns(TREE_TABLE, 
@@ -353,7 +355,7 @@ public final class TestTreeRpc {
     // make sure the root is there BEFORE we delete
     assertEquals(4, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     // make sure the definition is still there but the root is gone
     assertEquals(3, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
     assertEquals(-1, storage.numColumns(TREE_TABLE, 
@@ -370,7 +372,7 @@ public final class TestTreeRpc {
     // make sure the root is there BEFORE we delete
     assertEquals(4, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     // make sure the definition has been deleted too
     assertEquals(-1, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
     assertEquals(-1, storage.numColumns(TREE_TABLE, 
@@ -392,10 +394,10 @@ public final class TestTreeRpc {
     setupStorage();
     HttpQuery query = NettyMocks.getQuery(tsdb, "/api/tree/branch?treeid=1");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"displayName\":\"ROOT\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"branches\":null"));
   }
   
@@ -406,10 +408,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/branch?branch=00010001BECD000181A8");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"metric\":\"sys.cpu.0\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"branches\":["));
   }
   
@@ -431,7 +433,7 @@ public final class TestTreeRpc {
   
   @Test (expected = BadRequestException.class)
   public void handleBranchBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
+	  final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.TRACE, "/api/tree/branch");
     final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
     rpc.execute(tsdb, query);
@@ -443,10 +445,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree/rule?treeid=1&level=1&order=0");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"type\":\"METRIC\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"level\":1"));
   }
   
@@ -497,10 +499,10 @@ public final class TestTreeRpc {
       "/api/tree/rule?treeid=1&level=2&order=1&description=Testing" +
       "&method_override=post&type=metric");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"description\":\"Testing\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"level\":2"));
   }
   
@@ -527,7 +529,7 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree/rule?treeid=1&level=1&order=0&method_override=post");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().status());
   }
   
   @Test
@@ -536,12 +538,12 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree/rule?treeid=1&level=1&order=0&description=Testing&method_override=post");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"description\":\"Testing\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"level\":1"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"notes\":\"Metric rule\""));
   }
   
@@ -552,10 +554,10 @@ public final class TestTreeRpc {
       "/api/tree/rule", "{\"treeId\":1,\"level\":2,\"order\":2,\"description\":" +
       "\"Testing\",\"type\":\"metric\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"description\":\"Testing\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"level\":2"));
   }
 
@@ -566,12 +568,12 @@ public final class TestTreeRpc {
       "/api/tree/rule", "{\"treeId\":1,\"level\":1,\"order\":0,\"description\":" +
       "\"Testing\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"description\":\"Testing\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"level\":1"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"notes\":\"Metric rule\""));
   }
   
@@ -590,12 +592,12 @@ public final class TestTreeRpc {
       "/api/tree/rule?treeid=1&level=1&order=0&description=Testing" + 
       "&method_override=put&type=metric");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"description\":\"Testing\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"level\":1"));
-    assertFalse(query.response().getContent().toString(MockBase.ASCII())
+    assertFalse(query.response().content().toString(MockBase.ASCII())
         .contains("\"notes\":\"Metric rule\""));
   }
   
@@ -614,12 +616,12 @@ public final class TestTreeRpc {
       "/api/tree/rule", "{\"treeId\":1,\"level\":1,\"order\":0,\"description\":" +
       "\"Testing\",\"type\":\"metric\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"description\":\"Testing\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"level\":1"));
-    assertFalse(query.response().getContent().toString(MockBase.ASCII())
+    assertFalse(query.response().content().toString(MockBase.ASCII())
         .contains("\"notes\":\"Metric rule\""));
   }
   
@@ -629,7 +631,7 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree/rule?treeid=1&level=1&order=0&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     assertEquals(3, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
   }
   
@@ -647,13 +649,13 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.deleteQuery(tsdb, 
       "/api/tree/rule", "{\"treeId\":1,\"level\":1,\"order\":0}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     assertEquals(3, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
   }
   
   @Test (expected = BadRequestException.class)
   public void handleRuleBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
+	  final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.TRACE, "/api/tree/rule");
     final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
     rpc.execute(tsdb, query);
@@ -676,7 +678,7 @@ public final class TestTreeRpc {
       "\"field\":\"fqdn\"},{\"treeId\":1,\"level\":1,\"order\":0,\"type\":" +
       "\"tagk\",\"field\":\"host\"}]");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     assertEquals(5, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
     final String rule = new String(storage.getColumn(TREE_TABLE, 
         new byte[] { 0, 1 }, Tree.TREE_FAMILY(), 
@@ -702,7 +704,7 @@ public final class TestTreeRpc {
       "\"field\":\"fqdn\"},{\"treeId\":1,\"level\":1,\"order\":0,\"type\":" +
       "\"tagk\",\"field\":\"host\"}]");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     assertEquals(5, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
     final String rule = new String(storage.getColumn(TREE_TABLE, 
         new byte[] { 0, 1 }, Tree.TREE_FAMILY(), 
@@ -728,7 +730,7 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/tree/rules?treeid=1&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     assertEquals(2, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
   }
   
@@ -738,7 +740,7 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.deleteQuery(tsdb, 
       "/api/tree/rules?treeid=1", "");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     assertEquals(2, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
   }
   
@@ -758,10 +760,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/test?treeid=1&tsuids=000001000001000001000002000002");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("Adding leaf"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("000001000001000001000002000002"));
   }
   
@@ -774,14 +776,14 @@ public final class TestTreeRpc {
         "/api/tree/test?treeid=1&tsuids=000001000001000001000002000002," +
         "000001000001000001000002000003");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("Adding leaf"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("000001000001000001000002000002"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("000001000001000001000002000003"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("Unable to locate TSUID meta data"));
   }
   
@@ -794,10 +796,10 @@ public final class TestTreeRpc {
         "/api/tree/test", "{\"treeId\":1,\"tsuids\":[" + 
         "\"000001000001000001000002000002\"]}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("Adding leaf"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("000001000001000001000002000002"));
   }
   
@@ -810,10 +812,10 @@ public final class TestTreeRpc {
         "/api/tree/test", "{\"treeId\":1,\"tsuids\":[" + 
         "\"000001000001000001000002000002\"]}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("Adding leaf"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("000001000001000001000002000002"));
   }
   
@@ -827,14 +829,14 @@ public final class TestTreeRpc {
         "\"000001000001000001000002000002\"," +
         "\"000001000001000001000002000003\"]}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("Adding leaf"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("000001000001000001000002000002"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("000001000001000001000002000003"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("Unable to locate TSUID meta data"));
   }
   
@@ -846,10 +848,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/test?treeid=1&tsuids=000001000001000001000002000003");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("Unable to locate TSUID meta data"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("000001000001000001000002000003"));
     
   }
@@ -863,10 +865,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/test?treeid=1&tsuids=000001000001000001000002000002");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("TSUID was missing a UID name"));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("000001000001000001000002000002"));
   }
   
@@ -912,7 +914,7 @@ public final class TestTreeRpc {
   
   @Test (expected = BadRequestException.class)
   public void handleTestBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
+	  final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.TRACE, "/api/tree/test");
     final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
     rpc.execute(tsdb, query);
@@ -926,10 +928,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/collisions?treeid=1");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"010101\":\"AAAAAA\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"020202\":\"BBBBBB\""));
   }
   
@@ -939,9 +941,9 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/collisions?treeid=1&tsuids=010101");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"010101\":\"AAAAAA\"}", 
-        query.response().getContent().toString(MockBase.ASCII()));
+        query.response().content().toString(MockBase.ASCII()));
   }
   
   @Test
@@ -950,10 +952,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/collisions?treeid=1&tsuids=010101,020202");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"010101\":\"AAAAAA\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"020202\":\"BBBBBB\""));
   }
   
@@ -963,9 +965,9 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/collisions?treeid=1&tsuids=030101");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{}", 
-        query.response().getContent().toString(MockBase.ASCII()));
+        query.response().content().toString(MockBase.ASCII()));
   }
   
   @Test
@@ -974,10 +976,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/tree/collisions", "{\"treeId\":1}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"010101\":\"AAAAAA\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"020202\":\"BBBBBB\""));
   }
   
@@ -987,9 +989,9 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/tree/collisions", "{\"treeId\":1,\"tsuids\":[\"020202\"]}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"020202\":\"BBBBBB\"}", 
-        query.response().getContent().toString(MockBase.ASCII()));
+        query.response().content().toString(MockBase.ASCII()));
   }
   
   @Test
@@ -999,10 +1001,10 @@ public final class TestTreeRpc {
         "/api/tree/collisions", "{\"treeId\":1,\"tsuids\":" +
         "[\"010101\",\"020202\"]}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"010101\":\"AAAAAA\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"020202\":\"BBBBBB\""));
   }
   
@@ -1024,7 +1026,7 @@ public final class TestTreeRpc {
   
   @Test (expected = BadRequestException.class)
   public void handleCollissionsBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
+	  final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.TRACE, "/api/tree/collisions");
     final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
     rpc.execute(tsdb, query);
@@ -1036,10 +1038,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/notmatched?treeid=1");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"010101\":\"Failed rule 0:0\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"020202\":\"Failed rule 1:1\""));
   }
   
@@ -1049,9 +1051,9 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/notmatched?treeid=1&tsuids=010101");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"010101\":\"Failed rule 0:0\"}", 
-        query.response().getContent().toString(MockBase.ASCII()));
+        query.response().content().toString(MockBase.ASCII()));
   }
   
   @Test
@@ -1060,10 +1062,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/notmatched?treeid=1&tsuids=010101,020202");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"010101\":\"Failed rule 0:0\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"020202\":\"Failed rule 1:1\""));
   }
   
@@ -1073,9 +1075,9 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/tree/notmatched?treeid=1&tsuids=030101");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{}", 
-        query.response().getContent().toString(MockBase.ASCII()));
+        query.response().content().toString(MockBase.ASCII()));
   }
   
   @Test
@@ -1084,10 +1086,10 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/tree/notmatched", "{\"treeId\":1}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"010101\":\"Failed rule 0:0\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"020202\":\"Failed rule 1:1\""));
   }
   
@@ -1097,9 +1099,9 @@ public final class TestTreeRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/tree/notmatched", "{\"treeId\":1,\"tsuids\":[\"020202\"]}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"020202\":\"Failed rule 1:1\"}", 
-        query.response().getContent().toString(MockBase.ASCII()));
+        query.response().content().toString(MockBase.ASCII()));
   }
   
   @Test
@@ -1109,10 +1111,10 @@ public final class TestTreeRpc {
         "/api/tree/notmatched", "{\"treeId\":1,\"tsuids\":" +
         "[\"010101\",\"020202\"]}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"010101\":\"Failed rule 0:0\""));
-    assertTrue(query.response().getContent().toString(MockBase.ASCII())
+    assertTrue(query.response().content().toString(MockBase.ASCII())
         .contains("\"020202\":\"Failed rule 1:1\""));
   }
   
@@ -1136,7 +1138,7 @@ public final class TestTreeRpc {
   
   @Test (expected = BadRequestException.class)
   public void handleNotMatchedBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
+	  final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.TRACE, "/api/tree/notmatched");
     final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
     rpc.execute(tsdb, query);

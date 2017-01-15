@@ -21,8 +21,8 @@ import net.opentsdb.rollup.RollUpDataPoint;
 import net.opentsdb.uid.NoSuchUniqueName;
 import net.opentsdb.utils.Config;
 
-import org.jboss.netty.handler.codec.http.HttpMethod;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -69,7 +69,7 @@ class RollupDataPointRpc extends PutDataPointRpc
     // only accept POST
     if (query.method() != HttpMethod.POST) {
       throw new BadRequestException(HttpResponseStatus.METHOD_NOT_ALLOWED,
-          "Method not allowed", "The HTTP method [" + query.method().getName() +
+          "Method not allowed", "The HTTP method [" + query.method().name() +
           "] is not permitted for this endpoint");
     }
 
