@@ -47,6 +47,7 @@ import org.junit.runner.RunWith;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.powermock.api.mockito.PowerMockito;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
@@ -59,6 +60,7 @@ import com.stumbleupon.async.DeferredGroupException;
  * <b>Note:</b> Tests for the default error handlers are in the TestHttpQuery
  * class
  */
+@PowerMockIgnore({"javax.management.*"})
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({ HttpJsonSerializer.class, TSDB.class, Config.class, 
   HttpQuery.class, TSQuery.class, TSSubQuery.class, QueryStats.class,

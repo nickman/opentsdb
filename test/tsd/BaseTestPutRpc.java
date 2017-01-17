@@ -43,7 +43,7 @@ import net.opentsdb.utils.Threads;
 @Ignore
 @PrepareForTest({ TSDB.class, Config.class, HttpQuery.class, UniqueId.class, 
   HBaseClient.class, HashedWheelTimer.class, Scanner.class, Const.class, Threads.class,
-  TimeoutException.class, StorageExceptionHandler.class, PutDataPointRpc.class,
+  TimeoutException.class, StorageExceptionHandler.class, //PutDataPointRpc.class,
   PleaseThrottleException.class, RollupDataPointRpc.class })
 public class BaseTestPutRpc extends BaseTsdbTest {
   protected AtomicLong telnet_requests = new AtomicLong();
@@ -95,6 +95,7 @@ public class BaseTestPutRpc extends BaseTsdbTest {
     writes_timedout.set(0);
     requests_timedout = Whitebox.getInternalState(PutDataPointRpc.class, "requests_timedout");
     requests_timedout.set(0);
+    HttpQuery.initializeSerializerMaps(tsdb);
   }
   
   /**

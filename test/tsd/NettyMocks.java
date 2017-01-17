@@ -245,6 +245,22 @@ public final class NettyMocks {
 	  return (T)ec.readOutbound();	  
   }
   
+  /**
+   * Writes the passed object to an embedded channel pipeline of handlers  
+   * and returns the value read back from the channel
+   * @param writeObject The object to write to the handler
+   * @param handlers The channel handlers to install into the embedded channel
+   * @return The object read back from the channel
+   */
+   @SuppressWarnings("unchecked")
+   public static <T> T writeThenReadFromHandlers(final Object writeObject, final ChannelHandler...handlers) {
+ 	  final EmbeddedChannel ec = new EmbeddedChannel(handlers);
+ 	  ec.writeInbound(writeObject);
+ 	  ec.runPendingTasks();
+ 	  return (T)ec.readOutbound();	  
+   }
+  
+  
   
  /**
   * Creates a Netty EmbeddedChannel that routes passed messages to an instance of a {@link RpcHandler} handler.
@@ -257,10 +273,6 @@ public final class NettyMocks {
 	  return new EmbeddedChannel(rpcHandler);
   }
   
-//  final RpcManager rpcManager = RpcManager.instance(tsdb);
-//  PipelineFactory p = new PipelineFactory(tsdb, rpcManager);
-//  RpcHandler rpcHandler = new RpcHandler(tsdb, rpcManager);
-//  final FullHttpResponse response = NettyMocks.writeReadEmbeddedChannel(query.request(), rpcHandler);  
   
   static class CtorDefaultChannelPipeline extends DefaultChannelPipeline {
 

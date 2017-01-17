@@ -493,23 +493,20 @@ public final class TestQueryRpc {
 	            "{\"start\":1425440315306,\"queries\":" +
 	              "[{\"metric\":\"somemetric\",\"aggregator\":\"sum\",\"rate\":true," +
 	              "\"rateOptions\":{\"counter\":false}}]}");
-	  final FullHttpResponse response = NettyMocks.writeThenReadFromRpcHandler(query.request(), tsdb);
-	  assertEquals(HttpResponseStatus.OK, response.status());
-
+    final FullHttpResponse response = NettyMocks.writeThenReadFromRpcHandler(query.request(), tsdb);
+    assertEquals(HttpResponseStatus.OK, response.status());
   }
   
-  @Test(expected=AssertionError.class)
+  @Test
   public void postQuerySimpleFail() throws Exception {
 	    HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query",
 	            "{\"start\":1425440315306,\"queries\":" +
 	              "[{\"metric\":\"somemetric\",\"aggregator\":\"sum\",\"rate\":true," +
 	              "\"rateOptions\":{\"counter\":false");   //  BAD JSON !
-	  final FullHttpResponse response = NettyMocks.writeThenReadFromRpcHandler(query.request(), tsdb);
-	  assertEquals(HttpResponseStatus.OK, response.status());
-
+    final FullHttpResponse response = NettyMocks.writeThenReadFromRpcHandler(query.request(), tsdb);
+    assertEquals(HttpResponseStatus.INTERNAL_SERVER_ERROR, response.status());
   }
-  
-  
+
 
   @Test
   public void postQueryNoMetricBadRequest() throws Exception {

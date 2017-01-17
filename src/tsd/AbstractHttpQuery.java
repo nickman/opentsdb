@@ -478,18 +478,20 @@ public abstract class AbstractHttpQuery {
     //final HttpResponse resp = response.copy(buf);
 //    LOG.info("---> Sending initial response: [{}]", dr);
     final ChannelFuture future = chan.writeAndFlush(dr);
-//    final ChannelFuture future = ctx.writeAndFlush(dr);
-    future.addListener(new ChannelFutureListener() {
-		@Override
-		public void operationComplete(ChannelFuture f) throws Exception {
-			if(f.isSuccess()) {				
-//				LOG.info("---->  RESPONSE Complete");
-			} else {
-				LOG.error("---->  RESPONSE Failed", f.cause());
+    // test hook. test channel will not return future
+    if(future!=null) {
+	    future.addListener(new ChannelFutureListener() {
+			@Override
+			public void operationComplete(ChannelFuture f) throws Exception {
+				if(f.isSuccess()) {				
+	//				LOG.info("---->  RESPONSE Complete");
+				} else {
+					LOG.error("---->  RESPONSE Failed", f.cause());
+				}
+				
 			}
-			
-		}
-	});
+		});
+    }
     
 //    final ChannelFuture future = chan.write(response.copy(buf));
     if (stats != null) {

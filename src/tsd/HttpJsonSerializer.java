@@ -14,6 +14,7 @@ package net.opentsdb.tsd;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -161,6 +162,8 @@ class HttpJsonSerializer extends HttpSerializer {
     }
   }
   
+  public static final Charset UTF8 = Charset.forName("UTF8");
+  
   /**
    * Parses one or more data points for storage
    * @return an array of data points to process for storage
@@ -177,7 +180,7 @@ class HttpJsonSerializer extends HttpSerializer {
 
     // convert to a string so we can handle character encoding properly
     final ByteBuf content = query.getContentBuffer();
-    final int firstbyte = content.getChar(0);
+    final int firstbyte = content.getByte(0);
     try {
       if (firstbyte == '{') {
         final T dp =
