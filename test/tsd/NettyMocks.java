@@ -12,6 +12,7 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mock;
@@ -19,14 +20,17 @@ import static org.powermock.api.mockito.PowerMockito.mock;
 import java.net.SocketAddress;
 
 import org.junit.Ignore;
+import org.junit.Assert;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.DefaultChannelPipeline;
 import io.netty.channel.DefaultChannelPromise;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
@@ -38,6 +42,12 @@ import net.opentsdb.utils.buffermgr.BufferManager;
 /**
  * Helper class that provides mockups for testing any OpenTSDB processes that
  * deal with Netty.
+ */
+/**
+ * <p>Title: NettyMocks</p>
+ * <p>Description: </p> 
+ * @author Whitehead (nwhitehead AT heliosdev DOT org)
+ * <p><code>net.opentsdb.tsd.NettyMocks</code></p>
  */
 @Ignore
 public final class NettyMocks {
@@ -205,6 +215,52 @@ public final class NettyMocks {
     when(query.channel().write(any(ByteBuf.class))).thenReturn(future);
     future.setSuccess();
   }
+  
+ /**
+  * Creates an embedded channel with the passed handler, writes an object to it and returns the response 
+  * @param writeObject The object to write the channel
+  * @param handlers The handlers to attach to the embedded channel 
+  * @return the object read from the embedded channel
+  */
+  @SuppressWarnings("unchecked")
+  public static <T> T writeReadEmbeddedChannel(final Object writeObject, final ChannelHandler...handlers) {
+	  final EmbeddedChannel ec = new EmbeddedChannel(handlers);
+	  ec.writeInbound(writeObject);
+	  ec.runPendingTasks();
+	  return (T)ec.readOutbound();
+  }
+  
+ /**
+  * Writes the passed object to an instance of the {@link RpcHandler} handler in an embedded channel 
+  * and returns the value read back from the channel
+  * @param writeObject The object to write to the handler
+  * @param tsdb The TSDB instance to create the RpcHandler with
+  * @return The object read back from the channel
+  */
+  @SuppressWarnings("unchecked")
+  public static <T> T writeThenReadFromRpcHandler(final Object writeObject, final TSDB tsdb) {
+	  final EmbeddedChannel ec = rpcHandlerChannel(tsdb);
+	  ec.writeInbound(writeObject);
+	  ec.runPendingTasks();
+	  return (T)ec.readOutbound();	  
+  }
+  
+  
+ /**
+  * Creates a Netty EmbeddedChannel that routes passed messages to an instance of a {@link RpcHandler} handler.
+  * @param tsdb The [mocked] TSDB instance
+  * @return The embedded channel, ready for writing to and reading from
+  */
+  public static EmbeddedChannel rpcHandlerChannel(final TSDB tsdb) {
+	  final RpcManager rpcManager = RpcManager.instance(tsdb);
+	  final RpcHandler rpcHandler = new RpcHandler(tsdb, rpcManager);
+	  return new EmbeddedChannel(rpcHandler);
+  }
+  
+//  final RpcManager rpcManager = RpcManager.instance(tsdb);
+//  PipelineFactory p = new PipelineFactory(tsdb, rpcManager);
+//  RpcHandler rpcHandler = new RpcHandler(tsdb, rpcManager);
+//  final FullHttpResponse response = NettyMocks.writeReadEmbeddedChannel(query.request(), rpcHandler);  
   
   static class CtorDefaultChannelPipeline extends DefaultChannelPipeline {
 

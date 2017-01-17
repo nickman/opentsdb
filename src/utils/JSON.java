@@ -15,6 +15,7 @@ package net.opentsdb.utils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.Charset;
 
 import com.fasterxml.jackson.core.JsonFactory;
@@ -25,17 +26,23 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.util.JSONPObject;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
+import io.netty.buffer.ByteBufOutputStream;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import net.opentsdb.search.SearchQuery;
 import net.opentsdb.search.SearchQuery.SearchType;
 import net.opentsdb.tree.TreeRule;
 import net.opentsdb.tree.TreeRule.TreeRuleType;
 import net.opentsdb.uid.UniqueId;
 import net.opentsdb.uid.UniqueId.UniqueIdType;
+import net.opentsdb.utils.NettySerializers.NettyHttpResponseStatusSerializer;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
  * This class simply provides a static initialization and configuration of the
@@ -91,6 +98,18 @@ public final class JSON {
     // for incoming data points with multiple points per put so that we can
     // toss only the bad ones but keep the good
     jsonMapper.configure(JsonParser.Feature.ALLOW_NON_NUMERIC_NUMBERS, true);
+    addSerializer(HttpResponseStatus.class, NettyHttpResponseStatusSerializer.INSTANCE);
+  }
+  
+  /**
+   * Registers a jackson object JSON serializer
+   * @param clazz The class of the objects to serialize
+   * @param serializer The serializer instance
+   */
+  public static <T> void addSerializer(final Class<T> clazz, final JsonSerializer<T> serializer) {
+	  final SimpleModule module = new SimpleModule();
+	  module.addSerializer(clazz, serializer);
+	  jsonMapper.registerModule(module);
   }
 
   /**
@@ -408,6 +427,26 @@ public final class JSON {
     } catch (JsonProcessingException e) {
       throw new JSONException(e);
     }
+  }
+  
+  // TODO: default allocator, default buffer size
+  public static final ByteBuf serializeToBuffer(final Object object) {
+    if (object == null)
+        throw new IllegalArgumentException("Object was null");
+	  
+	  final ByteBuf buffer = BufferManager.getInstance().ioBuffer(512);
+	  OutputStream out = null;
+	    try {
+	    	out = new ByteBufOutputStream(buffer);
+	    	jsonMapper.writeValue(out, object);
+	    	out.flush();
+	    	out.close();
+	    	return buffer;
+	      } catch (JsonProcessingException e) {
+	        throw new JSONException(e);
+	      } catch (IOException e) {
+	    	  throw new JSONException(e);
+		}
   }
 
   /**

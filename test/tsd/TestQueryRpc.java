@@ -25,6 +25,20 @@ import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.util.List;
 
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
+import org.powermock.core.classloader.annotations.PrepareForTest;
+import org.powermock.modules.junit4.PowerMockRunner;
+
+import com.stumbleupon.async.Deferred;
+import com.stumbleupon.async.DeferredGroupException;
+
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import net.opentsdb.core.DataPoints;
 import net.opentsdb.core.Query;
 import net.opentsdb.core.TSDB;
@@ -35,20 +49,9 @@ import net.opentsdb.query.filter.TagVLiteralOrFilter;
 import net.opentsdb.query.filter.TagVRegexFilter;
 import net.opentsdb.query.filter.TagVWildcardFilter;
 import net.opentsdb.storage.MockDataPoints;
+import net.opentsdb.uid.NoSuchUniqueName;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.DateTime;
-
-import io.netty.handler.codec.http.HttpResponseStatus;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
-
-import net.opentsdb.uid.NoSuchUniqueName;
-
-import com.stumbleupon.async.Deferred;
-import com.stumbleupon.async.DeferredGroupException;
 
 /**
  * Unit tests for the Query RPC class that handles parsing user queries for
@@ -56,6 +59,8 @@ import com.stumbleupon.async.DeferredGroupException;
  * <b>Note:</b> Testing query validation and such should be done in the 
  * core.TestTSQuery and TestTSSubQuery classes
  */
+@SuppressWarnings("javadoc")
+@PowerMockIgnore({"javax.management.*"})
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({ TSDB.class, Config.class, HttpQuery.class, Query.class, 
   Deferred.class, TSQuery.class, DateTime.class, DeferredGroupException.class })
@@ -80,6 +85,7 @@ public final class TestQueryRpc {
   @Before
   public void before() throws Exception {
     tsdb = NettyMocks.getMockedHTTPTSDB();
+    HttpQuery.initializeSerializerMaps(tsdb);
     empty_query = mock(Query.class);
     query_result = mock(Query.class);
     rpc = new QueryRpc();
@@ -480,21 +486,30 @@ public final class TestQueryRpc {
     parseQuery.invoke(rpc, tsdb, query, expressions);
   }
   
+  
   @Test
   public void postQuerySimplePass() throws Exception {
-    final DataPoints[] datapoints = new DataPoints[1];
-    datapoints[0] = new MockDataPoints().getMock();
-    when(query_result.runAsync()).thenReturn(
-        Deferred.fromResult(datapoints));
-    
-    HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query",
-        "{\"start\":1425440315306,\"queries\":" +
-          "[{\"metric\":\"somemetric\",\"aggregator\":\"sum\",\"rate\":true," +
-          "\"rateOptions\":{\"counter\":false}}]}");
-    NettyMocks.mockChannelFuture(query);
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
+	    HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query",
+	            "{\"start\":1425440315306,\"queries\":" +
+	              "[{\"metric\":\"somemetric\",\"aggregator\":\"sum\",\"rate\":true," +
+	              "\"rateOptions\":{\"counter\":false}}]}");
+	  final FullHttpResponse response = NettyMocks.writeThenReadFromRpcHandler(query.request(), tsdb);
+	  assertEquals(HttpResponseStatus.OK, response.status());
+
   }
+  
+  @Test(expected=AssertionError.class)
+  public void postQuerySimpleFail() throws Exception {
+	    HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query",
+	            "{\"start\":1425440315306,\"queries\":" +
+	              "[{\"metric\":\"somemetric\",\"aggregator\":\"sum\",\"rate\":true," +
+	              "\"rateOptions\":{\"counter\":false");   //  BAD JSON !
+	  final FullHttpResponse response = NettyMocks.writeThenReadFromRpcHandler(query.request(), tsdb);
+	  assertEquals(HttpResponseStatus.OK, response.status());
+
+  }
+  
+  
 
   @Test
   public void postQueryNoMetricBadRequest() throws Exception {
