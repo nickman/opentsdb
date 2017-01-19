@@ -12,7 +12,6 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mock;
@@ -20,20 +19,21 @@ import static org.powermock.api.mockito.PowerMockito.mock;
 import java.net.SocketAddress;
 
 import org.junit.Ignore;
-import org.junit.Assert;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.DefaultChannelPipeline;
 import io.netty.channel.DefaultChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequestDecoder;
-import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.utils.Config;
@@ -216,49 +216,132 @@ public final class NettyMocks {
     future.setSuccess();
   }
   
- /**
-  * Creates an embedded channel with the passed handler, writes an object to it and returns the response 
-  * @param writeObject The object to write the channel
-  * @param handlers The handlers to attach to the embedded channel 
-  * @return the object read from the embedded channel
-  */
-  @SuppressWarnings("unchecked")
-  public static <T> T writeReadEmbeddedChannel(final Object writeObject, final ChannelHandler...handlers) {
-	  final EmbeddedChannel ec = new EmbeddedChannel(handlers);
-	  ec.writeInbound(writeObject);
-	  ec.runPendingTasks();
-	  return (T)ec.readOutbound();
-  }
+// /**
+//  * Creates an embedded channel with the passed handler, writes an object to it and returns the response 
+//  * @param writeObject The object to write the channel
+//  * @param handlers The handlers to attach to the embedded channel 
+//  * @return the object read from the embedded channel
+//  */
+//  @SuppressWarnings("unchecked")
+//  public static <T> T writeReadEmbeddedChannel(final Object writeObject, final ChannelHandler...handlers) {
+//	  final EmbeddedChannel ec = new EmbeddedChannel(handlers);
+//	  ec.writeInbound(writeObject);
+//	  ec.runPendingTasks();
+//	  return (T)ec.readOutbound();
+//  }
+//  
+// /**
+//  * Writes the passed object to an instance of the {@link RpcHandler} handler in an embedded channel 
+//  * and returns the value read back from the channel
+//  * @param writeObject The object to write to the handler
+//  * @param tsdb The TSDB instance to create the RpcHandler with
+//  * @return The object read back from the channel
+//  */
+//  @SuppressWarnings("unchecked")
+//  public static <T> T writeThenReadFromRpcHandler(final Object writeObject, final TSDB tsdb) {
+//	  final EmbeddedChannel ec = rpcHandlerChannel(tsdb);
+//	  ec.writeInbound(writeObject);
+//	  ec.runPendingTasks();
+//	  final Object response = ec.readOutbound();
+//	  return (T)response;	  
+//  }
+//  
+//  /**
+//   * Writes the passed object to an embedded channel pipeline of handlers  
+//   * and returns the value read back from the channel
+//   * @param writeObject The object to write to the handler
+//   * @param handlers The channel handlers to install into the embedded channel
+//   * @return The object read back from the channel
+//   */
+//   @SuppressWarnings("unchecked")
+//   public static <T> T writeThenReadFromHandlers(final Object writeObject, final ChannelHandler...handlers) {
+// 	  final EmbeddedChannel ec = new EmbeddedChannel(handlers);
+// 	  ec.writeInbound(writeObject);
+// 	  ec.runPendingTasks();
+// 	  return (T)ec.readOutbound();	  
+//   }
   
- /**
-  * Writes the passed object to an instance of the {@link RpcHandler} handler in an embedded channel 
-  * and returns the value read back from the channel
-  * @param writeObject The object to write to the handler
-  * @param tsdb The TSDB instance to create the RpcHandler with
-  * @return The object read back from the channel
-  */
-  @SuppressWarnings("unchecked")
-  public static <T> T writeThenReadFromRpcHandler(final Object writeObject, final TSDB tsdb) {
-	  final EmbeddedChannel ec = rpcHandlerChannel(tsdb);
-	  ec.writeInbound(writeObject);
-	  ec.runPendingTasks();
-	  return (T)ec.readOutbound();	  
-  }
-  
-  /**
-   * Writes the passed object to an embedded channel pipeline of handlers  
-   * and returns the value read back from the channel
-   * @param writeObject The object to write to the handler
-   * @param handlers The channel handlers to install into the embedded channel
-   * @return The object read back from the channel
-   */
-   @SuppressWarnings("unchecked")
-   public static <T> T writeThenReadFromHandlers(final Object writeObject, final ChannelHandler...handlers) {
- 	  final EmbeddedChannel ec = new EmbeddedChannel(handlers);
- 	  ec.writeInbound(writeObject);
- 	  ec.runPendingTasks();
- 	  return (T)ec.readOutbound();	  
-   }
+	/**
+	 * Creates a new EmbeddedChannel containing the specified HttpRpc
+	 * @param tsdb The TSDB to test against
+	 * @param httpRpc The HttpRpc instance to invoke
+	 * @return The EmbeddedChannel, ready to test
+	 */
+	public static EmbeddedChannel testChannel(final TSDB tsdb, final HttpRpc httpRpc) {
+		final ChannelDuplexHandler rpcWrapper = new ChannelDuplexHandler() {
+			@Override
+			public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+				final FullHttpRequest request = (FullHttpRequest)msg;
+				final HttpQuery query = new HttpQuery(tsdb, request, ctx);
+				httpRpc.execute(tsdb, query);
+			}
+		};
+		return new EmbeddedChannel(rpcWrapper);
+	}
+	
+	/**
+	 * Creates a new EmbeddedChannel containing the specified HttpRpc, 
+	 * writes the passed inbound objects into it, and returns the response.
+	 * @param tsdb The TSDB to test against
+	 * @param httpRpc The HttpRpc instance to invoke
+	 * @param inbound The inbound objects to write
+	 * @return the HttpRpc response
+	 */
+	@SuppressWarnings("unchecked")
+	public static <T> T writeThenReadFromChannel(final TSDB tsdb, final HttpRpc httpRpc, final Object...inbound) {
+		final EmbeddedChannel ec = testChannel(tsdb, httpRpc);
+		try {
+			ec.writeInbound(inbound);
+			ec.runPendingTasks();
+			return ec.readOutbound();
+		} catch (Exception ex) {
+			return (T)handleException(ex);
+		}
+	}
+	
+	/**
+	 * Handles an exception thrown from the direct invocation of the target HttpRpc
+	 * @param ex The thrown exception
+	 * @return the HttpResponse representing the thrown exception
+	 */
+	public static DefaultFullHttpResponse handleException(final Exception ex) {
+		try {
+			throw ex;
+		} catch (BadRequestException brex) {			
+			final DefaultFullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, brex.getStatus());
+			ByteBufUtil.writeUtf8(response.content(), brex.getMessage());
+			final String details = brex.getDetails();
+			if(details!=null && !details.trim().isEmpty()) {
+				ByteBufUtil.writeUtf8(response.content(), "|");
+				ByteBufUtil.writeUtf8(response.content(), details.trim());
+			}
+			return response;
+		} catch (Exception exx) {
+			final DefaultFullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+			ByteBufUtil.writeUtf8(response.content(), exx.getMessage());
+			return response;
+		}
+	}
+	
+	/**
+	 * Creates a new EmbeddedChannel containing the specified HttpRpc, 
+	 * writes the passed inbound objects into it, and returns the response.
+	 * @param tsdb The TSDB to test against
+	 * @param httpRpc The HttpRpc instance to invoke
+	 * @param inbound The inbound objects to write
+	 * @return The EmbeddedChannel, ready to be read from
+	 */
+	public static EmbeddedChannel writeToChannel(final TSDB tsdb, final HttpRpc httpRpc, final Object...inbound) {
+		final EmbeddedChannel ec = testChannel(tsdb, httpRpc);
+		try {			
+			ec.writeInbound(inbound);
+			ec.runPendingTasks();			
+		} catch (Exception ex) {
+			final DefaultFullHttpResponse response = handleException(ex);
+			ec.writeOutbound(response);
+		}
+		return ec;
+	}
   
   
   
@@ -282,16 +365,4 @@ public final class NettyMocks {
 	  
   }
   
-  /**
-   * Returns a simple pipeline with an HttpRequestDecoder and an 
-   * HttpResponseEncoder. No mocking, returns an actual pipeline but an
-   * extension with an accessible constructor
-   * @return The pipeline
-   */
-  private DefaultChannelPipeline createHttpPipeline() {
-    DefaultChannelPipeline pipeline = new CtorDefaultChannelPipeline(null);
-    pipeline.addLast("requestDecoder", new HttpRequestDecoder());
-    pipeline.addLast("responseEncoder", new HttpResponseEncoder());
-    return pipeline;
-  }
 }

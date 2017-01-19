@@ -24,6 +24,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.hbase.async.HBaseClient;
 import org.hbase.async.PleaseThrottleException;
 import org.hbase.async.Scanner;
+
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.util.HashedWheelTimer;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -159,4 +164,6 @@ public class BaseTestPutRpc extends BaseTsdbTest {
     assertEquals(writes_timedout, this.writes_timedout.get());
     assertEquals(requests_timedout, this.requests_timedout.get());
   }
+  
+  
 }
