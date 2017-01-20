@@ -293,7 +293,8 @@ public final class NettyMocks {
 		try {
 			ec.writeInbound(inbound);
 			ec.runPendingTasks();
-			return ec.readOutbound();
+			T t = ec.readOutbound();
+			return t;
 		} catch (Exception ex) {
 			return (T)handleException(ex);
 		}

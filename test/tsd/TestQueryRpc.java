@@ -491,7 +491,7 @@ public final class TestQueryRpc {
 	            "{\"start\":1425440315306,\"queries\":" +
 	              "[{\"metric\":\"somemetric\",\"aggregator\":\"sum\",\"rate\":true," +
 	              "\"rateOptions\":{\"counter\":false}}]}");
-	final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());    
+	final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());    
     assertEquals(HttpResponseStatus.OK, httpResponse.status());
   }
   
@@ -501,7 +501,7 @@ public final class TestQueryRpc {
 	            "{\"start\":1425440315306,\"queries\":" +
 	              "[{\"metric\":\"somemetric\",\"aggregator\":\"sum\",\"rate\":true," +
 	              "\"rateOptions\":{\"counter\":false");   //  BAD JSON !
-	final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());
+	final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
 
@@ -518,7 +518,7 @@ public final class TestQueryRpc {
         "{\"start\":1425440315306,\"queries\":" +
           "[{\"metric\":\"nonexistent\",\"aggregator\":\"sum\",\"rate\":true," +
           "\"rateOptions\":{\"counter\":false}}]}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
     final String json = 
     		httpResponse.content().toString(Charset.forName("UTF-8"));
@@ -529,7 +529,7 @@ public final class TestQueryRpc {
   public void executeEmpty() throws Exception {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query?start=1h-ago&m=sum:sys.cpu.user");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String json = 
     		httpResponse.content().toString(Charset.forName("UTF-8"));
     assertEquals("[]", json);
@@ -544,7 +544,7 @@ public final class TestQueryRpc {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query?start=1h-ago&m=sum:sys.cpu.user");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());    
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());    
     final String json = 
         httpResponse.content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("\"metric\":\"system.cpu.user\""));
@@ -560,7 +560,7 @@ public final class TestQueryRpc {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query?start=1h-ago&m=sum:sys.cpu.user&m=sum:sys.cpu.user"
         + "&m=sum:sys.cpu.user");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String json = 
         httpResponse.content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("\"metric\":\"system.cpu.user\""));
@@ -576,7 +576,7 @@ public final class TestQueryRpc {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query?start=1h-ago&m=sum:sys.cpu.user");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
     final String json = 
         httpResponse.content().toString(Charset.forName("UTF-8"));
@@ -592,7 +592,7 @@ public final class TestQueryRpc {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
             "/api/query?start=1h-ago&m=sum:10m-avg-badbadbad:sys.cpu.user");    
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
     final String errMsg = 
             httpResponse.content().toString(Charset.forName("UTF-8"));    
@@ -611,7 +611,7 @@ public final class TestQueryRpc {
     final HttpQuery query = NettyMocks.postQuery(tsdb,"/api/query",
         "{\"start\":\"1h-ago\",\"queries\":" +
             "[{\"metric\":\"sys.cpu.user\",\"aggregator\":\"sum\"}]}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String json = 
         httpResponse.content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("\"metric\":\"system.cpu.user\""));
@@ -628,7 +628,7 @@ public final class TestQueryRpc {
         "{\"start\":\"1h-ago\",\"queries\":" +
             "[{\"metric\":\"sys.cpu.user\",\"aggregator\":\"sum\"},"
             + "{\"metric\":\"sys.cpu.user\",\"aggregator\":\"sum\"}]}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String json = 
         httpResponse.content().toString(Charset.forName("UTF-8"));
     assertTrue(json.contains("\"metric\":\"system.cpu.user\""));
@@ -638,7 +638,7 @@ public final class TestQueryRpc {
   public void deleteDatapointsBadRequest() throws Exception {
     HttpQuery query = NettyMocks.deleteQuery(tsdb,
       "/api/query?start=1356998400&m=sum:sys.cpu.user", "");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
     final String json =
         httpResponse.content().toString(Charset.forName("UTF-8"));
@@ -655,7 +655,7 @@ public final class TestQueryRpc {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/gexp?start=1h-ago&exp=scale(sum:sys.cpu.user,1)");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     assertEquals(httpResponse.status(), HttpResponseStatus.OK);
     final String json = 
         httpResponse.content().toString(Charset.forName("UTF-8"));
@@ -671,7 +671,7 @@ public final class TestQueryRpc {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/gexp?start=1h-ago&exp=scale(sum:sys.cpu.user,notanumber)");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new QueryRpc(), query.request());    
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());    
     assertEquals(httpResponse.status(), HttpResponseStatus.BAD_REQUEST);
     final String json = 
         httpResponse.content().toString(Charset.forName("UTF-8"));

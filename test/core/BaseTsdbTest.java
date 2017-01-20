@@ -22,6 +22,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mock;
 
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -68,6 +69,8 @@ import com.stumbleupon.async.Deferred;
   HashedWheelTimer.class, Scanner.class, Const.class, Threads.class })
 public class BaseTsdbTest {
   
+  public static final Charset UTF8 = Charset.forName("UTF-8");
+	
   public static final String METRIC_STRING = "sys.cpu.user";
   public static final byte[] METRIC_BYTES = new byte[] { 0, 0, 1 };
   public static final String METRIC_B_STRING = "sys.cpu.system";

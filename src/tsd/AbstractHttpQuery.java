@@ -436,7 +436,7 @@ public abstract class AbstractHttpQuery {
     if (keepalive) {
       HttpHeaders.setContentLength(response, 0);
     }
-    final ChannelFuture future = chan.write(response);
+    final ChannelFuture future = chan.writeAndFlush(response);
     if (stats != null) {
       future.addListener(new SendSuccess());
     }
