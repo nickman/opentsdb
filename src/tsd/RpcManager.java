@@ -223,7 +223,7 @@ public final class RpcManager {
    * whether or not there is a {@link HttpRpcPlugin} registered
    * at the given URI, only that it's a valid RPC plugin request.
    */
-  boolean isHttpRpcPluginPath(final String uri) {
+  static boolean isHttpRpcPluginPath(final String uri) {
     if (Strings.isNullOrEmpty(uri) || uri.length() <= PLUGIN_BASE_WEBPATH.length()) {
       return false;
     } else {

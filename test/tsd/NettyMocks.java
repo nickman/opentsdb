@@ -17,8 +17,12 @@ import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mock;
 
 import java.net.SocketAddress;
+import java.util.List;
 
 import org.junit.Ignore;
+
+import com.google.common.base.Splitter;
+import com.google.common.base.Strings;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -35,6 +39,7 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.util.concurrent.DefaultEventExecutor;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.buffermgr.BufferManager;
@@ -211,8 +216,8 @@ public final class NettyMocks {
 
   /** @param the query to mock a future callback for */
   public static void mockChannelFuture(final HttpQuery query) {
-    final DefaultChannelPromise future = new DefaultChannelPromise(query.channel());
-    when(query.channel().write(any(ByteBuf.class))).thenReturn(future);
+    final DefaultChannelPromise future = new DefaultChannelPromise(query.channel(), new DefaultEventExecutor());
+    when(query.channel().writeAndFlush(any(ByteBuf.class))).thenReturn(future);
     future.setSuccess();
   }
   
@@ -261,6 +266,56 @@ public final class NettyMocks {
 // 	  return (T)ec.readOutbound();	  
 //   }
   
+  private static final Splitter WEBPATH_SPLITTER = Splitter.on('/')
+	      .trimResults()
+	      .omitEmptyStrings();
+
+  
+  static boolean isHttpRpcPluginPath(final String uri) {
+	    if (Strings.isNullOrEmpty(uri) || uri.length() <= RpcManager.PLUGIN_BASE_WEBPATH.length()) {
+	      return false;
+	    } else {
+	      // Don't consider the query portion, if any.
+	      int qmark = uri.indexOf('?');
+	      String path = uri;
+	      if (qmark != -1) {
+	        path = uri.substring(0, qmark);
+	      }
+
+	      final List<String> parts = WEBPATH_SPLITTER.splitToList(path);
+	      return (parts.size() > 1 && parts.get(0).equals(RpcManager.PLUGIN_BASE_WEBPATH));
+	    }
+	  }
+  
+  
+  /**
+   * Using the request URI, creates a query instance capable of handling 
+   * the given request.
+   * @param tsdb the TSDB instance we are running within
+   * @param request the incoming HTTP request
+   * @param chan the {@link Channel} the request came in on.
+   * @return a subclass of {@link AbstractHttpQuery}
+   * @throws BadRequestException if the request is invalid in a way that
+   * can be detected early, here.
+   */
+  public static AbstractHttpQuery createQueryInstance(final TSDB tsdb,
+        final FullHttpRequest request,
+        final ChannelHandlerContext ctx) 
+            throws BadRequestException {
+    final String uri = request.uri();
+    if (Strings.isNullOrEmpty(uri)) {
+      throw new BadRequestException("Request URI is empty");
+    } else if (uri.charAt(0) != '/') {
+      throw new BadRequestException("Request URI doesn't start with a slash");
+    } else if (isHttpRpcPluginPath(uri)) {
+      return new HttpRpcPluginQuery(tsdb, request, ctx.channel());
+    } else {
+      HttpQuery builtinQuery = new HttpQuery(tsdb, request, ctx);
+      return builtinQuery;
+    }
+  }
+  
+  
 	/**
 	 * Creates a new EmbeddedChannel containing the specified HttpRpc
 	 * @param tsdb The TSDB to test against
@@ -272,7 +327,8 @@ public final class NettyMocks {
 			@Override
 			public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
 				final FullHttpRequest request = (FullHttpRequest)msg;
-				final HttpQuery query = new HttpQuery(tsdb, request, ctx);
+				final HttpQuery query = (HttpQuery)createQueryInstance(tsdb, request, ctx);
+				query.getQueryBaseRoute();  // Set API Version
 				httpRpc.execute(tsdb, query);
 			}
 		};

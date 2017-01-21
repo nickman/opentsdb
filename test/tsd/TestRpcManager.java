@@ -81,6 +81,9 @@ public class TestRpcManager {
     TSDB tsdb = mock(TSDB.class);
     when(tsdb.getConfig()).thenReturn(config);
     
+    
+    XXX  Dynamic JAR BUILDER XXX
+    
     PluginLoader.loadJAR("plugin_test.jar");
     mgr_under_test = RpcManager.instance(tsdb);
     

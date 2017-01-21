@@ -12,6 +12,7 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.nio.charset.Charset;
@@ -29,6 +30,7 @@ import com.stumbleupon.async.Deferred;
 import com.stumbleupon.async.DeferredGroupException;
 
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.core.TSQuery;
 import net.opentsdb.query.expression.BaseTimeSyncedIteratorTest;
@@ -80,6 +82,11 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
         .setExpression("a + b").setJoin(intersection).build());
     outputs = Arrays.asList(Output.Builder().setId("e").setAlias("A plus B")
         .build());
+    try {
+    	HttpQuery.initializeSerializerMaps(tsdb);
+    } catch (Exception ex) {
+    	throw new RuntimeException(ex);
+    }
   }
 
   @Test
@@ -164,7 +171,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
     assertTrue(response.contains("\"alias\":\"A plus B\""));
@@ -192,7 +199,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
     assertTrue(response.contains("\"alias\":\"A plus B\""));
@@ -222,7 +229,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
 //    final QueryRpc rpc = new QueryRpc();
 //    final HttpQuery query = NettyMocks.postQuery(tsdb, 
 //        "/api/query/exp", json);
-//    query.getQueryBaseRoute(); // to the correct serializer
+//    
 //    NettyMocks.mockChannelFuture(query);
 //    
 //    rpc.execute(tsdb, query);
@@ -325,7 +332,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
     assertTrue(response.contains("\"id\":\"e\""));
@@ -355,7 +362,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -480,7 +487,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
     assertTrue(response.contains("\"dps\":[]"));
@@ -499,13 +506,15 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    //
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
-    System.err.println("RESP:[" + response + "]");
+    //System.err.println("RESP:[" + response + "]");
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"Boo!\""));
   }
+  
+  
   
   @Test
   public void nsunMetric() throws Exception {
@@ -520,7 +529,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
     assertTrue(response.contains("\"code\":400"));
@@ -544,7 +553,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
     assertTrue(response.contains("\"code\":400"));
@@ -567,7 +576,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
     assertTrue(response.contains("\"code\":400"));
@@ -582,8 +591,9 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
     final String response = httpResponse.content().toString(UTF8);
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"No intersections found"));
@@ -612,7 +622,7 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
     assertTrue(response.contains("\"code\":400"));
@@ -631,14 +641,14 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
+    
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"No intersections found"));
   }
   
-  @Test (expected = IllegalArgumentException.class)
+  @Test 
   public void notEnoughMetrics() throws Exception {
     oneExtraSameE();
     expressions = Arrays.asList(
@@ -647,9 +657,11 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    query.getQueryBaseRoute(); // to the correct serializer
     final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     final String response = httpResponse.content().toString(UTF8);
+    System.err.println("RESP:code:[" + httpResponse.status() + "], body:[" + response + "]");
+    assertEquals(HttpResponseStatus.INTERNAL_SERVER_ERROR, httpResponse.status());    
+    assertEquals("Expression [a + b + c] was missing input c", response);
   }
 
   protected Query.Builder getDefaultQueryBuilder() {
