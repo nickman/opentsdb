@@ -29,6 +29,7 @@ import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 import net.opentsdb.core.TSDB;
+import net.opentsdb.plugin.PluginJarBuilder;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.PluginLoader;
 
@@ -82,9 +83,10 @@ public class TestRpcManager {
     when(tsdb.getConfig()).thenReturn(config);
     
     
-    XXX  Dynamic JAR BUILDER XXX
-    
-    PluginLoader.loadJAR("plugin_test.jar");
+    final String pluginJar = PluginJarBuilder.newBuilder("plugin_test.jar")
+		.addPlugin("net.opentsdb.tsd.DummyHttpRpcPlugin")
+		.build();
+   	PluginLoader.loadJAR(pluginJar);
     mgr_under_test = RpcManager.instance(tsdb);
     
     HttpRpcPlugin plugin = mgr_under_test.lookupHttpRpcPlugin("dummy/test");

@@ -106,13 +106,14 @@ public final class TestAnnotationRpc {
     new AnnotationRpc();
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void badMethod() throws Exception {
     final Channel channelMock = NettyMocks.fakeChannel();
     final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.TRACE, "/api/annotation");
     final HttpQuery query = new HttpQuery(tsdb, req, channelMock);
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
   @Test
@@ -120,52 +121,56 @@ public final class TestAnnotationRpc {
     storage.dumpToSystemOut();
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?tsuid=000001000001000001&start_time=1388450562");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
   }
   
   @Test
   public void getGlobal() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?start_time=1328140800");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
   }
   
   @Test
   public void getGlobals() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/annotations?start_time=1328140800");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void getNotFound() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?tsuid=000001000001000001&start_time=1388450568");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.NOT_FOUND, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void getGlobalNotFound() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?start_time=1388450563");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.NOT_FOUND, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void getGlobalsNotFound() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/annotation?start_time=1388450563");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.NOT_FOUND, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void getMissingStart() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?tsuid=000001000001000001");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
  
   @Test
@@ -173,9 +178,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?tsuid=000001000001000001&start_time=1388450564" + 
     "&description=Boo&method_override=post");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
@@ -187,21 +192,22 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?start_time=1328140802" + 
     "&description=Boo&method_override=post");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
     assertEquals(3, storage.numColumns(global_row_key));
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void postNewMissingStart() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?tsuid=000001000001000001" + 
     "&description=Boo&method_override=post");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
   @Test
@@ -209,9 +215,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?tsuid=000001000001000001&start_time=1388450562" + 
     "&description=Boo&method_override=post");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"My Notes\""));
@@ -222,9 +228,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?start_time=1328140800" + 
     "&description=Boo&method_override=post");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"Notes\""));
@@ -235,9 +241,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, 
     "/api/annotation", "{\"tsuid\":\"000001000001000001\",\"startTime\":" +
     "1388450562,\"description\":\"Boo\"}");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"My Notes\""));
@@ -248,9 +254,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, 
     "/api/annotation", "{\"startTime\":1328140800" + 
     ",\"description\":\"Boo\"}");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"Notes\""));
@@ -261,9 +267,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?tsuid=000001000001000001&start_time=1388450562" + 
     "&description=Boo&method_override=put");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
@@ -275,9 +281,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation?start_time=1328140800" + 
     "&description=Boo&method_override=put");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
@@ -289,8 +295,8 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/annotation?tsuid=000001000001000001&start_time=1388450562" + 
       "&method_override=post");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().status());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.NOT_MODIFIED, httpResponse.status());
   }
   
   @Test
@@ -298,8 +304,8 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/annotation?tsuid=000001000001000001&start_time=1388450562" + 
       "&method_override=delete");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
     assertEquals(3, storage.numColumns(tsuid_row_key));
   }
   
@@ -308,36 +314,40 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/annotation?start_time=1328140800" + 
       "&method_override=delete");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
     assertEquals(1, storage.numColumns(global_row_key));
   }
 
-  @Test (expected = BadRequestException.class)
+  @Test
   public void bulkBadMethodGet() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, "/api/annotation/bulk");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.METHOD_NOT_ALLOWED, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void bulkMissingContent() throws Exception {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/annotation/bulk", "");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void bulkMissingInvalidContent() throws Exception {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/annotation/bulk", 
         "Not a json object");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void bulkMissingInvalidSingleObject() throws Exception {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/annotation/bulk", 
         "{\"tsuid\":\"000001000001000001\",\"startTime\":" +
             "1388450562,\"description\":\"Boo\"}");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
   @Test
@@ -346,9 +356,9 @@ public final class TestAnnotationRpc {
     "/api/annotation/bulk", "[{\"tsuid\":\"000001000001000001\",\"startTime\":" +
     "1388450562,\"description\":\"Boo\"},{\"tsuid\":\"000001000001000002\"," + 
     "\"startTime\":1388450562,\"description\":\"Gum\"}]");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"My Notes\""));
@@ -361,22 +371,23 @@ public final class TestAnnotationRpc {
     "/api/annotation/bulk", "[{\"startTime\":1328140800" + 
     ",\"description\":\"Boo\"},{\"startTime\":1388450562,\"description\":" +
     "\"Gum\"}]");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"Notes\""));
     assertTrue(data.contains("\"description\":\"Gum\""));
   }
 
-  @Test (expected = BadRequestException.class)
+  @Test 
   public void bulkModifyPOSTMissingStart() throws Exception {
     HttpQuery query = NettyMocks.postQuery(tsdb, 
     "/api/annotation/bulk", "[{\"tsuid\":\"000001000001000001\",\"startTime\":" +
     "1388450562,\"description\":\"Boo\"},{\"tsuid\":\"000001000001000002\"," + 
     "\"description\":\"Gum\"}]");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
 
   @Test
@@ -385,9 +396,9 @@ public final class TestAnnotationRpc {
     "[{\"tsuid\":\"000001000001000001\",\"startTime\":" +
     "1328140800,\"description\":\"Boo\"},{\"tsuid\":\"000001000001000002\"," + 
     "\"startTime\":1328140800,\"description\":\"Gum\"}]");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
@@ -399,10 +410,11 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.putQuery(tsdb, "/api/annotation/bulk",
     "[{\"startTime\":1328140800,\"description\":\"Boo\"},{" + 
     "\"startTime\":1328140800,\"description\":\"Gum\"}]");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
+    System.err.println("DATA:[" + data + "]");
     assertTrue(data.contains("\"description\":\"Boo\""));
     assertTrue(data.contains("\"notes\":\"\""));
     assertTrue(data.contains("\"startTime\":1328140800"));
@@ -414,9 +426,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation/bulk?tsuids=000001000001000001,000001000001000002" +
     "&start_time=1388450560000&end_time=1388450562000&method_override=delete");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":1"));
     assertEquals(3, storage.numColumns(tsuid_row_key));
@@ -427,9 +439,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation/bulk?tsuids=000001000001000001,000001000001000002" +
     "&start_time=1388450550000&end_time=1388450560000&method_override=delete");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":0"));
     assertEquals(4, storage.numColumns(tsuid_row_key));
@@ -440,9 +452,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation/bulk?tsuids=000001000001000001,000001000001000002" +
     "&start_time=1000000000000&method_override=delete");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":2"));
     assertEquals(2, storage.numColumns(tsuid_row_key));
@@ -453,9 +465,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation/bulk?start_time=1328140799000&end_time=1328140800000" +
     "&global=true&method_override=delete");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":1"));
     assertEquals(1, storage.numColumns(global_row_key));
@@ -466,9 +478,9 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation/bulk?start_time=1328140600000&end_time=1328140700000" +
     "&global=true&method_override=delete");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":0"));
     assertEquals(2, storage.numColumns(global_row_key));
@@ -479,34 +491,37 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation/bulk?start_time=1000000000000" +
     "&global=true&method_override=delete");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":2"));
     assertEquals(-1, storage.numColumns(global_row_key));
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void bulkDeleteMissingStart() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation/bulk?tsuids=000001000001000001,000001000001000002" +
     "&end_time=1388450562000&method_override=delete");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void bulkDeleteMissingTsuidsAndGlobal() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation/bulk?&start_time=1388450562000&method_override=delete");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void bulkDeleteEmptyTsuids() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/annotation/bulk?&start_time=1388450562000&tsuids=&method_override=delete");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
 
   @Test
@@ -515,9 +530,9 @@ public final class TestAnnotationRpc {
     "/api/annotation/bulk", "{\"tsuids\":[\"000001000001000001\"," +
     "\"000001000001000002\"],\"startTime\":\"1388450560000\",\"endTime\":" +
     "\"1388450562000\"}");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":1"));
     assertEquals(3, storage.numColumns(tsuid_row_key));
@@ -528,42 +543,46 @@ public final class TestAnnotationRpc {
     HttpQuery query = NettyMocks.deleteQuery(tsdb, 
     "/api/annotation/bulk", "{\"startTime\":\"1328140799000\",\"endTime\":" +
         "\"1328140800000\",\"global\":true}");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String data = query.response().content()
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String data = httpResponse.content()
       .toString(Charset.forName("UTF-8"));
     assertTrue(data.contains("\"totalDeleted\":1"));
     assertEquals(1, storage.numColumns(global_row_key));
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void bulkDeleteMissingStartDELETE() throws Exception {
     HttpQuery query = NettyMocks.deleteQuery(tsdb, 
     "/api/annotation/bulk?", "{\"tsuids\":[\"000001000001000001\"," +
         "\"000001000001000002\"],\"endTime\":" +
         "\"1388450562000\"}");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void bulkDeleteEmptyTsuidsDELETE() throws Exception {
     HttpQuery query = NettyMocks.deleteQuery(tsdb, 
     "/api/annotation/bulk", "{\"startTime\":\"1328140799000\",\"endTime\":" +
         "\"1328140800000\"}");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void bulkDeleteNoBodyDELETE() throws Exception {
     HttpQuery query = NettyMocks.deleteQuery(tsdb, 
     "/api/annotation/bulk", null);
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void bulkDeleteBadJSONDELETE() throws Exception {
     HttpQuery query = NettyMocks.deleteQuery(tsdb, 
     "/api/annotation/bulk", "{thisisnotjson}");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
 }

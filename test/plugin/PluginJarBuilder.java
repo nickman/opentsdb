@@ -14,6 +14,8 @@ package net.opentsdb.plugin;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,6 +48,9 @@ public class PluginJarBuilder {
 			"net.opentsdb.tsd.StorageExceptionHandler"
 			
 	)));
+	
+	/** The UTF8 Character Set */
+	public static final Charset UTF8 = Charset.forName("UTF8");
 	
 	/**
 	 * Creates a new builder
@@ -81,7 +86,7 @@ public class PluginJarBuilder {
 				impls = new HashSet<Class<?>>();
 				services.put(pluginType, impls);
 			}
-			impls.add(parent);
+			impls.add(clazz);
 			return this;
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to add the plugin class name [" + pluginClassName + "]", ex);
@@ -98,9 +103,15 @@ public class PluginJarBuilder {
 	}
 	
 	
+	/**
+	 * Example of building a plugin jar
+	 * @param args None
+	 */
 	public static void main(String[] args) {
 		System.out.println(
-			newBuilder("foo").build(false, false)
+			newBuilder("foo")
+			.addPlugin("net.opentsdb.tsd.DummyHttpRpcPlugin")
+			.build(true, false)
 		);
 	}
 	
@@ -113,26 +124,58 @@ public class PluginJarBuilder {
 	public String build(final boolean includeClasses, final boolean deleteOnExit) {
 		FileOutputStream fos = null;
 		JarOutputStream jos = null;
+		final Set<String> directoryEntries = new HashSet<String>();
 		try {
 			final File file = File.createTempFile(name, ".jar");
+			if(deleteOnExit) file.deleteOnExit(); 
 			fos = new FileOutputStream(file, false);
 			jos = new JarOutputStream(fos);
 			jos.putNextEntry(new JarEntry("META-INF/"));			
 			jos.putNextEntry(new JarEntry("META-INF/services/"));
-			jos.putNextEntry(new JarEntry("META-INF/services/org.foo.plugin.XYZ"));
-			jos.write("impl1\n".getBytes());
-			jos.write("impl2\n".getBytes());
-			jos.write("impl3\n".getBytes());			
-			jos.closeEntry();
+			for(Map.Entry<String, Set<Class<?>>> entry: services.entrySet()) {
+				jos.putNextEntry(new JarEntry("META-INF/services/" + entry.getKey()));
+				for(Class<?> clazz: entry.getValue()) {
+					jos.write((clazz.getName() + "\n").getBytes(UTF8));
+				}
+				jos.closeEntry();
+				if(includeClasses) {
+					for(Class<?> clazz: entry.getValue()) {
+						final String packageDir = clazz.getPackage().getName().replace('.', '/') + "/";
+						if(directoryEntries.add(packageDir)) {
+							jos.putNextEntry(new JarEntry(packageDir));
+						}
+						final String resourceName = packageDir + clazz.getSimpleName() + ".class";
+						jos.putNextEntry(new JarEntry(resourceName));
+						writeClass(jos, clazz, resourceName);
+						jos.closeEntry();
+					}
+				}
+			}
 			jos.flush();
 			jos.close();
-			if(deleteOnExit) file.deleteOnExit();
+			
 			return file.getAbsolutePath();
 		} catch (Exception ex) {
 			throw new RuntimeException("Failed to build plugin jar [" + name + "]", ex);
 		} finally {
 			if(jos!=null) try { jos.close(); } catch (Exception x) {/* No Op */}
 			if(fos!=null) try { fos.close(); } catch (Exception x) {/* No Op */}
+		}
+	}
+	
+	protected void writeClass(final JarOutputStream jos, final Class<?> clazz, final String resource) {
+		final ClassLoader cl = clazz.getClassLoader();
+		InputStream is = cl.getResourceAsStream(resource);
+		try {
+			final byte[] byteCode = new byte[1024];
+			int bytesRead = -1;
+			while((bytesRead = is.read(byteCode))!=-1) {
+				jos.write(byteCode, 0, bytesRead);
+			}
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to read class [" + resource + "]", ex);
+		} finally {
+			try { is.close(); } catch (Exception x) {/* No Op */}
 		}
 	}
 	

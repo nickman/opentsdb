@@ -39,6 +39,7 @@ import com.sun.java_cup.internal.runtime.Scanner;
 
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
@@ -85,9 +86,9 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupAnswerSearchQuery();
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/tsmeta?query=*");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"results\":[{\"tsuid\""));
     assertEquals(1, search_query.getResults().size());
   }
@@ -97,9 +98,9 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupAnswerSearchQuery();
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/tsmeta_summary?query=*");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"host\":\"web01\""));
     assertTrue(result.contains("\"metric\":\"sys.cpu.0\""));
     assertEquals(1, search_query.getResults().size());
@@ -110,9 +111,9 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupAnswerSearchQuery();
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/tsuids?query=*");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"results\":[\"000001000001000001\""));
     assertEquals(2, search_query.getResults().size());
   }
@@ -122,9 +123,9 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupAnswerSearchQuery();
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/uidmeta?query=*");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"results\":[{\"uid\""));
     assertEquals(2, search_query.getResults().size());
   }
@@ -134,9 +135,9 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupAnswerSearchQuery();
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/annotation?query=*");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"results\":[{\"tsuid\""));
     assertEquals(1, search_query.getResults().size());
   }
@@ -146,9 +147,9 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupAnswerSearchQuery();
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/annotation?query=EMTPY");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"results\":[]"));
     assertEquals(0, search_query.getResults().size());
   }
@@ -158,8 +159,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupAnswerSearchQuery();
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/tsmeta?query=*&limit=42");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
     assertEquals(42, search_query.getLimit());
   }
   
@@ -168,8 +169,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupAnswerSearchQuery();
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/tsmeta?query=*&start_index=4");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
     assertEquals(4, search_query.getStartIndex());
   }
   
@@ -178,62 +179,69 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupAnswerSearchQuery();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
       "/api/search/tsmeta", "{\"query\":\"*\",\"limit\":42,\"startIndex\":2}");
-    rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"results\":[{\"tsuid\""));
     assertEquals(1, search_query.getResults().size());
     assertEquals(42, search_query.getLimit());
     assertEquals(2, search_query.getStartIndex());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void searchBadMethod() throws Exception {
     final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.PUT, "/api/search");
     final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void searchMissingType() throws Exception {
     final HttpQuery query = NettyMocks.getQuery(tsdb, "/api/search?query=*");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void searchBadTypeType() throws Exception {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/search/badtype?query=*");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void searchMissingQuery() throws Exception {
     final HttpQuery query = NettyMocks.getQuery(tsdb, "/api/search/tsmeta");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void searchPluginNotEnabled() throws Exception {
     Whitebox.setInternalState(tsdb, "search", (SearchPlugin)null);
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/search/tsmeta?query=*");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void searchInvalidLimit() throws Exception {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/search/tsmeta?query=*&limit=nan");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void searchInvalidStartIndex() throws Exception {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/search/tsmeta?query=*&start_index=nan");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
   @Test
@@ -241,10 +249,11 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupLookup(true);
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/lookup?m={host=}");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"host\":\"web01\""));
     assertTrue(result.contains("\"totalResults\":5"));
     assertTrue(result.contains("\"tsuid\":\"000001000001000001\""));
@@ -260,10 +269,10 @@ public final class TestSearchRpc extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
       "/api/search/lookup", "{\"tags\":[{\"key\":\"host\",\"value\":null}]}");
     query.setSerializer();
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"host\":\"web01\""));
     assertTrue(result.contains("\"totalResults\":5"));
     assertTrue(result.contains("\"tsuid\":\"000001000001000001\""));
@@ -278,10 +287,10 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupLookup(false);
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/search/lookup", 
       "{\"tags\":[{\"key\":\"host\",\"value\":null}],\"useMeta\":false}");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     
-    assertEquals(HttpResponseStatus.OK, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"host\":\"web01\""));
     assertTrue(result.contains("\"totalResults\":5"));
     assertTrue(result.contains("\"tsuid\":\"000001000001000001\""));
@@ -296,27 +305,29 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupLookup(false);
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/search/lookup", 
       "{\"tags\":[{\"key\":\"host\",\"value\":null}]}");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     
     assertEquals(HttpResponseStatus.INTERNAL_SERVER_ERROR, 
-        query.response().status());
-    final String result = query.response().content().toString(UTF);
+        httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"code\":500"));
     assertTrue(result.contains("\"message\":\"Unexpected exception\""));
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test 
   public void searchLookupMissingQuery() throws Exception {
     setupLookup(true);
     final HttpQuery query = NettyMocks.getQuery(tsdb, "/api/search/lookup");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void searchLookupBadQuery() throws Exception {
     setupLookup(true);
     final HttpQuery query = NettyMocks.getQuery(tsdb, "/api/search/lookup?m={");
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
   @Test
@@ -324,10 +335,10 @@ public final class TestSearchRpc extends BaseTsdbTest {
     setupLookup(true);
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/lookup?m=" + NSUN_METRIC);
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     
-    assertEquals(HttpResponseStatus.NOT_FOUND, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    assertEquals(HttpResponseStatus.NOT_FOUND, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"code\":404"));
     assertTrue(result.contains("\"details\":\"No such name"));
   }
@@ -347,10 +358,10 @@ public final class TestSearchRpc extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
       "/api/search/lookup", "{\"tags\":[{\"key\":\"host\",\"value\":null}]}");
     query.setSerializer();
-    rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
     
-    assertEquals(HttpResponseStatus.NOT_FOUND, query.response().status());
-    final String result = query.response().content().toString(UTF);
+    assertEquals(HttpResponseStatus.NOT_FOUND, httpResponse.status());
+    final String result = httpResponse.content().toString(UTF);
     assertTrue(result.contains("\"code\":404"));
     assertTrue(result.contains("\"details\":\"No such unique ID"));
   }
