@@ -364,16 +364,20 @@ public abstract class AbstractHttpQuery {
       this.request.content().isReadable();
   }
 
-//  /**
-//   * Decodes the request content to a string using the appropriate character set
-//   * @return Decoded content or an empty string if the request did not include
-//   * content
-//   * @throws UnsupportedCharsetException if the parsed character set is invalid
-//   */
-//  public String getContent() {
-//    return this.request.content().toString(this.getCharset());
-//  }
+  /**
+   * Decodes the request content to a string using the appropriate character set
+   * @return Decoded content or an empty string if the request did not include
+   * content
+   * @throws UnsupportedCharsetException if the parsed character set is invalid
+   */
+  public String getContent() {
+    return this.request.content().toString(this.getCharset());
+  }
   
+  /**
+   * Returns the request's content buffer
+   * @return the request's content buffer
+   */
   public ByteBuf getContentBuffer() {
   	return this.request.content();
   }
@@ -484,7 +488,7 @@ public abstract class AbstractHttpQuery {
 			@Override
 			public void operationComplete(ChannelFuture f) throws Exception {
 				if(f.isSuccess()) {				
-	//				LOG.info("---->  RESPONSE Complete");
+//					LOG.info("---->  RESPONSE Complete");
 				} else {
 					LOG.error("---->  RESPONSE Failed", f.cause());
 				}

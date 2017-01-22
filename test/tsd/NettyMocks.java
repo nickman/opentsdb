@@ -105,6 +105,13 @@ public final class NettyMocks {
     return new HttpQuery(tsdb, req, channelMock);
   }
   
+  public static HttpQuery getQuery(final TSDB tsdb, final String uri, final Channel channelMock) {
+	    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
+	        HttpMethod.GET, uri);
+	    return new HttpQuery(tsdb, req, channelMock);
+  }
+  
+  
   /**
    * Returns an HttpQuery object with the given uri, content and type
    * Method = POST

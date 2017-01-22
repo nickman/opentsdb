@@ -22,25 +22,33 @@ import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import net.opentsdb.core.TSDB;
 
+@PowerMockIgnore({"javax.management.*", "javax.xml.*",
+	  "ch.qos.*", "org.slf4j.*",
+	  "com.sum.*", "org.xml.*"})
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({TSDB.class})
 public final class TestSuggestRpc {
   private TSDB tsdb = null;
-  private SuggestRpc s = null;
+  private SuggestRpc rpc = null;
+  
+  public static final Charset UTF8 = Charset.forName("UTF-8");
   
   @Before
   public void before() throws Exception {
-    s = new SuggestRpc();
+    rpc = new SuggestRpc();
     tsdb = NettyMocks.getMockedHTTPTSDB();
     final List<String> metrics = new ArrayList<String>();
     metrics.add("sys.cpu.0.system"); 
@@ -61,130 +69,135 @@ public final class TestSuggestRpc {
   public void metricsQS() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/suggest?type=metrics&q=s");
-    s.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
     assertEquals("[\"sys.cpu.0.system\",\"sys.mem.free\"]", 
-        query.response().content().toString(Charset.forName("UTF-8")));
+        httpResponse.content().toString(UTF8));
   }
   
   @Test
   public void metricsPOST() throws Exception {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/suggest", 
         "{\"type\":\"metrics\",\"q\":\"s\"}", "application/json");
-    query.getQueryBaseRoute();
-    s.execute(tsdb, query);
+        final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
     assertEquals("[\"sys.cpu.0.system\",\"sys.mem.free\"]", 
-        query.response().content().toString(Charset.forName("UTF-8")));
+        httpResponse.content().toString(UTF8));
   }
 
   @Test
   public void metricQSMax() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/suggest?type=metrics&q=s&max=1");
-    s.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
     assertEquals("[\"sys.cpu.0.system\"]", 
-        query.response().content().toString(Charset.forName("UTF-8")));
+        httpResponse.content().toString(UTF8));
   }
   
   @Test
   public void metricsPOSTMax() throws Exception {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/suggest", 
         "{\"type\":\"metrics\",\"q\":\"s\",\"max\":1}", "application/json");
-    query.getQueryBaseRoute();
-    s.execute(tsdb, query);
+        final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
     assertEquals("[\"sys.cpu.0.system\"]", 
-        query.response().content().toString(Charset.forName("UTF-8")));
+        httpResponse.content().toString(UTF8));
   }
   
   @Test
   public void tagkQS() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/suggest?type=tagk&q=h");
-    s.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
     assertEquals("[\"host\"]", 
-        query.response().content().toString(Charset.forName("UTF-8")));
+        httpResponse.content().toString(UTF8));
   }
   
   @Test
   public void tagkPOST() throws Exception {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/suggest", 
         "{\"type\":\"tagk\",\"q\":\"h\"}", "application/json");
-    query.getQueryBaseRoute();
-    s.execute(tsdb, query);
+        final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
     assertEquals("[\"host\"]", 
-        query.response().content().toString(Charset.forName("UTF-8")));
+        httpResponse.content().toString(UTF8));
   }
   
   @Test
   public void tagvQS() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/suggest?type=tagv&q=w");
-    s.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
     assertEquals("[\"web01.mysite.com\"]", 
-        query.response().content().toString(Charset.forName("UTF-8")));
+        httpResponse.content().toString(UTF8));
   }
   
   @Test
   public void tagvPOST() throws Exception {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/suggest", 
         "{\"type\":\"tagv\",\"q\":\"w\"}", "application/json");
-    query.getQueryBaseRoute();
-    s.execute(tsdb, query);
+        final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
     assertEquals("[\"web01.mysite.com\"]", 
-        query.response().content().toString(Charset.forName("UTF-8")));
+        httpResponse.content().toString(UTF8));
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void badMethod() throws Exception {
-    final Channel channelMock = NettyMocks.fakeChannel();
-    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.GET, "/api/suggest?type=metrics&q=h");
-    req.setMethod(HttpMethod.PUT);
-    s.execute(tsdb, new HttpQuery(tsdb, req, channelMock));
+    final HttpQuery query = NettyMocks.putQuery(tsdb, "/api/suggest", "type=metrics&q=h");
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.METHOD_NOT_ALLOWED, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void missingType() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/suggest?q=h");
-    s.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void missingContent() throws Exception {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/suggest", 
         "", "application/json");
-    query.getQueryBaseRoute();
-    s.execute(tsdb, query);
+        final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void badType() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/suggest?type=doesnotexist&q=h");
-    s.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void missingTypePOST() throws Exception {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/suggest", 
         "{\"q\":\"w\"}", "application/json");
-    query.getQueryBaseRoute();
-    s.execute(tsdb, query);
+        final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
 
-  @Test (expected = BadRequestException.class)
+  @Test
   public void badMaxQS() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/suggest?type=tagv&q=w&max=foo");
-    s.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void badMaxPOST() throws Exception {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/suggest", 
         "{\"type\":\"metrics\",\"q\":\"s\",\"max\":\"foo\"}", 
         "application/json");
-    query.getQueryBaseRoute();
-    s.execute(tsdb, query);
+        final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
 }
