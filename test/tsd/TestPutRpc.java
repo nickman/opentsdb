@@ -12,11 +12,6 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
@@ -25,6 +20,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.nio.charset.Charset;
 import java.util.HashMap;
@@ -32,7 +32,8 @@ import java.util.HashMap;
 import org.hbase.async.HBaseException;
 import org.hbase.async.PleaseThrottleException;
 import org.hbase.async.PutRequest;
-import org.junit.Ignore;
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
@@ -40,17 +41,12 @@ import org.powermock.modules.junit4.PowerMockRunner;
 
 import com.stumbleupon.async.Deferred;
 
-import io.netty.channel.Channel;
-import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
-
 @RunWith(PowerMockRunner.class)
 //"Classloader hell"...  It's real.  Tell PowerMock to ignore these classes
 //because they fiddle with the class loader.  We don't test them anyway.
 @PowerMockIgnore({"javax.management.*", "javax.xml.*",
              "ch.qos.*", "org.slf4j.*",
-             "com.sum.*", "org.xml.*", "com.fasterxml.*"})
+             "com.sum.*", "org.xml.*"})
 public final class TestPutRpc extends BaseTestPutRpc {
   
   @Test
@@ -69,7 +65,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, never()).isOpen();
+    verify(chan, never()).isConnected();
     validateSEH(false);
   }
 
@@ -82,7 +78,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+    verify(chan, times(1)).isConnected();
     validateSEH(false);
   }
   
@@ -95,7 +91,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+    verify(chan, times(1)).isConnected();
     validateSEH(false);
   }
   
@@ -109,7 +105,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, times(1)).isOpen();
+    verify(chan, times(1)).isConnected();
     validateSEH(false);
   }
   
@@ -122,7 +118,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+    verify(chan, times(1)).isConnected();
     validateSEH(false);
   }
   
@@ -153,7 +149,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+    verify(chan, times(1)).isConnected();
     validateSEH(true);
   }
   
@@ -170,7 +166,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, times(1)).isOpen();
+    verify(chan, times(1)).isConnected();
     validateSEH(true);
   }
   
@@ -187,7 +183,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+    verify(chan, times(1)).isConnected();
     validateSEH(true);
   }
 
@@ -202,7 +198,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+    verify(chan, times(1)).isConnected();
     validateSEH(true);
   }
   
@@ -218,7 +214,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, times(1)).isOpen();
+    verify(chan, times(1)).isConnected();
     validateSEH(true);
   }
   
@@ -234,7 +230,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+    verify(chan, times(1)).isConnected();
     validateSEH(true);
   }
   
@@ -289,7 +285,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
         "1365465600", "42" }).joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+    verify(chan, times(1)).isConnected();
     validateSEH(false);
   }
   
@@ -300,8 +296,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse response = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, response.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -314,8 +311,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + "\"}},{\"metric\":\"" + METRIC_B_STRING + "\","
         + "\"timestamp\":1365465600,\"value\":24,\"tags\":"
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse response = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, response.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -325,10 +323,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?summary", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     final String response = 
-    	httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":1"));
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -340,15 +339,16 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     final String response = 
-    	httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":1"));
     assertTrue(response.contains("\"errors\":[]"));
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-    validateSEH(false);    
+    validateSEH(false);
   }
   
   @Test
@@ -356,10 +356,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?summary&details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     final String response = 
-    	httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":1"));
     assertTrue(response.contains("\"errors\":[]"));
@@ -375,10 +376,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "\"}},{\"metric\":\"" + METRIC_B_STRING + "\","
             + "\"timestamp\":1365465600,\"value\":24,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     final String response = 
-    	httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":2"));
     validateCounters(0, 1, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -390,8 +392,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":-42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -401,8 +404,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":42.2,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -413,8 +417,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         + ":123456.123456789,\"tags\":{\"" + TAGK_STRING + "\":\"" 
         + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -425,8 +430,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         + ":-123456.123456789,\"tags\":{\"" + TAGK_STRING + "\":\"" 
         + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -436,8 +442,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":-42.2,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -447,8 +454,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":42.22e3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -458,8 +466,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":42.22E3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -469,8 +478,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":-42.22e3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -480,8 +490,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":-42.22E3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -491,8 +502,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":42.22e-3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -502,8 +514,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":42.22E-3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -513,8 +526,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":-4.2e-3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -524,17 +538,21 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
             +":-4.2E-3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
   
-  @Test 
+  @Test
   public void badMethod() throws Exception {
     HttpQuery query = NettyMocks.getQuery(tsdb, "/api/put");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.METHOD_NOT_ALLOWED, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    try {
+      put.execute(tsdb, query);
+      fail("Expected BadRequestException");
+    } catch (BadRequestException e) { }
     validateCounters(0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -545,8 +563,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp:1365465600,\"value\""
         +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    try {
+      put.execute(tsdb, query);
+      fail("Expected BadRequestException");
+    } catch (BadRequestException e) { }
     validateCounters(0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -555,8 +576,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
   public void notJSON() throws Exception {
     // missing a quotation mark
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", "Hello World");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    try {
+      put.execute(tsdb, query);
+      fail("Expected BadRequestException");
+    } catch (BadRequestException e) { }
     validateCounters(0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -565,14 +589,16 @@ public final class TestPutRpc extends BaseTestPutRpc {
   public void noContent() throws Exception {
     // missing a quotation mark
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", "");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    try {
+      put.execute(tsdb, query);
+      fail("Expected BadRequestException");
+    } catch (BadRequestException e) { }
     validateCounters(0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
   
   @Test
-  @Ignore // Broken. New strategy not working here.
   public void inFlightExceeded() throws Exception {
     when(client.put(any(PutRequest.class)))
       .thenReturn(Deferred.fromError(mock(PleaseThrottleException.class)));
@@ -584,7 +610,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
     validateCounters(0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
     validateSEH(true);
   }
-  
+
   @Test
   public void inFlightExceededHandler() throws Exception {
     setStorageExceptionHandler();
@@ -608,7 +634,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(true);
   }
@@ -623,7 +649,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     validateCounters(0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(true);
   }
@@ -633,10 +659,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + NSUN_METRIC + "\",\"timestamp\":1365465600,\"value\""
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-    	httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Unknown metric\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -649,10 +676,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"timestamp\":1365465600,\"value\""
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Metric name was empty\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -665,10 +693,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":null,\"timestamp\":1365465600,\"value\""
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Metric name was empty\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -681,10 +710,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"value\""
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Invalid timestamp\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -697,10 +727,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":null,\"value\""
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Invalid timestamp\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -713,10 +744,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":-1,\"value\""
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Invalid timestamp\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -729,10 +761,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"tags\":"
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Empty value\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -745,10 +778,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":null,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Empty value\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -761,10 +795,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":\"\",\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Empty value\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -777,10 +812,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":\"notanumber\",\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -793,10 +829,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":NaN,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -823,10 +860,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":+INF,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -839,10 +877,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":-INF,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -855,8 +894,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":INF,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    try {
+      put.execute(tsdb, query);
+      fail("Expected BadRequestException");
+    } catch (BadRequestException e) { }
     validateCounters(0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -866,8 +908,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":+inf,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    try {
+      put.execute(tsdb, query);
+      fail("Expected BadRequestException");
+    } catch (BadRequestException e) { }
     validateCounters(0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -877,10 +922,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":+Infinity,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -893,10 +939,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":-Infinity,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -909,10 +956,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":Infinity,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -925,10 +973,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         + ":42}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Missing tags\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -941,10 +990,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":42,\"tags\":null}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Missing tags\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -957,10 +1007,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put?details", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":42,\"tags\":{}}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"error\":\"Missing tags\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -976,8 +1027,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + "{\"metric\":\"" + METRIC_B_STRING + "\","
         + "\"timestamp\":1365465600,\"value\":24,\"tags\":"
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     validateCounters(0, 1, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
     verify(tsdb, never()).getTimer();
@@ -991,10 +1043,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"metric\":\"" + METRIC_B_STRING + "\","
             + "\"timestamp\":1365465600,\"value\":24,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":2"));
     assertFalse(response.contains("\"errors\":[]"));
@@ -1012,11 +1065,12 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"metric\":\"" + METRIC_B_STRING + "\","
             + "\"timestamp\":1365465600,\"value\":24,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
-    System.err.println("Response:[" + response + "]");
+      query.response().getContent().toString(Charset.forName("UTF-8"));
+    
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":2"));
     assertTrue(response.contains("\"errors\":[]"));
@@ -1033,10 +1087,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"metric\":\"" + METRIC_B_STRING + "\","
             + "\"timestamp\":1365465600,\"value\":24,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":2"));
     assertTrue(response.contains("\"errors\":[]"));
@@ -1056,10 +1111,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + "\"}},{\"metric\":\"" + METRIC_B_STRING + "\","
         + "\"timestamp\":1365465600,\"value\":1,\"tags\":"
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+        query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":"));
     validateCounters(0, 1, 2, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -1078,10 +1134,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + "\"}},{\"metric\":\"" + METRIC_B_STRING + "\","
         + "\"timestamp\":1365465600,\"value\":1,\"tags\":"
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+        query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":1"));
     assertFalse(response.contains("\"errors\":[]"));
@@ -1101,10 +1158,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + "\"}},{\"metric\":\"" + METRIC_B_STRING + "\","
         + "\"timestamp\":1365465600,\"value\":1,\"tags\":"
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+        query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":1"));
     assertTrue(response.contains("\"errors\":[{"));
@@ -1123,10 +1181,12 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "\"}},{\"metric\":\"" + NSUN_METRIC + "\","
             + "\"timestamp\":1365465600,\"value\":1,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+        query.response().getContent().toString(Charset.forName("UTF-8"));
+    System.out.println(response);
     assertTrue(response.contains("\"success\":0"));
     assertTrue(response.contains("\"failed\":2"));
     assertTrue(response.contains("\"errors\":[{"));
@@ -1143,8 +1203,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "\"}},{\"metric\":\"" + METRIC_B_STRING + "\","
             + "\"timestamp\":1365465600,\"value\":1,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
     assertEquals(1, http_requests.get());
     assertEquals(0, invalid_values.get());
     validateCounters(0, 1, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -1162,10 +1223,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "\"}},{\"metric\":\"" + METRIC_B_STRING + "\","
             + "\"timestamp\":1365465600,\"value\":1,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+      query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":2"));
     assertTrue(response.contains("\"timeouts\":0"));
@@ -1187,10 +1249,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "\"}},{\"metric\":\"" + METRIC_B_STRING + "\","
             + "\"timestamp\":1365465600,\"value\":1,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+        query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":"));
     validateCounters(0, 1, 2, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -1211,10 +1274,11 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "\"}},{\"metric\":\"" + METRIC_B_STRING + "\","
             + "\"timestamp\":1365465600,\"value\":1,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+        query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":1"));
     assertTrue(response.contains("\"timeouts\":0"));
@@ -1236,10 +1300,12 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "\"}},{\"metric\":\"" + NSUN_METRIC + "\","
             + "\"timestamp\":1365465600,\"value\":1,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-      httpResponse.content().toString(Charset.forName("UTF-8"));
+        query.response().getContent().toString(Charset.forName("UTF-8"));
+    System.out.println(response);
     assertTrue(response.contains("\"success\":0"));
     assertTrue(response.contains("\"failed\":2"));
     assertTrue(response.contains("\"timeouts\":0"));
@@ -1250,7 +1316,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
     verify(timer.timeout, times(1)).cancel();
   }
 
-  @Test 
+  @Test
   public void syncTimeoutOneFailedTimedoutSummary() throws Exception {
     when(client.put(any(PutRequest.class)))
       .thenReturn(new Deferred<Object>())
@@ -1262,16 +1328,16 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "\"}},{\"metric\":\"" + METRIC_B_STRING + "\","
             + "\"timestamp\":1365465600,\"value\":1,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final EmbeddedChannel ec = NettyMocks.writeToChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
     verify(tsdb, times(1)).getTimer();
     verify(timer.timeout, never()).cancel();
     
     timer.continuePausedTask();
-    final FullHttpResponse httpResponse = ec.readOutbound();
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
-    final String response = 
-    	      httpResponse.content().toString(Charset.forName("UTF-8"));
     
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    final String response = 
+        query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
     assertTrue(response.contains("\"timeouts\":1"));
@@ -1294,16 +1360,16 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "\"}},{\"metric\":\"" + METRIC_B_STRING + "\","
             + "\"timestamp\":1365465600,\"value\":1,\"tags\":"
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
-    final EmbeddedChannel ec = NettyMocks.writeToChannel(tsdb, new PutDataPointRpc(tsdb.getConfig()), query.request());
+    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    put.execute(tsdb, query);
     verify(tsdb, times(1)).getTimer();
     verify(timer.timeout, never()).cancel();
     
     timer.continuePausedTask();
-    final FullHttpResponse httpResponse = ec.readOutbound();
-    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+    
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
     final String response = 
-    		httpResponse.content().toString(Charset.forName("UTF-8"));
-    System.err.println("RESPONSE:[" + response + "]");
+        query.response().getContent().toString(Charset.forName("UTF-8"));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
     assertTrue(response.contains("\"timeouts\":1"));

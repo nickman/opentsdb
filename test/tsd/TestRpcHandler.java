@@ -22,7 +22,20 @@ import static org.powermock.api.mockito.PowerMockito.mock;
 
 import java.lang.reflect.Method;
 
+import com.google.common.net.HttpHeaders;
+
 import org.hbase.async.HBaseClient;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.MessageEvent;
+import io.netty.channel.SucceededChannelFuture;
+import io.netty.handler.codec.http.DefaultHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -34,19 +47,6 @@ import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 import org.powermock.reflect.Whitebox;
 
-import com.google.common.net.HttpHeaders;
-
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.http.DefaultHttpRequest;
-import io.netty.handler.codec.http.DefaultHttpResponse;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
-import io.netty.util.concurrent.CompleteFuture;
-import io.netty.util.concurrent.EventExecutor;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.utils.Config;
 
@@ -55,14 +55,14 @@ import net.opentsdb.utils.Config;
   "com.sum.*", "org.xml.*"})
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({ TSDB.class, Config.class, HBaseClient.class, RpcHandler.class,
-  HttpQuery.class, DefaultHttpResponse.class, 
+  HttpQuery.class, MessageEvent.class, DefaultHttpResponse.class, 
   ChannelHandlerContext.class })
 public final class TestRpcHandler {
   private TSDB tsdb = null;
   private RpcManager rpc_manager;
   private ChannelHandlerContext ctx = mock(ChannelHandlerContext.class);
   private HBaseClient client = mock(HBaseClient.class);
-  
+  private MessageEvent message = mock(MessageEvent.class);
   
   @Before
   public void before() throws Exception {
@@ -105,7 +105,7 @@ public final class TestRpcHandler {
   }
   
   @Test
-  public void httpCORSIgnored() throws Exception {
+  public void httpCORSIgnored() {
     final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.GET, "/api/v1/version");
     req.headers().add(HttpHeaders.ORIGIN, "42.com");
@@ -116,7 +116,7 @@ public final class TestRpcHandler {
           throws Throwable {
           DefaultHttpResponse response = 
             (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
+          assertEquals(HttpResponseStatus.OK, response.getStatus());
           assertNull(response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
           return null;
         }        
@@ -124,11 +124,11 @@ public final class TestRpcHandler {
     );
     
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req); 
+    rpc.messageReceived(ctx, message);
   }
   
   @Test
-  public void httpCORSPublicSimple() throws Exception {
+  public void httpCORSPublicSimple() {
     final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.GET, "/api/v1/version");
     req.headers().add(HttpHeaders.ORIGIN, "42.com");
@@ -139,7 +139,7 @@ public final class TestRpcHandler {
           throws Throwable {
           DefaultHttpResponse response = 
             (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
+          assertEquals(HttpResponseStatus.OK, response.getStatus());
           assertEquals("42.com", 
               response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
           return null;
@@ -149,11 +149,11 @@ public final class TestRpcHandler {
     
     tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", "*");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    rpc.messageReceived(ctx, message);
   }
   
   @Test
-  public void httpCORSSpecificSimple() throws Exception {
+  public void httpCORSSpecificSimple() {
     final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.GET, "/api/v1/version");
     req.headers().add(HttpHeaders.ORIGIN, "42.com");
@@ -164,7 +164,7 @@ public final class TestRpcHandler {
           throws Throwable {
           DefaultHttpResponse response = 
             (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
+          assertEquals(HttpResponseStatus.OK, response.getStatus());
           assertEquals("42.com", 
               response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
           return null;
@@ -175,11 +175,11 @@ public final class TestRpcHandler {
     tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", 
         "aurther.com,dent.net,42.com,beeblebrox.org");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    rpc.messageReceived(ctx, message);
   }
   
   @Test
-  public void httpCORSNotAllowedSimple() throws Exception {
+  public void httpCORSNotAllowedSimple() {
     final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.GET, "/api/v1/version");
     req.headers().add(HttpHeaders.ORIGIN, "42.com");
@@ -190,7 +190,7 @@ public final class TestRpcHandler {
           throws Throwable {
           DefaultHttpResponse response = 
             (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
+          assertEquals(HttpResponseStatus.OK, response.getStatus());
           assertNull(response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
           return null;
         }        
@@ -200,11 +200,11 @@ public final class TestRpcHandler {
     tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", 
         "aurther.com,dent.net,beeblebrox.org");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    rpc.messageReceived(ctx, message);
   }
   
   @Test
-  public void httpOptionsNoCORS() throws Exception {
+  public void httpOptionsNoCORS() {
     final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.OPTIONS, "/api/v1/version");
 
@@ -214,7 +214,7 @@ public final class TestRpcHandler {
           throws Throwable {
           DefaultHttpResponse response = 
             (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.METHOD_NOT_ALLOWED, response.status());
+          assertEquals(HttpResponseStatus.METHOD_NOT_ALLOWED, response.getStatus());
           assertNull(response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
           return null;
         }        
@@ -222,11 +222,11 @@ public final class TestRpcHandler {
     );
     
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    rpc.messageReceived(ctx, message);
   }
   
   @Test
-  public void httpOptionsCORSNotConfigured() throws Exception {
+  public void httpOptionsCORSNotConfigured() {
     final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.OPTIONS, "/api/v1/version");
     req.headers().add(HttpHeaders.ORIGIN, "42.com");
@@ -237,7 +237,7 @@ public final class TestRpcHandler {
           throws Throwable {
           DefaultHttpResponse response = 
             (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.METHOD_NOT_ALLOWED, response.status());
+          assertEquals(HttpResponseStatus.METHOD_NOT_ALLOWED, response.getStatus());
           assertNull(response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
           return null;
         }        
@@ -245,11 +245,11 @@ public final class TestRpcHandler {
     );
     
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    rpc.messageReceived(ctx, message);
   }
   
   @Test
-  public void httpOptionsCORSPublic() throws Exception {
+  public void httpOptionsCORSPublic() {
     final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.OPTIONS, "/api/v1/version");
     req.headers().add(HttpHeaders.ORIGIN, "42.com");
@@ -260,7 +260,7 @@ public final class TestRpcHandler {
           throws Throwable {
           DefaultHttpResponse response = 
             (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
+          assertEquals(HttpResponseStatus.OK, response.getStatus());
           assertEquals("42.com", 
               response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
           return null;
@@ -270,11 +270,11 @@ public final class TestRpcHandler {
     
     tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", "*");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    rpc.messageReceived(ctx, message);
   }
   
   @Test
-  public void httpOptionsCORSSpecific() throws Exception {
+  public void httpOptionsCORSSpecific() {
     final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.OPTIONS, "/api/v1/version");
     req.headers().add(HttpHeaders.ORIGIN, "42.com");
@@ -285,7 +285,7 @@ public final class TestRpcHandler {
           throws Throwable {
           DefaultHttpResponse response = 
             (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
+          assertEquals(HttpResponseStatus.OK, response.getStatus());
           assertEquals("42.com", 
               response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
           return null;
@@ -296,11 +296,11 @@ public final class TestRpcHandler {
     tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", 
       "aurther.com,dent.net,42.com,beeblebrox.org");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    rpc.messageReceived(ctx, message);
   }
   
   @Test
-  public void httpOptionsCORSNotAllowed() throws Exception {
+  public void httpOptionsCORSNotAllowed() {
     final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
         HttpMethod.OPTIONS, "/api/v1/version");
     req.headers().add(HttpHeaders.ORIGIN, "42.com");
@@ -311,7 +311,7 @@ public final class TestRpcHandler {
           throws Throwable {
           DefaultHttpResponse response = 
             (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
+          assertEquals(HttpResponseStatus.OK, response.getStatus());
           assertNull(response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
           return null;
         }        
@@ -321,7 +321,7 @@ public final class TestRpcHandler {
     tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", 
       "aurther.com,dent.net,beeblebrox.org");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    rpc.messageReceived(ctx, message);
   }
   
   @Test
@@ -378,9 +378,8 @@ public final class TestRpcHandler {
           throws Throwable {
           DefaultHttpResponse response = 
               (DefaultHttpResponse)args.getArguments()[0];
-            assertEquals(HttpResponseStatus.BAD_REQUEST, response.status());
-            return null; // EventExecutor.newSucceededFuture((Channel) args.getMock());
-            //return new SucceededChannelFuture();
+            assertEquals(HttpResponseStatus.BAD_REQUEST, response.getStatus());
+            return new SucceededChannelFuture((Channel) args.getMock());
         }        
       }
     );
@@ -391,8 +390,8 @@ public final class TestRpcHandler {
   
   private Channel handleHttpRpc(final HttpRequest req, final Answer<?> answer) {
     final Channel channel = NettyMocks.fakeChannel();
-//    when(message.getMessage()).thenReturn(req);
-//    when(message.getChannel()).thenReturn(channel);
+    when(message.getMessage()).thenReturn(req);
+    when(message.getChannel()).thenReturn(channel);
     when(channel.write((DefaultHttpResponse)any())).thenAnswer(answer);
     return channel;
   }

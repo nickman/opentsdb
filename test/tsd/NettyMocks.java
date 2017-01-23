@@ -12,34 +12,29 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mock;
 
 import java.net.SocketAddress;
-import java.util.List;
+import java.nio.charset.Charset;
 
 import org.junit.Ignore;
-
-import com.google.common.base.Splitter;
-import com.google.common.base.Strings;
+import org.mockito.Mockito;
+import org.mockito.internal.util.reflection.Whitebox;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
+import org.powermock.api.mockito.PowerMockito;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.DefaultChannelPipeline;
-import io.netty.channel.DefaultChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
-import io.netty.util.concurrent.DefaultEventExecutor;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.buffermgr.BufferManager;
@@ -48,16 +43,12 @@ import net.opentsdb.utils.buffermgr.BufferManager;
  * Helper class that provides mockups for testing any OpenTSDB processes that
  * deal with Netty.
  */
-/**
- * <p>Title: NettyMocks</p>
- * <p>Description: </p> 
- * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>net.opentsdb.tsd.NettyMocks</code></p>
- */
 @Ignore
 public final class NettyMocks {
-
-  static final BufferManager bufferManager = BufferManager.newInstance();
+   /** ByteBuf allocator */
+   public static final BufferManager bufferManager = BufferManager.newInstance();
+   /** The UTF8 Character set */
+   public static final Charset UTF8 = Charset.forName("UTF8");
   /**
    * Sets up a TSDB object for HTTP RPC tests that has a Config object
    * @return A TSDB mock
@@ -70,13 +61,52 @@ public final class NettyMocks {
     return tsdb;
   }
   
+  public static HttpQuery returnUpdatingQuery(final TSDB tsdb, final FullHttpRequest request) {
+	  final EmbeddedChannel chan = new EmbeddedChannel();
+	  final HttpQuery q = new HttpQuery(tsdb, request, chan);
+	  final Answer<Void> sendBufferIntercept = new Answer<Void>(){
+		  @Override
+		public Void answer(final InvocationOnMock invocation) throws Throwable {
+			final HttpQuery q = (HttpQuery)invocation.getMock();
+			Whitebox.setInternalState(q.serializer().query, "api_version", q.apiVersion());
+			final Object[] args = invocation.getArguments();
+			final FullHttpResponse response = q.response();
+			response.content().writeBytes((ByteBuf)args[1]);
+			response.setStatus((HttpResponseStatus)args[0]);
+			invocation.callRealMethod();
+			return null;
+		}
+	  };
+	  final Answer<Void> sendBufferUpdateApiVersion = new Answer<Void>(){
+		  @Override
+		public Void answer(final InvocationOnMock invocation) throws Throwable {
+			final HttpQuery q = (HttpQuery)invocation.getMock();
+			Whitebox.setInternalState(q.serializer().query, "api_version", q.apiVersion());
+			invocation.callRealMethod();
+			return null;
+		}
+	  };
+	  
+	  final HttpQuery query = PowerMockito.spy(q);
+	  PowerMockito.doAnswer(sendBufferIntercept)
+	  	.when(query).sendBuffer(Mockito.any(HttpResponseStatus.class), Mockito.any(ByteBuf.class), Mockito.anyString());
+	  try {
+		  PowerMockito.doAnswer(sendBufferUpdateApiVersion)
+		  	.when(query, PowerMockito.method(HttpQuery.class, "sendBuffer", HttpResponseStatus.class, ByteBuf.class));
+	  } catch (Exception ex) {
+		  throw new RuntimeException("Failed to mocj method sendBuffer(status, method)", ex);
+	  }
+	  return query;
+  }
+  
+  
   /**
    * Returns a mocked Channel object that simply sets the name to
    * [fake channel]
    * @return A Channel mock
    */
   public static Channel fakeChannel() {
-    final Channel chan = mock(Channel.class);
+    final EmbeddedChannel chan = mock(EmbeddedChannel.class);
     when(chan.toString()).thenReturn("[fake channel]");
     when(chan.isOpen()).thenReturn(true);
     when(chan.isWritable()).thenReturn(true);
@@ -84,9 +114,14 @@ public final class NettyMocks {
     final SocketAddress socket = mock(SocketAddress.class);
     when(socket.toString()).thenReturn("192.168.1.1:4243");
     when(chan.remoteAddress()).thenReturn(socket);
-    
     return chan;
   }
+  
+  // HttpRpcPluginQuery
+  public static HttpRpcPluginQuery pluginQuery(final TSDB tsdb, final FullHttpRequest req) {
+	  return returnUpdatingQuery(tsdb, req);	  
+  }
+  
   
   /**
    * Returns an HttpQuery object with the given URI and the following parameters:
@@ -99,18 +134,10 @@ public final class NettyMocks {
    * @return an HttpQuery object
    */
   public static HttpQuery getQuery(final TSDB tsdb, final String uri) {
-    final Channel channelMock = NettyMocks.fakeChannel();
-    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.GET, uri);
-    return new HttpQuery(tsdb, req, channelMock);
+	  final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
+		        HttpMethod.GET, uri);
+	  return returnUpdatingQuery(tsdb, req);	  
   }
-  
-  public static HttpQuery getQuery(final TSDB tsdb, final String uri, final Channel channelMock) {
-	    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
-	        HttpMethod.GET, uri);
-	    return new HttpQuery(tsdb, req, channelMock);
-  }
-  
   
   /**
    * Returns an HttpQuery object with the given uri, content and type
@@ -210,223 +237,32 @@ public final class NettyMocks {
    * @return an HttpQuery object
    */
   public static HttpQuery contentQuery(final TSDB tsdb, final String uri, 
-      final String content, final String type, final HttpMethod method) {
-    final Channel channelMock = NettyMocks.fakeChannel();
-    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
-        method, uri);
+		  final String content, final String type, final HttpMethod method) {
+    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uri);
     if (content != null) {
-    	req.content().writeBytes(bufferManager.wrap(content));
+    	req.content().writeBytes(BufferManager.getInstance().wrap(content));
     }
-    req.headers().set("Content-Type", type);
-    return new HttpQuery(tsdb, req, channelMock);
+	req.headers().set("Content-Type", type);
+	return returnUpdatingQuery(tsdb, req);
   }
-
-  /** @param the query to mock a future callback for */
-  public static void mockChannelFuture(final HttpQuery query) {
-    final DefaultChannelPromise future = new DefaultChannelPromise(query.channel(), new DefaultEventExecutor());
-    when(query.channel().writeAndFlush(any(ByteBuf.class))).thenReturn(future);
-    future.setSuccess();
-  }
-  
-// /**
-//  * Creates an embedded channel with the passed handler, writes an object to it and returns the response 
-//  * @param writeObject The object to write the channel
-//  * @param handlers The handlers to attach to the embedded channel 
-//  * @return the object read from the embedded channel
-//  */
-//  @SuppressWarnings("unchecked")
-//  public static <T> T writeReadEmbeddedChannel(final Object writeObject, final ChannelHandler...handlers) {
-//	  final EmbeddedChannel ec = new EmbeddedChannel(handlers);
-//	  ec.writeInbound(writeObject);
-//	  ec.runPendingTasks();
-//	  return (T)ec.readOutbound();
-//  }
-//  
-// /**
-//  * Writes the passed object to an instance of the {@link RpcHandler} handler in an embedded channel 
-//  * and returns the value read back from the channel
-//  * @param writeObject The object to write to the handler
-//  * @param tsdb The TSDB instance to create the RpcHandler with
-//  * @return The object read back from the channel
-//  */
-//  @SuppressWarnings("unchecked")
-//  public static <T> T writeThenReadFromRpcHandler(final Object writeObject, final TSDB tsdb) {
-//	  final EmbeddedChannel ec = rpcHandlerChannel(tsdb);
-//	  ec.writeInbound(writeObject);
-//	  ec.runPendingTasks();
-//	  final Object response = ec.readOutbound();
-//	  return (T)response;	  
-//  }
-//  
-//  /**
-//   * Writes the passed object to an embedded channel pipeline of handlers  
-//   * and returns the value read back from the channel
-//   * @param writeObject The object to write to the handler
-//   * @param handlers The channel handlers to install into the embedded channel
-//   * @return The object read back from the channel
-//   */
-//   @SuppressWarnings("unchecked")
-//   public static <T> T writeThenReadFromHandlers(final Object writeObject, final ChannelHandler...handlers) {
-// 	  final EmbeddedChannel ec = new EmbeddedChannel(handlers);
-// 	  ec.writeInbound(writeObject);
-// 	  ec.runPendingTasks();
-// 	  return (T)ec.readOutbound();	  
-//   }
-  
-  private static final Splitter WEBPATH_SPLITTER = Splitter.on('/')
-	      .trimResults()
-	      .omitEmptyStrings();
-
-  
-  static boolean isHttpRpcPluginPath(final String uri) {
-	    if (Strings.isNullOrEmpty(uri) || uri.length() <= RpcManager.PLUGIN_BASE_WEBPATH.length()) {
-	      return false;
-	    } else {
-	      // Don't consider the query portion, if any.
-	      int qmark = uri.indexOf('?');
-	      String path = uri;
-	      if (qmark != -1) {
-	        path = uri.substring(0, qmark);
-	      }
-
-	      final List<String> parts = WEBPATH_SPLITTER.splitToList(path);
-	      return (parts.size() > 1 && parts.get(0).equals(RpcManager.PLUGIN_BASE_WEBPATH));
-	    }
-	  }
-  
   
   /**
-   * Using the request URI, creates a query instance capable of handling 
-   * the given request.
-   * @param tsdb the TSDB instance we are running within
-   * @param request the incoming HTTP request
-   * @param chan the {@link Channel} the request came in on.
-   * @return a subclass of {@link AbstractHttpQuery}
-   * @throws BadRequestException if the request is invalid in a way that
-   * can be detected early, here.
+   * Creates a new TRACE HttpQuery
+   * @param tsdb The mocked TSDB to associate with
+   * @param uri A UIR to use
+   * @return an HttpQuery object
    */
-  public static AbstractHttpQuery createQueryInstance(final TSDB tsdb,
-        final FullHttpRequest request,
-        final ChannelHandlerContext ctx) 
-            throws BadRequestException {
-    final String uri = request.uri();
-    if (Strings.isNullOrEmpty(uri)) {
-      throw new BadRequestException("Request URI is empty");
-    } else if (uri.charAt(0) != '/') {
-      throw new BadRequestException("Request URI doesn't start with a slash");
-    } else if (isHttpRpcPluginPath(uri)) {
-      return new HttpRpcPluginQuery(tsdb, request, ctx.channel());
-    } else {
-      HttpQuery builtinQuery = new HttpQuery(tsdb, request, ctx);
-      return builtinQuery;
-    }
+ public static HttpQuery traceQuery(final TSDB tsdb, final String uri) {
+    final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.TRACE, uri);
+	return returnUpdatingQuery(tsdb, req);
   }
   
-  
-	/**
-	 * Creates a new EmbeddedChannel containing the specified HttpRpc
-	 * @param tsdb The TSDB to test against
-	 * @param httpRpc The HttpRpc instance to invoke
-	 * @return The EmbeddedChannel, ready to test
-	 */
-	public static EmbeddedChannel testChannel(final TSDB tsdb, final HttpRpc httpRpc) {
-		final ChannelDuplexHandler rpcWrapper = new ChannelDuplexHandler() {
-			@Override
-			public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-				final FullHttpRequest request = (FullHttpRequest)msg;
-				final HttpQuery query = (HttpQuery)createQueryInstance(tsdb, request, ctx);
-				query.getQueryBaseRoute();  // Set API Version
-				httpRpc.execute(tsdb, query);
-			}
-		};
-		return new EmbeddedChannel(rpcWrapper);
-	}
-	
-	/**
-	 * Creates a new EmbeddedChannel containing the specified HttpRpc, 
-	 * writes the passed inbound objects into it, and returns the response.
-	 * @param tsdb The TSDB to test against
-	 * @param httpRpc The HttpRpc instance to invoke
-	 * @param inbound The inbound objects to write
-	 * @return the HttpRpc response
-	 */
-	@SuppressWarnings("unchecked")
-	public static <T> T writeThenReadFromChannel(final TSDB tsdb, final HttpRpc httpRpc, final Object...inbound) {
-		final EmbeddedChannel ec = testChannel(tsdb, httpRpc);
-		try {
-			ec.writeInbound(inbound);
-			ec.runPendingTasks();
-			T t = ec.readOutbound();
-			return t;
-		} catch (Exception ex) {
-			return (T)handleException(ex);
-		}
-	}
-	
-	/**
-	 * Handles an exception thrown from the direct invocation of the target HttpRpc
-	 * @param ex The thrown exception
-	 * @return the HttpResponse representing the thrown exception
-	 */
-	public static DefaultFullHttpResponse handleException(final Exception ex) {
-		try {
-			throw ex;
-		} catch (BadRequestException brex) {			
-			final DefaultFullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, brex.getStatus());
-			ByteBufUtil.writeUtf8(response.content(), brex.getMessage());
-			final String details = brex.getDetails();
-			if(details!=null && !details.trim().isEmpty()) {
-				ByteBufUtil.writeUtf8(response.content(), "|");
-				ByteBufUtil.writeUtf8(response.content(), details.trim());
-			}
-			return response;
-		} catch (Exception exx) {
-			final DefaultFullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
-			ByteBufUtil.writeUtf8(response.content(), exx.getMessage());
-			return response;
-		}
-	}
-	
-	/**
-	 * Creates a new EmbeddedChannel containing the specified HttpRpc, 
-	 * writes the passed inbound objects into it, and returns the response.
-	 * @param tsdb The TSDB to test against
-	 * @param httpRpc The HttpRpc instance to invoke
-	 * @param inbound The inbound objects to write
-	 * @return The EmbeddedChannel, ready to be read from
-	 */
-	public static EmbeddedChannel writeToChannel(final TSDB tsdb, final HttpRpc httpRpc, final Object...inbound) {
-		final EmbeddedChannel ec = testChannel(tsdb, httpRpc);
-		try {			
-			ec.writeInbound(inbound);
-			ec.runPendingTasks();			
-		} catch (Exception ex) {
-			final DefaultFullHttpResponse response = handleException(ex);
-			ec.writeOutbound(response);
-		}
-		return ec;
-	}
-  
-  
-  
- /**
-  * Creates a Netty EmbeddedChannel that routes passed messages to an instance of a {@link RpcHandler} handler.
-  * @param tsdb The [mocked] TSDB instance
-  * @return The embedded channel, ready for writing to and reading from
-  */
-  public static EmbeddedChannel rpcHandlerChannel(final TSDB tsdb) {
-	  final RpcManager rpcManager = RpcManager.instance(tsdb);
-	  final RpcHandler rpcHandler = new RpcHandler(tsdb, rpcManager);
-	  return new EmbeddedChannel(rpcHandler);
-  }
-  
-  
-  static class CtorDefaultChannelPipeline extends DefaultChannelPipeline {
 
-	protected CtorDefaultChannelPipeline(final Channel channel) {
-		super(channel);
-	}
-	  
-  }
+//  /** @param the query to mock a future callback for */
+//  public static void mockChannelFuture(final HttpQuery query) {
+//    final ChannelFuture future = new DefaultChannelPromise(query.channel(), false);
+//    when(query.channel().write(any(ByteBuf.class))).thenReturn(future);
+//    future.setSuccess();
+//  }
   
 }

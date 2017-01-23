@@ -19,9 +19,19 @@ import static org.junit.Assert.fail;
 
 import java.nio.charset.Charset;
 
+import net.opentsdb.core.BaseTsdbTest;
+import net.opentsdb.core.Query;
+import net.opentsdb.core.TSDB;
+import net.opentsdb.meta.TestTSUIDQuery;
+import net.opentsdb.storage.MockBase;
+import net.opentsdb.uid.UniqueId;
+import net.opentsdb.utils.Config;
+import net.opentsdb.utils.DateTime;
+
 import org.hbase.async.HBaseClient;
 import org.hbase.async.KeyValue;
 import org.hbase.async.Scanner;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -32,26 +42,12 @@ import org.powermock.reflect.Whitebox;
 
 import com.stumbleupon.async.Deferred;
 
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import net.opentsdb.core.BaseTsdbTest;
-import net.opentsdb.core.Query;
-import net.opentsdb.core.TSDB;
-import net.opentsdb.meta.TestTSUIDQuery;
-import net.opentsdb.storage.MockBase;
-import net.opentsdb.uid.UniqueId;
-import net.opentsdb.utils.Config;
-import net.opentsdb.utils.DateTime;
-
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({ TSDB.class, HBaseClient.class, Config.class, HttpQuery.class, 
   Query.class, Deferred.class, UniqueId.class, DateTime.class, KeyValue.class,
   Scanner.class })
 public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
   private QueryRpc rpc;
-  
-  public static Charset UTF8 = Charset.forName("UTF8");
   
   @Before
   public void beforeLocal() throws Exception {
@@ -70,9 +66,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user{host=web01}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -90,9 +86,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -112,9 +108,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user&resolve");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -134,9 +130,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertFalse(json.contains("\"value\":\"42\""));
     assertFalse(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -153,8 +149,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
     assertEquals("[]", json);
   }
   
@@ -168,9 +164,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user&back_scan=0");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -188,9 +184,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user{host=web01}&back_scan=1");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -207,9 +203,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user{host=web01}"
         + "&back_scan=1&resolve=true");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -224,9 +220,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user{host=web01}&back_scan=1");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertEquals("[]", json);
   }
   
@@ -241,9 +237,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user{host=web01}"
             + "&timeseries=sys.cpu.user{host=web02}&back_scan=1");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -264,9 +260,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user{host=web01}"
             + "&timeseries=sys.cpu.user{host=web02}&back_scan=1&resolve");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -287,9 +283,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user{host=web01}"
             + "&timeseries=sys.cpu.user{host=web02}&back_scan=1");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertFalse(json.contains("\"value\":\"42\""));
     assertFalse(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -304,8 +300,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user&back_scan=1");
     try {
-      final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-      assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+      rpc.execute(tsdb, query);
+      fail("Expected a BadRequestException");
     } catch (BadRequestException e) {
       assertTrue(e.getMessage().contains("Tags"));
     }
@@ -316,8 +312,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.nice{host=web01}");
     try {
-      final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-      assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+      rpc.execute(tsdb, query);
+      fail("Expected a BadRequestException");
     } catch (BadRequestException e) {
       assertTrue(e.getMessage().contains("No such name"));
       assertTrue(e.getMessage().contains("metric"));
@@ -329,8 +325,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user{dc=web01}");
     try {
-      final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-      assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+      rpc.execute(tsdb, query);
+      fail("Expected a BadRequestException");
     } catch (BadRequestException e) {
       assertTrue(e.getMessage().contains("No such name"));
       assertTrue(e.getMessage().contains("tagk"));
@@ -342,8 +338,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user{host=web03}");
     try {
-      final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-      assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+      rpc.execute(tsdb, query);
+      fail("Expected a BadRequestException");
     } catch (BadRequestException e) {
       assertTrue(e.getMessage().contains("No such name"));
       assertTrue(e.getMessage().contains("tagv"));
@@ -360,9 +356,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000001000001");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -382,9 +378,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000001000001,000001000001000002");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -404,9 +400,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000001000001&tsuids=000001000001000002");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -423,8 +419,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000001000001");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
     assertEquals("[]", json);
   }
   
@@ -438,9 +434,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000001000001&back_scan=1");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -457,9 +453,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000001000001&back_scan=1");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertEquals("[]", json);
   }
   
@@ -473,9 +469,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000001000001,000001000001000002&back_scan=1");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -493,9 +489,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000001000001,000001000001000002&back_scan=1");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -516,9 +512,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000001000001"
         + "&tsuids=000001000001000002&back_scan=1");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -537,9 +533,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000001000001"
         + "&tsuids=000001000001000002&back_scan=1");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -559,8 +555,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000003000001000001&back_scan=1&resolve");
     try {
-      final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-      assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+      rpc.execute(tsdb, query);
+      fail("Expected a BadRequestException");
     } catch (BadRequestException e) {
       assertTrue(e.getMessage().contains("No such unique ID"));
       assertTrue(e.getMessage().contains("metric"));
@@ -577,8 +573,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000004000001&back_scan=1&resolve");
     try {
-      final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-      assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+      rpc.execute(tsdb, query);
+      fail("Expected a BadRequestException");
     } catch (BadRequestException e) {
       assertTrue(e.getMessage().contains("No such unique ID"));
       assertTrue(e.getMessage().contains("tagk"));
@@ -595,8 +591,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?tsuids=000001000001000003&back_scan=1&resolve");
     try {
-      final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-      assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+      rpc.execute(tsdb, query);
+      fail("Expected a BadRequestException");
     } catch (BadRequestException e) {
       assertTrue(e.getMessage().contains("No such unique ID"));
       assertTrue(e.getMessage().contains("tagv"));
@@ -614,9 +610,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user{host=web01}"
         + "&tsuids=000001000001000002");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -637,9 +633,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/query/last?timeseries=sys.cpu.user{host=web01}"
         + "&tsuids=000001000001000002&back_scan=1");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -653,8 +649,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
   public void qsEmpty() throws Exception {
     final HttpQuery query = NettyMocks.getQuery(tsdb, "/api/query/last");
     try {
-      final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-      assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+      rpc.execute(tsdb, query);
+      fail("Expected a BadRequestException");
     } catch (BadRequestException e) { }
   }
   
@@ -669,9 +665,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query/last",
         "{\"queries\":[{\"metric\":\"sys.cpu.user\",\"tags\":"
         + "{\"host\":\"web01\"}}]}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -689,9 +685,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query/last",
         "{\"queries\":[{\"metric\":\"sys.cpu.user\"}]}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -711,9 +707,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query/last",
         "{\"queries\":[{\"metric\":\"sys.cpu.user\"}],\"resolveNames\":true}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -737,9 +733,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "{\"host\":\"web01\"}},"
         + "{\"metric\":\"sys.cpu.user\",\"tags\":"
         + "{\"host\":\"web02\"}}]}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -760,9 +756,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query/last",
         "{\"queries\":[{\"metric\":\"sys.cpu.user\",\"tags\":"
         + "{\"host\":\"web01\"}}],\"backScan\":1}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -780,9 +776,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query/last",
         "{\"queries\":[{\"tsuids\":[\"000001000001000001\"]}]}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -803,9 +799,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query/last",
         "{\"queries\":[{\"tsuids\":[\"000001000001000001\","
         + "\"000001000001000002\"]}]}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -826,9 +822,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query/last",
         "{\"queries\":[{\"tsuids\":[\"000001000001000001\","
         + "\"000001000001000002\"]}],\"resolveNames\":true}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -850,9 +846,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query/last",
         "{\"queries\":[{\"tsuids\":[\"000001000001000001\"]},"
         + "{\"tsuids\":[\"000001000001000002\"]}]}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -872,9 +868,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query/last",
         "{\"queries\":[{\"tsuids\":[\"000001000001000001\"]}],\"backScan\":1}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -896,9 +892,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "{\"queries\":[{\"metric\":\"sys.cpu.user\",\"tags\":"
         + "{\"host\":\"web01\"}},"
         + "{\"tsuids\":[\"000001000001000002\"]}]}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -921,9 +917,9 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "{\"host\":\"web01\"}},"
         + "{\"tsuids\":[\"000001000001000002\"]}],"
         + "\"resolveNames\":true}");
-    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-    final String json = getContent(httpResponse);
-    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    rpc.execute(tsdb, query);
+    final String json = getContent(query);
+    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -939,9 +935,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query/last",
         "{\"queries\":[]}");
     try {
-      final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-      assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
-      
+      rpc.execute(tsdb, query);
+      fail("Expected a BadRequestException");
     } catch (BadRequestException e) { }
   }
   
@@ -950,8 +945,8 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, "/api/query/last",
         "{}");
     try {
-      final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
-      assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
+      rpc.execute(tsdb, query);
+      fail("Expected a BadRequestException");
     } catch (BadRequestException e) { }
   }
   
@@ -961,16 +956,6 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
    * @return Some string if we were lucky
    */
   private String getContent(final HttpQuery query) {
-    return query.response().content().toString(UTF8);
+    return query.response().getContent().toString(Charset.forName("UTF-8"));
   }
-  
-  /**
-   * Returns the content of the response buffer
-   * @param response The http response to read from
-   * @return Some string if we were lucky
-   */
-  private String getContent(final FullHttpResponse request) {
-    return request.content().toString(UTF8);
-  }
-  
 }

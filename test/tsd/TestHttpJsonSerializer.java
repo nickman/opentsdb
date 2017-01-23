@@ -60,7 +60,9 @@ import com.stumbleupon.async.DeferredGroupException;
  * <b>Note:</b> Tests for the default error handlers are in the TestHttpQuery
  * class
  */
-@PowerMockIgnore({"javax.management.*"})
+@PowerMockIgnore({"javax.management.*", "javax.xml.*",
+	  "ch.qos.*", "org.slf4j.*",
+	  "com.sum.*", "org.xml.*"})
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({ HttpJsonSerializer.class, TSDB.class, Config.class, 
   HttpQuery.class, TSQuery.class, TSSubQuery.class, QueryStats.class,
