@@ -96,9 +96,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?metric=sys.cpu.0");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"metric\":{\"sys.cpu.0\":\"000001\"}}", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   @Test
@@ -107,9 +107,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?metric=sys.cpu.0,sys.cpu.2");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"sys.cpu.0\":\"000001\""));
     assertTrue(json.contains("\"sys.cpu.2\":\"000003\""));
   }
@@ -120,9 +120,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?metric=sys.cpu.1");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("{\"sys.cpu.1\":\"Name already exists with " 
         + "UID: 000002\"}"));
   }
@@ -133,9 +133,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?metric=sys.cpu.0,sys.cpu.1,sys.cpu.2");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("{\"sys.cpu.1\":\"Name already exists with "
         + "UID: 000002\"}"));
     assertTrue(json.contains("{\"sys.cpu.0\":\"000001\",\"sys.cpu.2\":"
@@ -148,9 +148,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?tagk=host");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"tagk\":{\"host\":\"000001\"}}", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   @Test
@@ -159,9 +159,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?tagk=host,fqdn");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"fqdn\":\"000003\""));
     assertTrue(json.contains("\"host\":\"000001\""));
   }
@@ -172,9 +172,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?tagk=datacenter");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"tagk_errors\":{\"datacenter\":"
         + "\"Name already exists with UID: 000002\"}"));
   }
@@ -185,9 +185,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?tagk=host,datacenter,fqdn");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("{\"datacenter\":\"Name already exists with "
         + "UID: 000002\"}"));
     assertTrue(json.contains("\"fqdn\":\"000003\""));
@@ -200,9 +200,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?tagv=localhost");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"tagv\":{\"localhost\":\"000001\"}}", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   @Test
@@ -211,9 +211,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?tagv=localhost,foo");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"foo\":\"000003\""));
     assertTrue(json.contains("\"localhost\":\"000001\""));
   }
@@ -224,9 +224,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?tagv=myserver");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"tagv_errors\":{\"myserver\":\"Name already "
         + "exists with UID: 000002\"}"));
   }
@@ -237,9 +237,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/assign?tagv=localhost,myserver,foo");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"foo\":\"000003\""));
     assertTrue(json.contains("\"localhost\":\"000001\""));
     assertTrue(json.contains("{\"myserver\":\"Name already exists with "
@@ -254,7 +254,7 @@ public final class TestUniqueIdRpc {
         "&metric=sys.cpu.0,sys.cpu.2" +
         "&tagk=host,fqdn");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     // contents may shift in flight, hence no parsing
   }
   
@@ -266,7 +266,7 @@ public final class TestUniqueIdRpc {
         "&metric=sys.cpu.0,sys.cpu.1,sys.cpu.2" +
         "&tagk=host,datacenter,fqdn");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     // contents may shift in flight, hence no parsing
   }
   
@@ -300,9 +300,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
         "{\"metric\":[\"sys.cpu.0\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"metric\":{\"sys.cpu.0\":\"000001\"}}", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   public void assignPostMetricDouble() throws Exception {
@@ -310,9 +310,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
     "{\"metric\":[\"sys.cpu.0\",\"sys.cpu.2\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"sys.cpu.0\":\"000001\""));
     assertTrue(json.contains("\"sys.cpu.2\":\"000003\""));
   }
@@ -322,9 +322,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
     "{\"metric\":[\"sys.cpu.2\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("{\"sys.cpu.1\":\"Name already exists with " 
         + "UID: 000002\"}"));
   }
@@ -334,9 +334,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
     "{\"metric\":[\"sys.cpu.0\",\"sys.cpu.1\",\"sys.cpu.2\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("{\"sys.cpu.1\":\"Name already exists with "
         + "UID: 000002\"}"));
     assertTrue(json.contains("\"sys.cpu.0\":\"000001\""));
@@ -349,9 +349,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
         "{\"tagk\":[\"host\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"tagk\":{\"host\":\"000001\"}}", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   public void assignPostTagkDouble() throws Exception {
@@ -359,9 +359,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
     "{\"tagk\":[\"host\",\"fqdn\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"fqdn\":\"000003\""));
     assertTrue(json.contains("\"host\":\"000001\""));
   }
@@ -371,9 +371,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
     "{\"tagk\":[\"datacenter\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"datacenter\":\"Name already exists with " 
         + "UID: 000002\""));
   }
@@ -383,9 +383,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
     "{\"tagk\":[\"host\",\"datacenter\",\"fqdn\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("{\"datacenter\":\"Name already exists with "
         + "UID: 000002\"}"));
     assertTrue(json.contains("\"fqdn\":\"000003\""));
@@ -398,9 +398,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
         "{\"tagv\":[\"localhost\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"tagv\":{\"localhost\":\"000001\"}}", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   public void assignPostTagvDouble() throws Exception {
@@ -408,9 +408,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
     "{\"tagv\":[\"localhost\",\"foo\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"foo\":\"000003\""));
     assertTrue(json.contains("\"localhost\":\"000001\""));
   }
@@ -420,9 +420,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
     "{\"tagv\":[\"myserver\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"tagv_errors\":{\"myserver\":\"Name already "
         + "exists with UID: 000002\"}"));
   }
@@ -432,9 +432,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", 
     "{\"tagv\":[\"localhost\",\"myserver\",\"foo\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"foo\":\"000003\""));
     assertTrue(json.contains("\"localhost\":\"000001\""));
     assertTrue(json.contains("\"tagv_errors\":{\"myserver\":\"Name already exists with "
@@ -449,7 +449,7 @@ public final class TestUniqueIdRpc {
         + "\"metric\":[\"sys.cpu.0\",\"sys.cpu.2\"],"
         + "\"tagk\":[\"host\",\"fqdn\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     // contents may shift in flight, hence no parsing
   }
   
@@ -461,7 +461,7 @@ public final class TestUniqueIdRpc {
         + "\"metric\":[\"sys.cpu.0\",\"sys.cpu.1\",\"sys.cpu.2\"],"
         + "\"tagk\":[\"host\",\"datacenter\",\"fqdn\"]}");
     this.rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     // contents may shift in flight, hence no parsing
   }
 
@@ -545,9 +545,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/rename",
         "{\"metric\":\"sys.cpu.1\",\"name\":\"sys.cpu.2\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"result\":\"true\"}",
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
 
   @Test
@@ -555,9 +555,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/rename",
         "{\"tagk\":\"datacenter\",\"name\":\"datacluster\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"result\":\"true\"}",
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
 
   @Test
@@ -565,9 +565,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/rename",
         "{\"tagv\":\"localhost\",\"name\":\"127.0.0.1\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"result\":\"true\"}",
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
 
   @Test (expected = BadRequestException.class)
@@ -607,9 +607,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb,
         "/api/uid/rename?metric=sys.cpu.1&name=sys.cpu.2");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"result\":\"true\"}",
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
 
   @Test
@@ -617,9 +617,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb,
         "/api/uid/rename?tagk=datacenter&name=datacluster");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"result\":\"true\"}",
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
 
   @Test
@@ -627,9 +627,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb,
         "/api/uid/rename?tagv=localhost&name=127.0.0.1");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"result\":\"true\"}",
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
 
   @Test
@@ -637,9 +637,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb,
         "/api/uid/rename?tagv=localhost&name=127.0.0.1&drop=db");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("{\"result\":\"true\"}",
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
 
   @Test (expected = BadRequestException.class)
@@ -678,9 +678,9 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb,
         "/api/uid/rename?tagv=localhost&name=localhost");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
-    final String json = query.response().getContent()
-        .toString(Charset.forName("UTF-8"));
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
+    final String json = query.response().content()
+        .toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"error\":\"" + message + "\""));
     assertTrue(json.contains("\"result\":\"false\""));
   }
@@ -693,7 +693,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/uidmeta?type=metric&uid=000001");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test (expected = BadRequestException.class)
@@ -726,7 +726,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/uidmeta", 
         "{\"uid\":\"000001\",\"type\":\"metric\",\"displayName\":\"Hello!\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test
@@ -735,7 +735,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/uidmeta", 
         "{\"uid\":\"000001\",\"type\":\"metric\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().status());
   }
   
   @Test (expected = BadRequestException.class)
@@ -768,7 +768,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/uidmeta?uid=000001&type=metric&display_name=Hello&method_override=post");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test
@@ -777,7 +777,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.putQuery(tsdb, "/api/uid/uidmeta", 
         "{\"uid\":\"000001\",\"type\":\"metric\",\"displayName\":\"Hello!\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test
@@ -786,7 +786,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.putQuery(tsdb, "/api/uid/uidmeta", 
         "{\"uid\":\"000001\",\"type\":\"metric\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().status());
   }
   
   @Test (expected = BadRequestException.class)
@@ -819,7 +819,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/uidmeta?uid=000001&type=metric&display_name=Hello&method_override=put");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test
@@ -828,7 +828,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.deleteQuery(tsdb, "/api/uid/uidmeta", 
         "{\"uid\":\"000001\",\"type\":\"metric\",\"displayName\":\"Hello!\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
   }
 
   @Test (expected = BadRequestException.class)
@@ -853,7 +853,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/uidmeta?uid=000001&type=metric&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
   }
   
   // Test /api/uid/tsmeta ----------------------
@@ -864,7 +864,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/tsmeta?tsuid=000001000001000001");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test
@@ -873,7 +873,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/tsmeta?m=sys.cpu.0{host=web01}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test
@@ -882,7 +882,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/tsmeta?m=sys.cpu.0{host=web02}&create=true", 
         "{\"displayName\":\"Hello World\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test (expected = BadRequestException.class)
@@ -899,7 +899,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/tsmeta?m=sys.cpu.2{datacenter=dc01,host=web01}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test
@@ -908,7 +908,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
         "/api/uid/tsmeta?m=sys.cpu.2{host=web01,datacenter=dc01}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
   }
   
   @Test (expected = BadRequestException.class)
@@ -949,8 +949,8 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/tsmeta", 
         "{\"tsuid\":\"000001000001000001\", \"displayName\":\"Hello World\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(Charset.forName("UTF-8"))
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(NettyMocks.UTF8)
         .contains("\"displayName\":\"Hello World\""));    
   }
   
@@ -968,7 +968,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/tsmeta", 
         "{\"tsuid\":\"000001000001000001\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().status());
   }
   
   @Test
@@ -977,8 +977,8 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/uid/tsmeta?tsuid=000001000001000001&display_name=42&method_override=post");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(Charset.forName("UTF-8"))
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(NettyMocks.UTF8)
         .contains("\"displayName\":\"42\""));
   }
   
@@ -996,8 +996,8 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.putQuery(tsdb, "/api/uid/tsmeta", 
         "{\"tsuid\":\"000001000001000001\", \"displayName\":\"Hello World\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(Charset.forName("UTF-8"))
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(NettyMocks.UTF8)
         .contains("\"displayName\":\"Hello World\""));
   }
   
@@ -1015,7 +1015,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.putQuery(tsdb, "/api/uid/tsmeta", 
         "{\"tsuid\":\"000001000001000001\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NOT_MODIFIED, query.response().status());
   }
   
   @Test
@@ -1024,8 +1024,8 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/uid/tsmeta?tsuid=000001000001000001&display_name=42&method_override=put");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    assertTrue(query.response().getContent().toString(Charset.forName("UTF-8"))
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    assertTrue(query.response().content().toString(NettyMocks.UTF8)
         .contains("\"displayName\":\"42\""));
   }
   
@@ -1043,7 +1043,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.deleteQuery(tsdb, "/api/uid/tsmeta", 
         "{\"tsuid\":\"000001000001000001\", \"displayName\":\"Hello World\"}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
   }
   
   @Test
@@ -1052,7 +1052,7 @@ public final class TestUniqueIdRpc {
     HttpQuery query = NettyMocks.getQuery(tsdb, 
     "/api/uid/tsmeta?tsuid=000001000001000001&method_override=delete");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
   }
   
   /**

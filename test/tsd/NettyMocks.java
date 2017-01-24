@@ -12,8 +12,9 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
-import static org.mockito.Mockito.when;
+//import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mock;
+import static org.powermock.api.mockito.PowerMockito.when;
 
 import java.net.SocketAddress;
 import java.nio.charset.Charset;
@@ -27,12 +28,12 @@ import org.powermock.api.mockito.PowerMockito;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import net.opentsdb.core.TSDB;
@@ -90,13 +91,37 @@ public final class NettyMocks {
 	  final HttpQuery query = PowerMockito.spy(q);
 	  PowerMockito.doAnswer(sendBufferIntercept)
 	  	.when(query).sendBuffer(Mockito.any(HttpResponseStatus.class), Mockito.any(ByteBuf.class), Mockito.anyString());
-	  try {
-		  PowerMockito.doAnswer(sendBufferUpdateApiVersion)
-		  	.when(query, PowerMockito.method(HttpQuery.class, "sendBuffer", HttpResponseStatus.class, ByteBuf.class));
-	  } catch (Exception ex) {
-		  throw new RuntimeException("Failed to mocj method sendBuffer(status, method)", ex);
-	  }
+	  when(query.response()).thenCallRealMethod();
+	  PowerMockito.doAnswer(sendBufferUpdateApiVersion)
+	  	.when(query).sendBuffer(Mockito.any(HttpResponseStatus.class), Mockito.any(ByteBuf.class));
+	  when(query.response()).thenCallRealMethod();
+	  
+//	  try {
+////		  PowerMockito.doCallRealMethod().when(query.method());
+////		  PowerMockito.when(query.apiVersion()).thenCallRealMethod();
+////		  PowerMockito.when(query.channel()).thenCallRealMethod();
+////		  PowerMockito.when(query.explodeAPIPath()).thenCallRealMethod();
+////		  PowerMockito.when(query.explodePath()).thenCallRealMethod();
+////		  PowerMockito.when(query.request()).thenCallRealMethod();
+////		  PowerMockito.when(query.response()).thenCallRealMethod();
+////		  PowerMockito.when(query.ctx()).thenCallRealMethod();
+////		  PowerMockito.when(query.method()).thenCallRealMethod();
+//		  PowerMockito.doAnswer(sendBufferUpdateApiVersion)
+//		  	//.when(query, PowerMockito.method(HttpQuery.class, "sendBuffer", HttpResponseStatus.class, ByteBuf.class));
+//		  .when(query.sendBuffer(Mockito.any(HttpResponseStatus.class), Mockito.any(ByteBuf.class)));
+//		  PowerMockito.doCallRealMethod().when(query.method());
+//	  } catch (Exception ex) {
+//		  throw new RuntimeException("Failed to mock method sendBuffer(status, method)", ex);
+//	  }
 	  return query;
+  }
+  
+  public static FullHttpResponse writeReqestReadResponse(final FullHttpRequest request, final ChannelHandler...handlers) {
+	  final EmbeddedChannel ec = new EmbeddedChannel(handlers);
+	  ec.writeInbound(request);
+	  ec.runPendingTasks();
+	  return ec.readOutbound();
+	  
   }
   
   
@@ -117,9 +142,12 @@ public final class NettyMocks {
     return chan;
   }
   
-  // HttpRpcPluginQuery
+  
+  
+  
   public static HttpRpcPluginQuery pluginQuery(final TSDB tsdb, final FullHttpRequest req) {
-	  return returnUpdatingQuery(tsdb, req);	  
+	  final EmbeddedChannel chan = new EmbeddedChannel();
+	  return new HttpRpcPluginQuery(tsdb, req, chan);
   }
   
   
@@ -242,7 +270,9 @@ public final class NettyMocks {
     if (content != null) {
     	req.content().writeBytes(BufferManager.getInstance().wrap(content));
     }
-	req.headers().set("Content-Type", type);
+    if(type!=null) {
+    	req.headers().set("Content-Type", type);
+    }
 	return returnUpdatingQuery(tsdb, req);
   }
   

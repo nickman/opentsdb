@@ -67,7 +67,7 @@ public final class TestSearchRpc extends BaseTsdbTest {
   private SearchPlugin mock_plugin;
   private SearchRpc rpc = new SearchRpc();
   private SearchQuery search_query = null;
-  private static final Charset UTF = Charset.forName("UTF-8");
+  private static final Charset UTF = NettyMocks.UTF8;
   
   @Before
   public void beforeLocal() throws Exception {
@@ -85,8 +85,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/tsmeta?query=*");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"results\":[{\"tsuid\""));
     assertEquals(1, search_query.getResults().size());
   }
@@ -97,8 +97,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/tsmeta_summary?query=*");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"host\":\"web01\""));
     assertTrue(result.contains("\"metric\":\"sys.cpu.0\""));
     assertEquals(1, search_query.getResults().size());
@@ -110,8 +110,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/tsuids?query=*");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"results\":[\"000001000001000001\""));
     assertEquals(2, search_query.getResults().size());
   }
@@ -122,8 +122,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/uidmeta?query=*");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"results\":[{\"uid\""));
     assertEquals(2, search_query.getResults().size());
   }
@@ -134,8 +134,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/annotation?query=*");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"results\":[{\"tsuid\""));
     assertEquals(1, search_query.getResults().size());
   }
@@ -146,8 +146,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/annotation?query=EMTPY");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"results\":[]"));
     assertEquals(0, search_query.getResults().size());
   }
@@ -158,7 +158,7 @@ public final class TestSearchRpc extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/tsmeta?query=*&limit=42");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals(42, search_query.getLimit());
   }
   
@@ -168,7 +168,7 @@ public final class TestSearchRpc extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.getQuery(tsdb, 
       "/api/search/tsmeta?query=*&start_index=4");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals(4, search_query.getStartIndex());
   }
   
@@ -178,8 +178,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
       "/api/search/tsmeta", "{\"query\":\"*\",\"limit\":42,\"startIndex\":2}");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"results\":[{\"tsuid\""));
     assertEquals(1, search_query.getResults().size());
     assertEquals(42, search_query.getLimit());
@@ -242,8 +242,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
       "/api/search/lookup?m={host=}");
     rpc.execute(tsdb, query);
     
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"host\":\"web01\""));
     assertTrue(result.contains("\"totalResults\":5"));
     assertTrue(result.contains("\"tsuid\":\"000001000001000001\""));
@@ -261,8 +261,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     query.setSerializer();
     rpc.execute(tsdb, query);
     
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"host\":\"web01\""));
     assertTrue(result.contains("\"totalResults\":5"));
     assertTrue(result.contains("\"tsuid\":\"000001000001000001\""));
@@ -279,8 +279,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
       "{\"tags\":[{\"key\":\"host\",\"value\":null}],\"useMeta\":false}");
     rpc.execute(tsdb, query);
     
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.OK, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"host\":\"web01\""));
     assertTrue(result.contains("\"totalResults\":5"));
     assertTrue(result.contains("\"tsuid\":\"000001000001000001\""));
@@ -298,8 +298,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     rpc.execute(tsdb, query);
     
     assertEquals(HttpResponseStatus.INTERNAL_SERVER_ERROR, 
-        query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+        query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"code\":500"));
     assertTrue(result.contains("\"message\":\"Unexpected exception\""));
   }
@@ -325,8 +325,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
       "/api/search/lookup?m=" + NSUN_METRIC);
     rpc.execute(tsdb, query);
     
-    assertEquals(HttpResponseStatus.NOT_FOUND, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.NOT_FOUND, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"code\":404"));
     assertTrue(result.contains("\"details\":\"No such name"));
   }
@@ -348,8 +348,8 @@ public final class TestSearchRpc extends BaseTsdbTest {
     query.setSerializer();
     rpc.execute(tsdb, query);
     
-    assertEquals(HttpResponseStatus.NOT_FOUND, query.response().getStatus());
-    final String result = query.response().getContent().toString(UTF);
+    assertEquals(HttpResponseStatus.NOT_FOUND, query.response().status());
+    final String result = query.response().content().toString(UTF);
     assertTrue(result.contains("\"code\":404"));
     assertTrue(result.contains("\"details\":\"No such unique ID"));
   }

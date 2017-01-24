@@ -147,7 +147,7 @@ public class Netty4MocksTest extends BaseTestPutRpc {
 	    rpc.execute(tsdb, query);
 	    assertEquals(HttpResponseStatus.OK, query.response().status());
 	    final String response = 
-	    		query.response().content().toString(Charset.forName("UTF-8"));
+	    		query.response().content().toString(NettyMocks.UTF8);
 	    assertTrue(response.contains("\"failed\":0"));
 	    assertTrue(response.contains("\"success\":1"));
 	    assertTrue(response.contains("\"errors\":[]"));

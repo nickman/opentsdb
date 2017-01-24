@@ -19,10 +19,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import net.opentsdb.core.FillPolicy;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
+import org.powermock.core.classloader.annotations.PrepareForTest;
+import org.powermock.modules.junit4.PowerMockRunner;
+
+import com.stumbleupon.async.Deferred;
+import com.stumbleupon.async.DeferredGroupException;
+
 import net.opentsdb.core.TSDB;
 import net.opentsdb.core.TSQuery;
-import net.opentsdb.query.expression.NumericFillPolicy;
 import net.opentsdb.query.expression.BaseTimeSyncedIteratorTest;
 import net.opentsdb.query.expression.VariableIterator.SetOperator;
 import net.opentsdb.query.filter.TagVFilter;
@@ -39,18 +47,13 @@ import net.opentsdb.utils.Config;
 import net.opentsdb.utils.DateTime;
 import net.opentsdb.utils.JSON;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
-
-import com.stumbleupon.async.Deferred;
-import com.stumbleupon.async.DeferredGroupException;
-
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({TSDB.class, Config.class, HttpQuery.class, 
   Deferred.class, TSQuery.class, DateTime.class, DeferredGroupException.class })
+@PowerMockIgnore({"javax.management.*", "javax.xml.*",
+    "ch.qos.*", "org.slf4j.*",
+    "com.sum.*", "org.xml.*"})
+@SuppressWarnings("javadoc")
 public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
 
   private Timespan time;
@@ -90,11 +93,11 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    NettyMocks.mockChannelFuture(query);
+    
     rpc.execute(tsdb, query);
     
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"alias\":\"A plus B\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -115,11 +118,11 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -145,11 +148,11 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"alias\":\"A plus B\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -175,11 +178,11 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"alias\":\"A plus B\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,1.0,4.0,0.0]"));
     assertTrue(response.contains("[1431561660000,0.0,20.0,8.0]"));
@@ -206,11 +209,11 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"alias\":\"A plus B\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,1.0,4.0,0.0]"));
     assertTrue(response.contains("[1431561660000,0.0,20.0,8.0]"));
@@ -239,11 +242,11 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
 //    final HttpQuery query = NettyMocks.postQuery(tsdb, 
 //        "/api/query/exp", json);
 //    query.getQueryBaseRoute(); // to the correct serializer
-//    NettyMocks.mockChannelFuture(query);
+//    
 //    
 //    rpc.execute(tsdb, query);
 //    final String response = 
-//        query.response().getContent().toString(Charset.forName("UTF-8"));
+//        query.response().content().toString(NettyMocks.UTF8);
 //    assertTrue(response.contains("\"alias\":\"A plus B\""));
 //    assertTrue(response.contains("\"dps\":[[1431561540000,0.0,0.0,0.0]"));
 //    assertTrue(response.contains("[1431561600000,1.0,4.0,0.0]"));
@@ -270,11 +273,11 @@ public class TestQueryExecutor extends BaseTimeSyncedIteratorTest {
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
 System.out.println(response);
     assertTrue(response.contains("\"alias\":\"A plus B\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,47.0]"));
@@ -302,11 +305,11 @@ System.out.println(response);
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -348,11 +351,11 @@ System.out.println(response);
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -381,11 +384,11 @@ System.out.println(response);
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
     assertTrue(response.contains("[1431561720000,16.0,22.0]"));
     assertTrue(response.contains("\"firstTimestamp\":1431561600000"));
@@ -410,11 +413,11 @@ System.out.println(response);
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -445,11 +448,11 @@ System.out.println(response);
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -486,11 +489,11 @@ System.out.println(response);
     final QueryRpc rpc = new QueryRpc();
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"id\":\"e\""));
     assertTrue(response.contains("\"dps\":[[1431561600000,12.0,18.0]"));
     assertTrue(response.contains("[1431561660000,14.0,20.0]"));
@@ -518,11 +521,11 @@ System.out.println(response);
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"dps\":[]"));
     assertTrue(response.contains("\"firstTimestamp\":0"));
     assertTrue(response.contains("\"series\":0"));
@@ -540,11 +543,11 @@ System.out.println(response);
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"Boo!\""));
   }
@@ -563,11 +566,11 @@ System.out.println(response);
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"No such name for '" + 
         NSUN_METRIC + "'"));
@@ -590,11 +593,11 @@ System.out.println(response);
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"Self referencing"));
   }
@@ -616,11 +619,11 @@ System.out.println(response);
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"Circular reference found:"));
   }
@@ -634,11 +637,11 @@ System.out.println(response);
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"No intersections found"));
   }
@@ -667,11 +670,11 @@ System.out.println(response);
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"No intersections found"));
   }
@@ -689,11 +692,11 @@ System.out.println(response);
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":\"No intersections found"));
   }
@@ -708,7 +711,7 @@ System.out.println(response);
     final HttpQuery query = NettyMocks.postQuery(tsdb, 
         "/api/query/exp", json);
     query.getQueryBaseRoute(); // to the correct serializer
-    NettyMocks.mockChannelFuture(query);
+    
     
     rpc.execute(tsdb, query);
   }

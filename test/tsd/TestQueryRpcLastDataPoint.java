@@ -42,6 +42,7 @@ import org.powermock.reflect.Whitebox;
 
 import com.stumbleupon.async.Deferred;
 
+@SuppressWarnings("javadoc")
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({ TSDB.class, HBaseClient.class, Config.class, HttpQuery.class, 
   Query.class, Deferred.class, UniqueId.class, DateTime.class, KeyValue.class,
@@ -68,7 +69,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?timeseries=sys.cpu.user{host=web01}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -88,7 +89,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?timeseries=sys.cpu.user");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -110,7 +111,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?timeseries=sys.cpu.user&resolve");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -132,7 +133,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?timeseries=sys.cpu.user");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertFalse(json.contains("\"value\":\"42\""));
     assertFalse(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -166,7 +167,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?timeseries=sys.cpu.user&back_scan=0");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -186,7 +187,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?timeseries=sys.cpu.user{host=web01}&back_scan=1");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -205,7 +206,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "&back_scan=1&resolve=true");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -222,7 +223,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?timeseries=sys.cpu.user{host=web01}&back_scan=1");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("[]", json);
   }
   
@@ -239,7 +240,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
             + "&timeseries=sys.cpu.user{host=web02}&back_scan=1");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -262,7 +263,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
             + "&timeseries=sys.cpu.user{host=web02}&back_scan=1&resolve");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -285,7 +286,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
             + "&timeseries=sys.cpu.user{host=web02}&back_scan=1");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertFalse(json.contains("\"value\":\"42\""));
     assertFalse(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -358,7 +359,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?tsuids=000001000001000001");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -380,7 +381,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?tsuids=000001000001000001,000001000001000002");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -402,7 +403,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?tsuids=000001000001000001&tsuids=000001000001000002");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -436,7 +437,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?tsuids=000001000001000001&back_scan=1");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -455,7 +456,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?tsuids=000001000001000001&back_scan=1");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertEquals("[]", json);
   }
   
@@ -471,7 +472,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?tsuids=000001000001000001,000001000001000002&back_scan=1");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -491,7 +492,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "/api/query/last?tsuids=000001000001000001,000001000001000002&back_scan=1");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -514,7 +515,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "&tsuids=000001000001000002&back_scan=1");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -535,7 +536,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "&tsuids=000001000001000002&back_scan=1");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -612,7 +613,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "&tsuids=000001000001000002");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -635,7 +636,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "&tsuids=000001000001000002&back_scan=1");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -667,7 +668,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "{\"host\":\"web01\"}}]}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -687,7 +688,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "{\"queries\":[{\"metric\":\"sys.cpu.user\"}]}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -709,7 +710,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "{\"queries\":[{\"metric\":\"sys.cpu.user\"}],\"resolveNames\":true}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -735,7 +736,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "{\"host\":\"web02\"}}]}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -758,7 +759,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "{\"host\":\"web01\"}}],\"backScan\":1}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -778,7 +779,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "{\"queries\":[{\"tsuids\":[\"000001000001000001\"]}]}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -801,7 +802,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "\"000001000001000002\"]}]}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -824,7 +825,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "\"000001000001000002\"]}],\"resolveNames\":true}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -848,7 +849,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "{\"tsuids\":[\"000001000001000002\"]}]}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -870,7 +871,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         "{\"queries\":[{\"tsuids\":[\"000001000001000001\"]}],\"backScan\":1}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1356998400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -894,7 +895,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "{\"tsuids\":[\"000001000001000002\"]}]}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -919,7 +920,7 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
         + "\"resolveNames\":true}");
     rpc.execute(tsdb, query);
     final String json = getContent(query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     assertTrue(json.contains("\"timestamp\":1388534400000"));
     assertTrue(json.contains("\"value\":\"42\""));
     assertTrue(json.contains("\"tsuid\":\"000001000001000001\""));
@@ -956,6 +957,6 @@ public class TestQueryRpcLastDataPoint extends BaseTsdbTest {
    * @return Some string if we were lucky
    */
   private String getContent(final HttpQuery query) {
-    return query.response().getContent().toString(Charset.forName("UTF-8"));
+    return query.response().content().toString(NettyMocks.UTF8);
   }
 }

@@ -95,6 +95,7 @@ public class BaseTestPutRpc extends BaseTsdbTest {
     writes_timedout.set(0);
     requests_timedout = Whitebox.getInternalState(PutDataPointRpc.class, "requests_timedout");
     requests_timedout.set(0);
+    HttpQuery.initializeSerializerMaps(tsdb);
   }
   
   /**

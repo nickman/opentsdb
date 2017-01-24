@@ -207,7 +207,7 @@ public final class TestHttpJsonSerializer {
     ByteBuf cb = serdes.formatSuggestV1(metrics);
     assertNotNull(cb);
     assertEquals("[\"sys.cpu.0.system\"]", 
-        cb.toString(Charset.forName("UTF-8")));
+        cb.toString(NettyMocks.UTF8));
   }
   
   @Test
@@ -219,7 +219,7 @@ public final class TestHttpJsonSerializer {
     ByteBuf cb = serdes.formatSuggestV1(metrics);
     assertNotNull(cb);
     assertEquals("func([\"sys.cpu.0.system\"])", 
-        cb.toString(Charset.forName("UTF-8")));
+        cb.toString(NettyMocks.UTF8));
   }
   
   @Test (expected = IllegalArgumentException.class)
@@ -238,7 +238,7 @@ public final class TestHttpJsonSerializer {
     ByteBuf cb = serdes.formatUidRenameV1(map);
     assertNotNull(cb);
     assertEquals("{\"result\":\"true\"}",
-        cb.toString(Charset.forName("UTF-8")));
+        cb.toString(NettyMocks.UTF8));
   }
 
   @Test
@@ -250,7 +250,7 @@ public final class TestHttpJsonSerializer {
     map.put("error", "known");
     ByteBuf cb = serdes.formatUidRenameV1(map);
     assertNotNull(cb);
-    final String json = cb.toString(Charset.forName("UTF-8"));
+    final String json = cb.toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"error\":\"known\""));
     assertTrue(json.contains("\"result\":\"false\""));
   }
@@ -268,7 +268,7 @@ public final class TestHttpJsonSerializer {
     HttpQuery query = NettyMocks.getQuery(tsdb, "");
     HttpJsonSerializer serdes = new HttpJsonSerializer(query);
     
-    String json = serdes.formatSerializersV1().toString(Charset.forName("UTF-8"));
+    String json = serdes.formatSerializersV1().toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"request_content_type\":\"application/json\""));
     assertTrue(json.contains("\"formatters\":["));
     assertTrue(json.contains("\"response_content_type\":\"application/json; "
@@ -291,7 +291,7 @@ public final class TestHttpJsonSerializer {
     ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
-    final String json = cb.toString(Charset.forName("UTF-8"));
+    final String json = cb.toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"metric\":\"system.cpu.user\","));
     assertTrue(json.contains("\"1356998700\":1,"));
     assertTrue(json.contains("\"1357058700\":201"));
@@ -314,7 +314,7 @@ public final class TestHttpJsonSerializer {
     ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
-    final String json = cb.toString(Charset.forName("UTF-8"));
+    final String json = cb.toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"metric\":\"system.cpu.user\","));
     assertTrue(json.contains("\"1356998700\":1,"));
     assertTrue(json.contains("\"1357058700\":201"));
@@ -336,7 +336,7 @@ public final class TestHttpJsonSerializer {
     final ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
-    final String json = cb.toString(Charset.forName("UTF-8"));
+    final String json = cb.toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"metric\":\"system.cpu.user\","));
     assertTrue(json.contains("\"1356998700\":1,"));
     assertTrue(json.contains("\"1357058700\":201"));
@@ -364,7 +364,7 @@ public final class TestHttpJsonSerializer {
     final ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
-    final String json = cb.toString(Charset.forName("UTF-8"));
+    final String json = cb.toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"metric\":\"system.cpu.user\","));
     assertTrue(json.contains("\"stats\":{"));
     assertTrue(json.contains("\"1356998700\":1,"));
@@ -391,7 +391,7 @@ public final class TestHttpJsonSerializer {
     final ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
-    final String json = cb.toString(Charset.forName("UTF-8"));
+    final String json = cb.toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"metric\":\"system.cpu.user\","));
     assertTrue(json.contains("\"1356998700\":1,"));
     assertTrue(json.contains("\"1357058700\":201"));
@@ -420,7 +420,7 @@ public final class TestHttpJsonSerializer {
     final ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
-    final String json = cb.toString(Charset.forName("UTF-8"));
+    final String json = cb.toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"metric\":\"system.cpu.user\","));
     assertTrue(json.contains("\"1356998700\":1,"));
     assertTrue(json.contains("\"1357058700\":201"));
@@ -447,7 +447,7 @@ public final class TestHttpJsonSerializer {
     ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
-    final String json = cb.toString(Charset.forName("UTF-8"));
+    final String json = cb.toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"metric\":\"system.cpu.user\","));
     assertTrue(json.contains("\"1356998700\":1,"));
     assertTrue(json.contains("\"1357000500\":7"));
@@ -465,7 +465,7 @@ public final class TestHttpJsonSerializer {
     ByteBuf cb = serdes.formatQueryAsyncV1(data_query, results, 
         Collections.<Annotation> emptyList()).joinUninterruptibly();
     assertNotNull(cb);
-    final String json = cb.toString(Charset.forName("UTF-8"));
+    final String json = cb.toString(NettyMocks.UTF8);
     assertEquals("[]", json);
   }
   
@@ -588,7 +588,7 @@ public final class TestHttpJsonSerializer {
 
     ByteBuf cb = serdes.formatThreadStatsV1(output);
     assertNotNull(cb);
-    final String json = cb.toString(Charset.forName("UTF-8"));
+    final String json = cb.toString(NettyMocks.UTF8);
     assertTrue(json.contains("\"threadID\":1"));
     assertTrue(json.contains("\"name\":\"Test Thread 1\""));
   }

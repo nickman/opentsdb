@@ -55,9 +55,9 @@ public class TestStatsRpc {
 //    final StatsRpc rpc = new StatsRpc();
 //    HttpQuery query = NettyMocks.getQuery(tsdb, "/api/stats");
 //    rpc.execute(tsdb, query);
-//    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+//    assertEquals(HttpResponseStatus.OK, query.response().status());
 //    final String json = 
-//        query.response().getContent().toString(Charset.forName("UTF-8"));
+//        query.response().content().toString(NettyMocks.UTF8);
 //    assertFalse(json.contains("port=4242"));
 //  }
 //  
@@ -71,9 +71,9 @@ public class TestStatsRpc {
 //    final StatsRpc rpc = new StatsRpc();
 //    HttpQuery query = NettyMocks.getQuery(tsdb, "/api/stats");
 //    rpc.execute(tsdb, query);
-//    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+//    assertEquals(HttpResponseStatus.OK, query.response().status());
 //    final String json = 
-//        query.response().getContent().toString(Charset.forName("UTF-8"));
+//        query.response().content().toString(NettyMocks.UTF8);
 //    assertTrue(json.contains("port=4242"));
 //  }
   
@@ -82,9 +82,9 @@ public class TestStatsRpc {
     final StatsRpc rpc = new StatsRpc();
     HttpQuery query = NettyMocks.getQuery(tsdb, "/api/stats/threads");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String json = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertNotNull(json);
     // check for some standard JVM threads since we can't mock Thread easily
     assertTrue(json.contains("\"name\":\"Finalizer\""));
@@ -96,9 +96,9 @@ public class TestStatsRpc {
     final StatsRpc rpc = new StatsRpc();
     HttpQuery query = NettyMocks.getQuery(tsdb, "/api/stats/jvm");
     rpc.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String json = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertNotNull(json);
     assertTrue(json.contains("\"os\":{"));
     assertTrue(json.contains("\"gc\":{"));

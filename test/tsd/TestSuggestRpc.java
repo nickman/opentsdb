@@ -63,7 +63,7 @@ public final class TestSuggestRpc {
         "/api/suggest?type=metrics&q=s");
     s.execute(tsdb, query);
     assertEquals("[\"sys.cpu.0.system\",\"sys.mem.free\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   @Test
@@ -73,7 +73,7 @@ public final class TestSuggestRpc {
     query.getQueryBaseRoute();
     s.execute(tsdb, query);
     assertEquals("[\"sys.cpu.0.system\",\"sys.mem.free\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
 
   @Test
@@ -82,7 +82,7 @@ public final class TestSuggestRpc {
         "/api/suggest?type=metrics&q=s&max=1");
     s.execute(tsdb, query);
     assertEquals("[\"sys.cpu.0.system\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   @Test
@@ -92,7 +92,7 @@ public final class TestSuggestRpc {
     query.getQueryBaseRoute();
     s.execute(tsdb, query);
     assertEquals("[\"sys.cpu.0.system\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   @Test
@@ -101,7 +101,7 @@ public final class TestSuggestRpc {
         "/api/suggest?type=tagk&q=h");
     s.execute(tsdb, query);
     assertEquals("[\"host\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   @Test
@@ -111,7 +111,7 @@ public final class TestSuggestRpc {
     query.getQueryBaseRoute();
     s.execute(tsdb, query);
     assertEquals("[\"host\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   @Test
@@ -120,7 +120,7 @@ public final class TestSuggestRpc {
         "/api/suggest?type=tagv&q=w");
     s.execute(tsdb, query);
     assertEquals("[\"web01.mysite.com\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   @Test
@@ -130,7 +130,7 @@ public final class TestSuggestRpc {
     query.getQueryBaseRoute();
     s.execute(tsdb, query);
     assertEquals("[\"web01.mysite.com\"]", 
-        query.response().getContent().toString(Charset.forName("UTF-8")));
+        query.response().content().toString(NettyMocks.UTF8));
   }
   
   @Test (expected = BadRequestException.class)

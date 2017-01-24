@@ -181,14 +181,14 @@ final class RpcHandler extends IdleStateHandler {
    * the given request.
    * @param tsdb the TSDB instance we are running within
    * @param request the incoming HTTP request
-   * @param chan the {@link Channel} the request came in on.
+   * @param channel the {@link Channel} the request came in on.
    * @return a subclass of {@link AbstractHttpQuery}
    * @throws BadRequestException if the request is invalid in a way that
    * can be detected early, here.
    */
   private AbstractHttpQuery createQueryInstance(final TSDB tsdb,
         final FullHttpRequest request,
-        final ChannelHandlerContext ctx) 
+        final Channel channel) 
             throws BadRequestException {
     final String uri = request.uri();
     if (Strings.isNullOrEmpty(uri)) {
@@ -197,10 +197,10 @@ final class RpcHandler extends IdleStateHandler {
       throw new BadRequestException("Request URI doesn't start with a slash");
     } else if (rpc_manager.isHttpRpcPluginPath(uri)) {
       http_plugin_rpcs_received.incrementAndGet();
-      return new HttpRpcPluginQuery(tsdb, request, ctx.channel());
+      return new HttpRpcPluginQuery(tsdb, request, channel);
     } else {
       http_rpcs_received.incrementAndGet();
-      HttpQuery builtinQuery = new HttpQuery(tsdb, request, ctx);
+      HttpQuery builtinQuery = new HttpQuery(tsdb, request, channel);
       return builtinQuery;
     }
   }
@@ -276,7 +276,7 @@ final class RpcHandler extends IdleStateHandler {
 	  }
 	  AbstractHttpQuery abstractQuery = null;
 	  try {
-		  abstractQuery = createQueryInstance(tsdb, fullRequest, ctx);
+		  abstractQuery = createQueryInstance(tsdb, fullRequest, ctx.channel());
 		  if (!tsdb.getConfig().enable_chunked_requests() && HttpUtil.isTransferEncodingChunked(fullRequest)) {
 			  logError(abstractQuery, "Received an unsupported chunked request: "
 					  + abstractQuery.request());

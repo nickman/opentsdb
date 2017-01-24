@@ -737,7 +737,7 @@ final class HttpQuery extends AbstractHttpQuery {
    * @param status The status of the request (e.g. 200 OK or 404 Not Found).
    * @param buf The content of the reply to send.
    */
-  private void sendBuffer(final HttpResponseStatus status,
+  void sendBuffer(final HttpResponseStatus status,
                           final ByteBuf buf) {
     final String contentType = (api_version < 1 ? guessMimeType(buf) :
       serializer.responseContentType());

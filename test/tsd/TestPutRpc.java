@@ -12,6 +12,11 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
@@ -20,11 +25,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import java.nio.charset.Charset;
 import java.util.HashMap;
@@ -32,8 +32,6 @@ import java.util.HashMap;
 import org.hbase.async.HBaseException;
 import org.hbase.async.PleaseThrottleException;
 import org.hbase.async.PutRequest;
-import io.netty.channel.Channel;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
@@ -41,12 +39,16 @@ import org.powermock.modules.junit4.PowerMockRunner;
 
 import com.stumbleupon.async.Deferred;
 
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpResponseStatus;
+
 @RunWith(PowerMockRunner.class)
 //"Classloader hell"...  It's real.  Tell PowerMock to ignore these classes
 //because they fiddle with the class loader.  We don't test them anyway.
 @PowerMockIgnore({"javax.management.*", "javax.xml.*",
              "ch.qos.*", "org.slf4j.*",
              "com.sum.*", "org.xml.*"})
+@SuppressWarnings("javadoc")
 public final class TestPutRpc extends BaseTestPutRpc {
   
   @Test
@@ -65,7 +67,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, never()).isConnected();
+    verify(chan, never()).isOpen();
     validateSEH(false);
   }
 
@@ -78,7 +80,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
@@ -91,7 +93,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
@@ -105,7 +107,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
@@ -118,7 +120,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
@@ -149,7 +151,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
   
@@ -166,7 +168,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
   
@@ -183,7 +185,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
 
@@ -198,7 +200,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
   
@@ -214,7 +216,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0);
     verify(chan, never()).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
   
@@ -230,7 +232,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
   
@@ -285,20 +287,21 @@ public final class TestPutRpc extends BaseTestPutRpc {
         "1365465600", "42" }).joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isConnected();
+    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
   // HTTP RPC Tests --------------------------------------
   
-  @Test
+  @Test 
   public void putSingle() throws Exception {
-    HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
+	  PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+	  HttpQuery query = NettyMocks.postQuery(tsdb, "/api/put", 
         "{\"metric\":\"" + METRIC_STRING + "\",\"timestamp\":1365465600,\"value\""
         +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
-    PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+    
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -313,7 +316,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -325,9 +328,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":1"));
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -341,9 +344,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":1"));
     assertTrue(response.contains("\"errors\":[]"));
@@ -358,9 +361,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":1"));
     assertTrue(response.contains("\"errors\":[]"));
@@ -378,9 +381,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":2"));
     validateCounters(0, 1, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -394,7 +397,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":-42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -406,7 +409,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42.2,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -419,7 +422,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -432,7 +435,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -444,7 +447,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":-42.2,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -456,7 +459,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42.22e3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -468,7 +471,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42.22E3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -480,7 +483,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":-42.22e3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -492,7 +495,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":-42.22E3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -504,7 +507,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42.22e-3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -516,7 +519,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42.22E-3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -528,7 +531,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":-4.2e-3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -540,7 +543,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":-4.2E-3,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
@@ -634,7 +637,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     validateCounters(0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(true);
   }
@@ -649,7 +652,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     validateCounters(0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(true);
   }
@@ -661,9 +664,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Unknown metric\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -678,9 +681,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Metric name was empty\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -695,9 +698,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Metric name was empty\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -712,9 +715,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Invalid timestamp\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -729,9 +732,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Invalid timestamp\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -746,9 +749,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             +":42,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Invalid timestamp\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -763,9 +766,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Empty value\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -780,9 +783,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         +":null,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Empty value\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -797,9 +800,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         +":\"\",\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Empty value\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -814,9 +817,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         +":\"notanumber\",\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -831,9 +834,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         +":NaN,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -862,9 +865,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         +":+INF,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -879,9 +882,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         +":-INF,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -924,9 +927,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         +":+Infinity,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -941,9 +944,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         +":-Infinity,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -958,9 +961,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         +":Infinity,\"tags\":{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Unable to parse value to a number\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -975,9 +978,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + ":42}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Missing tags\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -992,9 +995,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         +":42,\"tags\":null}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Missing tags\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -1009,9 +1012,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         +":42,\"tags\":{}}");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"error\":\"Missing tags\""));
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
@@ -1029,7 +1032,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     validateCounters(0, 1, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
     verify(tsdb, never()).getTimer();
@@ -1045,9 +1048,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":2"));
     assertFalse(response.contains("\"errors\":[]"));
@@ -1067,9 +1070,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":2"));
@@ -1089,9 +1092,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":2"));
     assertTrue(response.contains("\"errors\":[]"));
@@ -1113,9 +1116,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":"));
     validateCounters(0, 1, 2, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -1136,9 +1139,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":1"));
     assertFalse(response.contains("\"errors\":[]"));
@@ -1160,9 +1163,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
         + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":1"));
     assertTrue(response.contains("\"errors\":[{"));
@@ -1183,9 +1186,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     System.out.println(response);
     assertTrue(response.contains("\"success\":0"));
     assertTrue(response.contains("\"failed\":2"));
@@ -1205,7 +1208,7 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().getStatus());
+    assertEquals(HttpResponseStatus.NO_CONTENT, query.response().status());
     assertEquals(1, http_requests.get());
     assertEquals(0, invalid_values.get());
     validateCounters(0, 1, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -1225,9 +1228,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String response = 
-      query.response().getContent().toString(Charset.forName("UTF-8"));
+      query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":0"));
     assertTrue(response.contains("\"success\":2"));
     assertTrue(response.contains("\"timeouts\":0"));
@@ -1251,9 +1254,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"code\":400"));
     assertTrue(response.contains("\"message\":"));
     validateCounters(0, 1, 2, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -1276,9 +1279,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.OK, query.response().getStatus());
+    assertEquals(HttpResponseStatus.OK, query.response().status());
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":1"));
     assertTrue(response.contains("\"timeouts\":0"));
@@ -1302,9 +1305,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
             + "{\"" + TAGK_STRING + "\":\"" + TAGV_STRING + "\"}}]");
     PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     put.execute(tsdb, query);
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     System.out.println(response);
     assertTrue(response.contains("\"success\":0"));
     assertTrue(response.contains("\"failed\":2"));
@@ -1335,9 +1338,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     
     timer.continuePausedTask();
     
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
     assertTrue(response.contains("\"timeouts\":1"));
@@ -1367,9 +1370,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     
     timer.continuePausedTask();
     
-    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().getStatus());
+    assertEquals(HttpResponseStatus.BAD_REQUEST, query.response().status());
     final String response = 
-        query.response().getContent().toString(Charset.forName("UTF-8"));
+        query.response().content().toString(NettyMocks.UTF8);
     assertTrue(response.contains("\"failed\":1"));
     assertTrue(response.contains("\"success\":0"));
     assertTrue(response.contains("\"timeouts\":1"));

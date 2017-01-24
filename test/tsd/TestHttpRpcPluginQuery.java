@@ -15,17 +15,17 @@ package net.opentsdb.tsd;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 
-import io.netty.channel.Channel;
-import io.netty.handler.codec.http.DefaultHttpRequest;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpVersion;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpVersion;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.utils.Config;
 
@@ -43,7 +43,8 @@ public final class TestHttpRpcPluginQuery {
   
   @Test
   public void getQueryBaseRoute() {
-    assertEquals("test/this/path", makeQuery("/plugin/test/this/path").getQueryBaseRoute());
+    assertEquals("test/this/path", makeQuery("/plugin/test/this/path")
+    		.getQueryBaseRoute());
     assertEquals("test", makeQuery("/plugin/test/").getQueryBaseRoute());
     assertEquals("test", makeQuery("/plugin/test?some=else&this=that").getQueryBaseRoute());
   }
@@ -64,10 +65,10 @@ public final class TestHttpRpcPluginQuery {
   }
   
   private HttpRpcPluginQuery makeQuery(final String uriString) {
-    HttpRequest req = new DefaultHttpRequest(
+    FullHttpRequest req = new DefaultFullHttpRequest(
         HttpVersion.HTTP_1_1, 
         HttpMethod.GET, 
         uriString);
-    return new HttpRpcPluginQuery(mockTsdb, req, mockChannel);
+    return NettyMocks.pluginQuery(mockTsdb, req);
   }
 }
