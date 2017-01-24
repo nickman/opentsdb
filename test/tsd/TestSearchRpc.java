@@ -188,9 +188,7 @@ public final class TestSearchRpc extends BaseTsdbTest {
   
   @Test (expected = BadRequestException.class)
   public void searchBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.PUT, "/api/search");
-    final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
+    final HttpQuery query = NettyMocks.putQuery(tsdb, "/api/search", null); 
     rpc.execute(tsdb, query);
   }
   

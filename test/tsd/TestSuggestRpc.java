@@ -135,11 +135,7 @@ public final class TestSuggestRpc {
   
   @Test (expected = BadRequestException.class)
   public void badMethod() throws Exception {
-    final Channel channelMock = NettyMocks.fakeChannel();
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.GET, "/api/suggest?type=metrics&q=h");
-    req.setMethod(HttpMethod.PUT);
-    s.execute(tsdb, new HttpQuery(tsdb, req, channelMock));
+    s.execute(tsdb, NettyMocks.putQuery(tsdb, "/api/suggest?type=metrics&q=h", null));
   }
   
   @Test (expected = BadRequestException.class)

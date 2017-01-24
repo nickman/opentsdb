@@ -142,9 +142,7 @@ public final class TestTreeRpc {
   
   @Test (expected = BadRequestException.class)
   public void handleTreeBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.TRACE, "/api/tree");
-    final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
+    final HttpQuery query = NettyMocks.traceQuery(tsdb, "/api/tree"); 
     rpc.execute(tsdb, query);
   }
   
@@ -431,9 +429,7 @@ public final class TestTreeRpc {
   
   @Test (expected = BadRequestException.class)
   public void handleBranchBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.TRACE, "/api/tree/branch");
-    final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
+    final HttpQuery query = NettyMocks.traceQuery(tsdb, "/api/tree/branch");
     rpc.execute(tsdb, query);
   }
   
@@ -653,9 +649,7 @@ public final class TestTreeRpc {
   
   @Test (expected = BadRequestException.class)
   public void handleRuleBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.TRACE, "/api/tree/rule");
-    final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
+    final HttpQuery query = NettyMocks.traceQuery(tsdb, "/api/tree/rule");
     rpc.execute(tsdb, query);
   }
   
@@ -912,9 +906,7 @@ public final class TestTreeRpc {
   
   @Test (expected = BadRequestException.class)
   public void handleTestBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.TRACE, "/api/tree/test");
-    final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
+    final HttpQuery query = NettyMocks.traceQuery(tsdb, "/api/tree/test");
     rpc.execute(tsdb, query);
   }
   
@@ -1024,9 +1016,7 @@ public final class TestTreeRpc {
   
   @Test (expected = BadRequestException.class)
   public void handleCollissionsBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.TRACE, "/api/tree/collisions");
-    final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
+    final HttpQuery query = NettyMocks.traceQuery(tsdb, "/api/tree/collisions");
     rpc.execute(tsdb, query);
   }
   
@@ -1136,9 +1126,7 @@ public final class TestTreeRpc {
   
   @Test (expected = BadRequestException.class)
   public void handleNotMatchedBadMethod() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.TRACE, "/api/tree/notmatched");
-    final HttpQuery query = new HttpQuery(tsdb, req, NettyMocks.fakeChannel());
+    final HttpQuery query = NettyMocks.traceQuery(tsdb, "/api/tree/notmatched");
     rpc.execute(tsdb, query);
   }
   

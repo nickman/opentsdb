@@ -18,6 +18,7 @@ import static org.powermock.api.mockito.PowerMockito.when;
 
 import java.net.SocketAddress;
 import java.nio.charset.Charset;
+import java.util.List;
 
 import org.junit.Ignore;
 import org.mockito.Mockito;
@@ -26,11 +27,18 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.powermock.api.mockito.PowerMockito;
 
+import com.google.common.base.Splitter;
+import com.google.common.base.Strings;
+
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
@@ -50,6 +58,11 @@ public final class NettyMocks {
    public static final BufferManager bufferManager = BufferManager.newInstance();
    /** The UTF8 Character set */
    public static final Charset UTF8 = Charset.forName("UTF8");
+   
+   private static final Splitter WEBPATH_SPLITTER = Splitter.on('/')
+		      .trimResults()
+		      .omitEmptyStrings();
+   
   /**
    * Sets up a TSDB object for HTTP RPC tests that has a Config object
    * @return A TSDB mock
@@ -120,9 +133,127 @@ public final class NettyMocks {
 	  final EmbeddedChannel ec = new EmbeddedChannel(handlers);
 	  ec.writeInbound(request);
 	  ec.runPendingTasks();
-	  return ec.readOutbound();
-	  
+	  return ec.readOutbound();	  
   }
+  
+  public static FullHttpResponse writeReqestReadResponse(final TSDB tsdb, final HttpQuery request, final HttpRpc rpc) {
+	  final ChannelDuplexHandler handler = new ChannelDuplexHandler() {
+		@Override
+		public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+			rpc.execute(tsdb, (HttpQuery)msg);			
+		}  
+	  };
+	  final EmbeddedChannel ec = new EmbeddedChannel(handler);
+	  ec.writeInbound(request);
+	  ec.runPendingTasks();
+	  return ec.readOutbound();	  	  
+  }
+  
+	/**
+	 * Creates a new EmbeddedChannel containing the specified HttpRpc, 
+	 * writes the passed inbound objects into it, and returns the response.
+	 * @param tsdb The TSDB to test against
+	 * @param httpRpc The HttpRpc instance to invoke
+	 * @param inbound The inbound objects to write
+	 * @return the HttpRpc response
+	 */
+	@SuppressWarnings("unchecked")
+	public static <T> T writeThenReadFromChannel(final TSDB tsdb, final HttpRpc httpRpc, final Object...inbound) {
+		final EmbeddedChannel ec = testChannel(tsdb, httpRpc);
+		try {
+			ec.writeInbound(inbound);
+			ec.runPendingTasks();
+			T t = ec.readOutbound();
+			return t;
+		} catch (Exception ex) {
+			return (T)handleException(ex);
+		}
+	}  
+  
+	/**
+	 * Creates a new EmbeddedChannel containing the specified HttpRpc
+	 * @param tsdb The TSDB to test against
+	 * @param httpRpc The HttpRpc instance to invoke
+	 * @return The EmbeddedChannel, ready to test
+	 */
+	public static EmbeddedChannel testChannel(final TSDB tsdb, final HttpRpc httpRpc) {
+		final ChannelDuplexHandler rpcWrapper = new ChannelDuplexHandler() {
+			@Override
+			public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+				final FullHttpRequest request = (FullHttpRequest)msg;
+				final HttpQuery query = (HttpQuery)createQueryInstance(tsdb, request, ctx);
+				query.getQueryBaseRoute();  // Set API Version
+				httpRpc.execute(tsdb, query);
+			}
+		};
+		return new EmbeddedChannel(rpcWrapper);
+	}  
+	/**
+	 * Handles an exception thrown from the direct invocation of the target HttpRpc
+	 * @param ex The thrown exception
+	 * @return the HttpResponse representing the thrown exception
+	 */
+	public static DefaultFullHttpResponse handleException(final Exception ex) {
+		try {
+			throw ex;
+		} catch (BadRequestException brex) {			
+			final DefaultFullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, brex.getStatus());
+			ByteBufUtil.writeUtf8(response.content(), brex.getMessage());
+			final String details = brex.getDetails();
+			if(details!=null && !details.trim().isEmpty()) {
+				ByteBufUtil.writeUtf8(response.content(), "|");
+				ByteBufUtil.writeUtf8(response.content(), details.trim());
+			}
+			return response;
+		} catch (Exception exx) {
+			final DefaultFullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+			ByteBufUtil.writeUtf8(response.content(), exx.getMessage());
+			return response;
+		}
+	}
+	
+	static boolean isHttpRpcPluginPath(final String uri) {
+	    if (Strings.isNullOrEmpty(uri) || uri.length() <= RpcManager.PLUGIN_BASE_WEBPATH.length()) {
+	      return false;
+	    } else {
+	      // Don't consider the query portion, if any.
+	      int qmark = uri.indexOf('?');
+	      String path = uri;
+	      if (qmark != -1) {
+	        path = uri.substring(0, qmark);
+	      }
+
+	      final List<String> parts = WEBPATH_SPLITTER.splitToList(path);
+	      return (parts.size() > 1 && parts.get(0).equals(RpcManager.PLUGIN_BASE_WEBPATH));
+	    }
+	  }	
+	
+	 /**
+	   * Using the request URI, creates a query instance capable of handling 
+	   * the given request.
+	   * @param tsdb the TSDB instance we are running within
+	   * @param request the incoming HTTP request
+	   * @param chan the {@link Channel} the request came in on.
+	   * @return a subclass of {@link AbstractHttpQuery}
+	   * @throws BadRequestException if the request is invalid in a way that
+	   * can be detected early, here.
+	   */
+	  public static AbstractHttpQuery createQueryInstance(final TSDB tsdb,
+	        final FullHttpRequest request,
+	        final ChannelHandlerContext ctx) 
+	            throws BadRequestException {
+	    final String uri = request.uri();
+	    if (Strings.isNullOrEmpty(uri)) {
+	      throw new BadRequestException("Request URI is empty");
+	    } else if (uri.charAt(0) != '/') {
+	      throw new BadRequestException("Request URI doesn't start with a slash");
+	    } else if (isHttpRpcPluginPath(uri)) {
+	      return new HttpRpcPluginQuery(tsdb, request, ctx.channel());
+	    } else {
+	      HttpQuery builtinQuery = new HttpQuery(tsdb, request, ctx);
+	      return builtinQuery;
+	    }
+	  }	
   
   
   /**

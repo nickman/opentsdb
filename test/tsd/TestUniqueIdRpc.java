@@ -19,17 +19,8 @@ import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mock;
 
 import java.lang.reflect.Field;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
-
-import net.opentsdb.core.TSDB;
-import net.opentsdb.meta.TSMeta;
-import net.opentsdb.meta.UIDMeta;
-import net.opentsdb.storage.MockBase;
-import net.opentsdb.uid.UniqueId;
-import net.opentsdb.uid.UniqueId.UniqueIdType;
-import net.opentsdb.utils.Config;
 
 import org.hbase.async.Bytes;
 import org.hbase.async.GetRequest;
@@ -37,7 +28,6 @@ import org.hbase.async.HBaseClient;
 import org.hbase.async.KeyValue;
 import org.hbase.async.RowLock;
 import org.hbase.async.Scanner;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -47,13 +37,23 @@ import org.powermock.modules.junit4.PowerMockRunner;
 
 import com.stumbleupon.async.Deferred;
 
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import net.opentsdb.core.TSDB;
+import net.opentsdb.meta.TSMeta;
+import net.opentsdb.meta.UIDMeta;
+import net.opentsdb.storage.MockBase;
+import net.opentsdb.uid.UniqueId;
+import net.opentsdb.uid.UniqueId.UniqueIdType;
+import net.opentsdb.utils.Config;
+
 @PowerMockIgnore({"javax.management.*", "javax.xml.*",
   "ch.qos.*", "org.slf4j.*",
   "com.sum.*", "org.xml.*"})
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({TSDB.class, Config.class, TSMeta.class, UIDMeta.class, 
   HBaseClient.class, RowLock.class, UniqueIdRpc.class, KeyValue.class, 
-  GetRequest.class, Scanner.class, UniqueId.class})
+  GetRequest.class, Scanner.class, UniqueId.class, HttpQuery.class})
 public final class TestUniqueIdRpc {
   private final static byte[] NAME_FAMILY = "name".getBytes(MockBase.ASCII());
   private final static byte[] UID_TABLE = "tsdb-uid".getBytes(MockBase.ASCII());
@@ -476,11 +476,13 @@ public final class TestUniqueIdRpc {
     this.rpc.execute(tsdb, query);
   }
   
-  @Test (expected = BadRequestException.class)
+  @Test
   public void assignPostNotJSON() throws Exception {
     setupAssign();
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", "Hello");
-    this.rpc.execute(tsdb, query);
+    final FullHttpResponse httpResponse = NettyMocks.writeThenReadFromChannel(tsdb, rpc, query.request());
+    		//.writeReqestReadResponse(tsdb, query, rpc);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
   @Test (expected = BadRequestException.class)
