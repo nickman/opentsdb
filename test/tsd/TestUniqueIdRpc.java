@@ -476,7 +476,7 @@ public final class TestUniqueIdRpc {
     this.rpc.execute(tsdb, query);
   }
   
-  @Test
+  @Test  // PATTERN
   public void assignPostNotJSON() throws Exception {
     setupAssign();
     HttpQuery query = NettyMocks.postQuery(tsdb, "/api/uid/assign", "Hello");
