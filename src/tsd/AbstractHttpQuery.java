@@ -149,6 +149,13 @@ public abstract class AbstractHttpQuery {
     return ctx;
   }
   
+  /**
+   * Attempts to reset the reader index on the query's http request
+   */
+  public void resetRequestContent() {
+	  request.content().resetReaderIndex();
+  }
+  
 
   /** @return The remote address and port in the format <ip>:<port> */
   public String getRemoteAddress() {

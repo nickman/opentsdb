@@ -341,7 +341,7 @@ public final class JSON {
     if (json == null || json.isEmpty())
       throw new IllegalArgumentException("Incoming data was null or empty");
     try {
-      return jsonMapper.getFactory().createJsonParser(json);
+      return jsonMapper.getFactory().createParser(json);
     } catch (JsonParseException e) {
       throw new IllegalArgumentException(e);
     } catch (IOException e) {

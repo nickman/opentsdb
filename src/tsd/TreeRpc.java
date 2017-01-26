@@ -17,6 +17,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -157,12 +158,14 @@ final class TreeRpc implements HttpRpc {
       // handle DELETE requests
       } else if (query.getAPIMethod() == HttpMethod.DELETE) {
         boolean delete_definition = false;
-        
+        // The content has been consumed already, so this resets the content reader index.
+        query.resetRequestContent();
         if (query.hasContent()) {
           // since we don't want to complicate the Tree class with a "delete 
           // description" flag, we can just double parse the hash map in delete
           // calls
           final ByteBuf json = query.getContentBuffer();
+          System.err.println("CONTENT:[" + json.toString(Charset.forName("UTF8")) + "]");
           final HashMap<String, String> properties = 
             JSON.parseToObject(json, TR_HASH_MAP, query.getCharset());
           final String delete_all = properties.get("definition");

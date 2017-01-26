@@ -413,18 +413,21 @@ public final class TestTreeRpc {
         Branch.stringToId("00010001BECD000181A8BF992A99")));
   }
   
-  @Test @Ignore //FIXME
+  private static final byte ZERO = 0;
+  private static final byte ONE = 1;
+  
+  @Test //@Ignore //FIXME
   public void handleTreePOSTDeleteDefinition() throws Exception {
     setupStorage();
     HttpQuery query = NettyMocks.deleteQuery(tsdb, 
       "/api/tree", "{\"treeId\":1,\"definition\":true}");
     // make sure the root is there BEFORE we delete
-    assertEquals(4, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
+    assertEquals(4, storage.numColumns(TREE_TABLE, new byte[] { ZERO, ONE }));
     final FullHttpResponse httpResponse = NettyMocks.writeReqestReadResponse(tsdb, query.request(), rpc);
     assertNotNull(httpResponse);
     assertEquals(HttpResponseStatus.NO_CONTENT, httpResponse.status());
     // make sure the definition has been deleted too
-    assertEquals(-1, storage.numColumns(TREE_TABLE, new byte[] { 0, 1 }));
+    assertEquals(-1, storage.numColumns(TREE_TABLE, new byte[] { ZERO, ONE })); // FIXME: this assertion fails
     assertEquals(-1, storage.numColumns(TREE_TABLE, 
         Branch.stringToId("00010001BECD000181A8")));
     assertEquals(-1, storage.numColumns(TREE_TABLE, 
