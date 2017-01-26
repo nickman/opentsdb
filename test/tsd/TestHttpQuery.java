@@ -950,7 +950,7 @@ public final class TestHttpQuery {
         query.response().content().toString(UTF8));
   }
   
-  @Test @Ignore // FIXME
+  @Test //@Ignore // FIXME
   public void notFoundDefaultSerializer() {
     HttpQuery query = getQuery(tsdb, "/api/error");
     query.getQueryBaseRoute();

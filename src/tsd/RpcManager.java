@@ -521,7 +521,7 @@ public final class RpcManager {
         ShutdownNetty() {
           super("ShutdownNetty");
         }
-        public void run() {
+        public void run() {        
           //chan.factory().releaseExternalResources();
         	// FIXME: We need a ref to the TSDServer
         }
