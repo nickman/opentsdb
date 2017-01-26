@@ -951,7 +951,7 @@ public final class TestHttpQuery {
         query.response().content().toString(UTF8));
   }
   
-  @Test //@Ignore // FIXME
+  @Test 
   public void notFoundDefaultSerializer() {
     HttpQuery query = getQuery(tsdb, "/api/error");
     query.getQueryBaseRoute();
@@ -961,19 +961,6 @@ public final class TestHttpQuery {
         "{\"error\":{\"code\":404,\"message\":\"Endpoint not found\"}}", 
         query.response().content().toString(UTF8));
   }
-  
-//  @Test
-//  public void notFoundDefaultSerializer() {
-//	EmbeddedChannel ec = new EmbeddedChannel();
-//    HttpQuery query = NettyMocks.getQuery(tsdb, "/api/error", ec);
-//    query.getQueryBaseRoute();
-//    query.notFound();
-//    FullHttpResponse response = ec.readOutbound();
-//    assertEquals(HttpResponseStatus.NOT_FOUND, response.status()); 
-//    assertEquals(
-//        "{\"error\":{\"code\":404,\"message\":\"Endpoint not found\"}}", 
-//        response.content().toString(UTF8));
-//  }
   
   
   @Test
