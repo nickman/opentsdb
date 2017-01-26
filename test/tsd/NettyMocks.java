@@ -92,23 +92,41 @@ public final class NettyMocks {
 			return null;
 		}
 	  };
-	  final Answer<Void> sendBufferUpdateApiVersion = new Answer<Void>(){
+	  final Answer<Void> updateApiVersion1 = new Answer<Void>(){
 		  @Override
 		public Void answer(final InvocationOnMock invocation) throws Throwable {
-			final HttpQuery q = (HttpQuery)invocation.getMock();
+			final HttpQuery q = (HttpQuery)invocation.getMock();			
 			Whitebox.setInternalState(q.serializer().query, "api_version", q.apiVersion());
 			invocation.callRealMethod();
 			return null;
+		}
+	  };
+	  final Answer<String> updateApiVersion2 = new Answer<String>(){
+		  @Override
+		public String answer(final InvocationOnMock invocation) throws Throwable {
+			final HttpQuery q = (HttpQuery)invocation.getMock();
+			final String ret = (String)invocation.callRealMethod();
+			if(q.serializer().query.apiVersion() != q.apiVersion()) {
+				Whitebox.setInternalState(q.serializer(), "query", q);
+			}
+			return ret;
 		}
 	  };
 	  
 	  final HttpQuery query = PowerMockito.spy(q);
 	  PowerMockito.doAnswer(sendBufferIntercept)
 	  	.when(query).sendBuffer(Mockito.any(HttpResponseStatus.class), Mockito.any(ByteBuf.class), Mockito.anyString());
+	  
 	  when(query.response()).thenCallRealMethod();
-	  PowerMockito.doAnswer(sendBufferUpdateApiVersion)
+	  PowerMockito.doAnswer(updateApiVersion1)
 	  	.when(query).sendBuffer(Mockito.any(HttpResponseStatus.class), Mockito.any(ByteBuf.class));
 	  when(query.response()).thenCallRealMethod();
+	  
+	  PowerMockito.doAnswer(updateApiVersion2)
+	  	.when(query).getQueryBaseRoute();
+	  
+	  
+//	  getQueryBaseRoute
 	  
 //	  try {
 ////		  PowerMockito.doCallRealMethod().when(query.method());

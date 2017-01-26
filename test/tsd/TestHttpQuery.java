@@ -233,8 +233,9 @@ public final class TestHttpQuery {
   @Test
   public void getQueryBaseRouteRoot() {
     final HttpQuery query = getQuery(tsdb, "/");
-    assertEquals("", query.getQueryBaseRoute());
     assertEquals(0, query.apiVersion());
+    assertEquals("", query.getQueryBaseRoute());
+    
   }
   
   @Test
