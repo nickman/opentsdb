@@ -12,28 +12,27 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.List;
-
-import net.opentsdb.core.TSDB;
-
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
-import io.netty.channel.Channel;
-import io.netty.handler.codec.http.DefaultHttpRequest;
-import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.HttpVersion;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
+import net.opentsdb.core.TSDB;
+@SuppressWarnings("javadoc")
+@PowerMockIgnore({"javax.management.*", "javax.xml.*",
+	  "ch.qos.*", "org.slf4j.*",
+	  "com.sum.*", "org.xml.*"})
+
 @RunWith(PowerMockRunner.class)
-@PrepareForTest({TSDB.class})
+@PrepareForTest({TSDB.class, HttpQuery.class})
 public final class TestSuggestRpc {
   private TSDB tsdb = null;
   private SuggestRpc s = null;

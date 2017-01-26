@@ -15,6 +15,7 @@ package net.opentsdb.tools;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.charThat;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -37,23 +38,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import net.opentsdb.tools.ConfigArgP.ConfigurationItem;
 import net.opentsdb.utils.Config;
-
+import net.opentsdb.utils.buffermgr.BufferManager;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ChannelBuffers;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
-import io.netty.channel.ChannelPipelineFactory;
-import io.netty.channel.Channels;
-import io.netty.channel.ExceptionEvent;
-import io.netty.channel.MessageEvent;
-import io.netty.channel.SimpleChannelUpstreamHandler;
+import io.netty.channel.oio.OioEventLoopGroup;
 import io.netty.channel.socket.ServerSocketChannel;
-import io.netty.channel.socket.oio.OioServerSocketChannelFactory;
+import io.netty.channel.socket.oio.OioServerSocketChannel;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpResponse;
-import io.netty.handler.codec.http.HttpChunkAggregator;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpHeaders.Names;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
@@ -140,16 +142,17 @@ public class TestConfigArgP {
   public static String newResponderForContent(final String uri, final String content, final String contentType) {   
     final QuickieResponder qr = new QuickieResponder(){
       @Override
-      public void writeResponse(final HttpResponse response) {
+      public void writeResponse(final FullHttpResponse response) {
         final byte[] bytes = content.getBytes(Charset.defaultCharset());
-        HttpHeaders.addHeader(response, Names.CONTENT_TYPE, contentType==null ? "text/plain" : contentType);
-        HttpHeaders.addHeader(response, Names.CONTENT_LENGTH, bytes.length);
-        response.setContent(ChannelBuffers.wrappedBuffer(bytes));       
+        HttpHeaders.addHeader(response, HttpHeaderNames.CONTENT_TYPE, contentType==null ? "text/plain" : contentType);
+        HttpHeaders.addHeader(response, HttpHeaderNames.CONTENT_LENGTH, bytes.length);
+        
+        response.content().writeBytes(BufferManager.getInstance().wrap(bytes));       
       }
     };
     webServer.addResponder(uri, qr);
-    InetSocketAddress isa = webServer.serverChannel.getLocalAddress();
-    return String.format("http://%s:%s%s", isa.getAddress().getHostAddress(), isa.getPort(), uri);
+    InetSocketAddress isa = webServer.serverChannel.localAddress();
+    return String.format("http://%s:%s%s", "127.0.0.1", isa.getPort(), uri);
   }
   
 
@@ -432,12 +435,11 @@ public class TestConfigArgP {
   
   
   static interface QuickieResponder {
-    public void writeResponse(final HttpResponse response);
+    public void writeResponse(final FullHttpResponse response);
   }
   
-  static class QuickieWebServer extends SimpleChannelUpstreamHandler implements ChannelPipelineFactory {
-    final OioServerSocketChannelFactory scf; 
-    final ServerBootstrap bootstrap;
+  static class QuickieWebServer extends ChannelInitializer<Channel> {
+    final ServerBootstrap b;
     final ServerSocketChannel serverChannel;
     final int port;
     /** Thread serial for the http server handler threads */
@@ -458,18 +460,60 @@ public class TestConfigArgP {
         return t;
       }   
     };
+    final OioEventLoopGroup oioEventLoopGroup = new OioEventLoopGroup(10, threadFactory);
     
     final ConcurrentHashMap<String, QuickieResponder> responders = new ConcurrentHashMap<String, QuickieResponder>();
     static final DefaultHttpResponse response404 = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.NOT_FOUND);
+    
+    
+    
     public QuickieWebServer() {
-      scf = new OioServerSocketChannelFactory(Executors.newCachedThreadPool(threadFactory), Executors.newCachedThreadPool(threadFactory));
-      bootstrap = new ServerBootstrap(scf);
-      bootstrap.setOption("child.tcpNoDelay", true);
-      bootstrap.setPipelineFactory(this);
-      serverChannel = (ServerSocketChannel) bootstrap.bind(new InetSocketAddress("127.0.0.1", 0));
-      port = serverChannel.getLocalAddress().getPort();
-      log("Started OIO HTTP Server on port [" + port + "]");
+        b = new ServerBootstrap();
+        b.option(ChannelOption.SO_BACKLOG, 1024);
+        b.childOption(ChannelOption.TCP_NODELAY, true);
+        b.option(ChannelOption.SO_BACKLOG, 1024);
+        b.group(oioEventLoopGroup)
+        	.channel(OioServerSocketChannel.class)
+            .childHandler(this);
+        try {
+	        serverChannel = (ServerSocketChannel)b.bind(0).sync().channel();
+	        port = serverChannel.localAddress().getPort();
+	        log("Started OIO HTTP Server on port [" + port + "]");
+        } catch (Exception ex) {
+        	throw new RuntimeException("Failed to start quickie webserver", ex);
+        }
     }
+    
+    /**
+     * {@inheritDoc}
+     * @see io.netty.channel.ChannelInitializer#initChannel(io.netty.channel.Channel)
+     */
+    @Override
+    protected void initChannel(final Channel ch) throws Exception {
+    	log("[" + Thread.currentThread() + "]: Initializing channel [" + ch + "]");
+    	final ChannelPipeline p = ch.pipeline();
+        p.addLast("decoder", new HttpRequestDecoder());
+        p.addLast("aggregator", new HttpObjectAggregator(1048576));
+        p.addLast("encoder", new HttpResponseEncoder());
+        p.addLast("handler", new ChannelInboundHandlerAdapter(){
+            @Override
+            public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+                if (msg instanceof HttpRequest) {
+                    HttpRequest req = (HttpRequest)msg;
+                    QuickieResponder responder = responders.get(req.uri());
+                    if(responder==null) {
+                      ctx.channel().write(response404).addListener(ChannelFutureListener.CLOSE);
+                    } else {
+                    	DefaultFullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+                      responder.writeResponse(response);
+                      ctx.channel().writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+                    }
+                  }
+            }        	
+        });
+    }
+    
+    
     
     public int getPort() {
       return port;
@@ -484,50 +528,21 @@ public class TestConfigArgP {
     }
 
     public void stop() {
-      scf.releaseExternalResources();
+      try { serverChannel.close().sync(); } catch (Exception x) {/* No Op */}
+      oioEventLoopGroup.shutdownGracefully();
     }
-    /**
-     * {@inheritDoc}
-     * @see io.netty.channel.SimpleChannelUpstreamHandler#messageReceived(io.netty.channel.ChannelHandlerContext, io.netty.channel.MessageEvent)
-     */
-    @Override
-    public void messageReceived(final ChannelHandlerContext ctx, final MessageEvent e) {
-      Object msg = e.getMessage();      
-      if (msg instanceof HttpRequest) {
-        HttpRequest req = (HttpRequest)msg;
-        QuickieResponder responder = responders.get(req.getUri());
-        if(responder==null) {
-          ctx.getChannel().write(response404).addListener(ChannelFutureListener.CLOSE);
-        } else {
-          DefaultHttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
-          responder.writeResponse(response);
-          ctx.getChannel().write(response).addListener(ChannelFutureListener.CLOSE);
-        }
-      }
-    }
+    
+    
+    
 
     /**
      * {@inheritDoc}
-     * @see io.netty.channel.ChannelPipelineFactory#getPipeline()
+     * @see io.netty.channel.ChannelInitializer#exceptionCaught(io.netty.channel.ChannelHandlerContext, java.lang.Throwable)
      */
     @Override
-    public ChannelPipeline getPipeline() throws Exception {
-      ChannelPipeline pipeline = Channels.pipeline();
-      pipeline.addLast("decoder", new HttpRequestDecoder());
-      pipeline.addLast("aggregator", new HttpChunkAggregator(1048576));
-      pipeline.addLast("encoder", new HttpResponseEncoder());
-      pipeline.addLast("handler", this);
-      return pipeline;
-    }
-    
-     /**
-     * {@inheritDoc}
-     * @see io.netty.channel.SimpleChannelUpstreamHandler#exceptionCaught(io.netty.channel.ChannelHandlerContext, io.netty.channel.ExceptionEvent)
-     */
-    @Override
-     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
-       e.getCause().printStackTrace();
-       e.getChannel().close();
+     public void exceptionCaught(ChannelHandlerContext ctx, Throwable e) {
+       e.printStackTrace();
+       ctx.channel().close();
      }    
   }
   

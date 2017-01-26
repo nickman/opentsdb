@@ -110,7 +110,7 @@ final class GraphHandler implements HttpRpc {
     if (!query.hasQueryStringParam("json")
         && !query.hasQueryStringParam("png")
         && !query.hasQueryStringParam("ascii")) {
-      String uri = query.request().getUri();
+      String uri = query.request().uri();
       if (uri.length() < 4) {  // Shouldn't happen...
         uri = "/";             // But just in case, redirect.
       } else {

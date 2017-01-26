@@ -25,8 +25,6 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
-
-
 /**
  * <p>Title: PluginJarBuilder</p>
  * <p>Description: Dynamic plugin JAR builder</p> 
@@ -116,6 +114,30 @@ public class PluginJarBuilder {
 	}
 	
 	/**
+	 * Creates a temp directory
+	 * @param prefix The dir name prefix which must be at least 3 characters
+	 * @param suffix The optional suffix
+	 * @return the tmp dir
+	 */
+	public static File tmpDir(final String prefix, final String suffix) {
+		try {
+			final File initialFile = File.createTempFile(prefix, suffix);
+			final String tmpDirName = initialFile.getName(); 
+			final File baseDir = initialFile.getParentFile();
+			if(!initialFile.delete()) {
+				throw new Exception("Failed to delete initial temp file [" + initialFile + "]");
+			}
+			final File tmpDir = new File(baseDir, tmpDirName);
+			if(!tmpDir.mkdir()) {
+				throw new Exception("Failed to create tmp directory [" + tmpDir + "]");
+			}
+			return tmpDir;
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to create temp directory", ex);
+		}
+	}
+	
+	/**
 	 * Builds the jar file and returns the fully qualified file name
 	 * @param includeClasses true to include the classes in the jar, false otherwise
 	 * @param deleteOnExit true to delete the created file on JVM exit, false otherwise
@@ -126,7 +148,7 @@ public class PluginJarBuilder {
 		JarOutputStream jos = null;
 		final Set<String> directoryEntries = new HashSet<String>();
 		try {
-			final File file = File.createTempFile(name, ".jar");
+			final File file = File.createTempFile(name, ".jar", tmpDir("opentsdb-plugins", ".dir"));
 			if(deleteOnExit) file.deleteOnExit(); 
 			fos = new FileOutputStream(file, false);
 			jos = new JarOutputStream(fos);

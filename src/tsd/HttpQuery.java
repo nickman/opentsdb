@@ -73,7 +73,7 @@ final class HttpQuery extends AbstractHttpQuery {
   private static final int MAX_API_VERSION = 1;
 
   /** The buff allocator */
-  private final BufferManager bufAllocator = BufferManager.getInstance();
+  private static final BufferManager bufAllocator = BufferManager.getInstance();
 
   /**
    * Keep track of the latency of HTTP requests.

@@ -42,6 +42,7 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import net.opentsdb.core.TSDB;
@@ -129,25 +130,59 @@ public final class NettyMocks {
 	  return query;
   }
   
-  public static FullHttpResponse writeReqestReadResponse(final FullHttpRequest request, final ChannelHandler...handlers) {
+  public static <T> T writeReqestReadResponse(final FullHttpRequest request, final ChannelHandler...handlers) {
 	  final EmbeddedChannel ec = new EmbeddedChannel(handlers);
 	  ec.writeInbound(request);
 	  ec.runPendingTasks();
 	  return ec.readOutbound();	  
   }
   
+  
+  
   public static FullHttpResponse writeReqestReadResponse(final TSDB tsdb, final HttpQuery request, final HttpRpc rpc) {
 	  final ChannelDuplexHandler handler = new ChannelDuplexHandler() {
 		@Override
 		public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-			rpc.execute(tsdb, (HttpQuery)msg);			
+			final FullHttpRequest request = (FullHttpRequest)msg;
+			final HttpQuery query = (HttpQuery)createQueryInstance(tsdb, request, ctx);
+			query.getQueryBaseRoute();  // Set API Version
+			rpc.execute(tsdb, query);
 		}  
 	  };
 	  final EmbeddedChannel ec = new EmbeddedChannel(handler);
-	  ec.writeInbound(request);
-	  ec.runPendingTasks();
-	  return ec.readOutbound();	  	  
+	  try {
+		  ec.writeInbound(request);
+		  ec.runPendingTasks();
+		  ec.read();
+		  final Object outbound = ec.readOutbound();
+		  return (FullHttpResponse)outbound;
+	  } catch (Exception ex) {
+		  return handleException(ex);
+	  }
   }
+  
+  public static FullHttpResponse writeReqestReadResponse(final TSDB tsdb, final FullHttpRequest request, final HttpRpc rpc) {
+	  final ChannelDuplexHandler handler = new ChannelDuplexHandler() {
+		@Override
+		public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+			final FullHttpRequest request = (FullHttpRequest)msg;
+			final HttpQuery query = (HttpQuery)createQueryInstance(tsdb, request, ctx);
+			query.getQueryBaseRoute();  // Set API Version
+			rpc.execute(tsdb, query);
+		}  
+	  };
+	  final EmbeddedChannel ec = new EmbeddedChannel(handler);
+	  try {
+		  ec.writeInbound(request);
+		  ec.runPendingTasks();
+		  ec.read();
+		  final Object outbound = ec.readOutbound();
+		  return (FullHttpResponse)outbound;
+	  } catch (Exception ex) {
+		  return handleException(ex);
+	  }
+  }
+  
   
 	/**
 	 * Creates a new EmbeddedChannel containing the specified HttpRpc, 
@@ -297,6 +332,23 @@ public final class NettyMocks {
 		        HttpMethod.GET, uri);
 	  return returnUpdatingQuery(tsdb, req);	  
   }
+  
+  /**
+   * Returns an HttpQuery object with the given URI and the following parameters:
+   * Method = OPTIONS
+   * Content = null
+   * Content-Type = null
+   * @param tsdb The TSDB to associate with, needs to be mocked with the Config
+   * object set
+   * @param uri A URI to use
+   * @return an HttpQuery object
+   */
+  public static HttpQuery optionQuery(final TSDB tsdb, final String uri) {
+	  final FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, 
+		        HttpMethod.OPTIONS, uri);
+	  return returnUpdatingQuery(tsdb, req);	  
+  }
+  
   
   /**
    * Returns an HttpQuery object with the given uri, content and type

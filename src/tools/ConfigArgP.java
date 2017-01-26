@@ -219,12 +219,16 @@ public class ConfigArgP {
    * @return the loaded properties
    */
   protected static Properties loadConfig(String name) {
+	final File f = new File(name);
+	if(f.canRead()) {
+		return loadConfig(new File(name));
+	}
     try {
-      URL url = new URL(name);
-      return loadConfig(url);
-    } catch (Exception ex) {
-      return loadConfig(new File(name));
-    }
+        URL url = new URL(name);
+        return loadConfig(url);
+      } catch (Exception ex) {
+        throw new RuntimeException(ex);
+      }	
   }
   
   /**

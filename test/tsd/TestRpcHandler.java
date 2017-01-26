@@ -27,7 +27,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
@@ -37,19 +36,20 @@ import org.powermock.reflect.Whitebox;
 import com.google.common.net.HttpHeaders;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.utils.Config;
 
+@SuppressWarnings("javadoc")
 @PowerMockIgnore({"javax.management.*", "javax.xml.*",
   "ch.qos.*", "org.slf4j.*",
   "com.sum.*", "org.xml.*"})
@@ -106,28 +106,15 @@ public final class TestRpcHandler {
   
   @Test
   public void httpCORSIgnored() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.GET, "/api/v1/version");
-    req.headers().add(HttpHeaders.ORIGIN, "42.com");
-
-    handleHttpRpc(req,
-      new Answer<ChannelFuture>() {
-        public ChannelFuture answer(final InvocationOnMock args) 
-          throws Throwable {
-          DefaultHttpResponse response = 
-            (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
-          assertNull(response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
-          return null;
-        }        
-      }
-    );
-    
+    final HttpQuery query = NettyMocks.getQuery(tsdb, "/api/v1/version");
+    query.request().headers().add(HttpHeaders.ORIGIN, "42.com");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req); 
+    final FullHttpResponse httpResponse = NettyMocks.writeReqestReadResponse(query.request(), rpc);
+    assertNotNull(httpResponse);
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    assertNull(httpResponse.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));    
+    
   }
-  
-  //FullHttpResponse writeReqestReadResponse(final FullHttpRequest request, final ChannelHandler...handlers) {
 
   @Test
   public void httpCORSPublicSimple() throws Exception {	
@@ -144,201 +131,95 @@ public final class TestRpcHandler {
   }
   
   
-//  @Test
-//  public void httpCORSPublicSimple() throws Exception {	
-//    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-//        HttpMethod.GET, "/api/v1/version");
-//    req.headers().add(HttpHeaders.ORIGIN, "42.com");
-//
-//    handleHttpRpc(req,
-//      new Answer<ChannelFuture>() {
-//        public ChannelFuture answer(final InvocationOnMock args) 
-//          throws Throwable {
-//          DefaultHttpResponse response = 
-//            (DefaultHttpResponse)args.getArguments()[0];
-//          assertEquals(HttpResponseStatus.OK, response.status());
-//          assertEquals("42.com", 
-//              response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
-//          return null;
-//        }        
-//      }
-//    );
-//    
-//    tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", "*");
-//    final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-//    rpc.channelRead(ctx, req);
-//  }
   
   @Test
   public void httpCORSSpecificSimple() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.GET, "/api/v1/version");
-    req.headers().add(HttpHeaders.ORIGIN, "42.com");
-
-    handleHttpRpc(req,
-      new Answer<ChannelFuture>() {
-        public ChannelFuture answer(final InvocationOnMock args) 
-          throws Throwable {
-          DefaultHttpResponse response = 
-            (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
-          assertEquals("42.com", 
-              response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
-          return null;
-        }        
-      }
-    );
-    
     tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", 
         "aurther.com,dent.net,42.com,beeblebrox.org");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    final HttpQuery q = NettyMocks.getQuery(tsdb, "/api/v1/version");
+    q.request().headers().add(HttpHeaders.ORIGIN, "42.com");
+	final FullHttpResponse httpResponse = NettyMocks.writeReqestReadResponse(
+			q.request(),
+			rpc);
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    assertEquals("42.com", 
+    		httpResponse.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+    
   }
   
-  @Test
+  @Test  // PATTERN
   public void httpCORSNotAllowedSimple() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.GET, "/api/v1/version");
-    req.headers().add(HttpHeaders.ORIGIN, "42.com");
-
-    handleHttpRpc(req,
-      new Answer<ChannelFuture>() {
-        public ChannelFuture answer(final InvocationOnMock args) 
-          throws Throwable {
-          DefaultHttpResponse response = 
-            (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
-          assertNull(response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
-          return null;
-        }        
-      }
-    );
-    
+    final HttpQuery query = NettyMocks.getQuery(tsdb, "/api/v1/version");
+    query.request().headers().add(HttpHeaders.ORIGIN, "42.com");
     tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", 
         "aurther.com,dent.net,beeblebrox.org");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    final FullHttpResponse httpResponse = NettyMocks.writeReqestReadResponse(query.request(), rpc);
+    assertNotNull(httpResponse);
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    assertNull(httpResponse.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));    
   }
   
   @Test
   public void httpOptionsNoCORS() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.OPTIONS, "/api/v1/version");
-
-    handleHttpRpc(req,
-      new Answer<ChannelFuture>() {
-        public ChannelFuture answer(final InvocationOnMock args) 
-          throws Throwable {
-          DefaultHttpResponse response = 
-            (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.METHOD_NOT_ALLOWED, response.status());
-          assertNull(response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
-          return null;
-        }        
-      }
-    );
-    
+	final HttpQuery query = NettyMocks.optionQuery(tsdb, "/api/v1/version");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    final FullHttpResponse httpResponse = NettyMocks.writeReqestReadResponse(query.request(), rpc);
+    assertNotNull(httpResponse);
+    assertEquals(HttpResponseStatus.METHOD_NOT_ALLOWED, httpResponse.status());
+    assertNull(httpResponse.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
   }
   
   @Test
   public void httpOptionsCORSNotConfigured() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.OPTIONS, "/api/v1/version");
-    req.headers().add(HttpHeaders.ORIGIN, "42.com");
-    
-    handleHttpRpc(req,
-      new Answer<ChannelFuture>() {
-        public ChannelFuture answer(final InvocationOnMock args) 
-          throws Throwable {
-          DefaultHttpResponse response = 
-            (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.METHOD_NOT_ALLOWED, response.status());
-          assertNull(response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
-          return null;
-        }        
-      }
-    );
-    
+	final HttpQuery query = NettyMocks.optionQuery(tsdb, "/api/v1/version");
+	query.request().headers().add(HttpHeaders.ORIGIN, "42.com");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    final FullHttpResponse httpResponse = NettyMocks.writeReqestReadResponse(query.request(), rpc);
+    assertNotNull(httpResponse);
+    assertEquals(HttpResponseStatus.METHOD_NOT_ALLOWED, httpResponse.status());
+    assertNull(httpResponse.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
   }
   
   @Test
   public void httpOptionsCORSPublic() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.OPTIONS, "/api/v1/version");
-    req.headers().add(HttpHeaders.ORIGIN, "42.com");
-    
-    handleHttpRpc(req,
-      new Answer<ChannelFuture>() {
-        public ChannelFuture answer(final InvocationOnMock args) 
-          throws Throwable {
-          DefaultHttpResponse response = 
-            (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
-          assertEquals("42.com", 
-              response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
-          return null;
-        }        
-      }
-    );
-    
-    tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", "*");
+	tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", "*");
+	final HttpQuery query = NettyMocks.optionQuery(tsdb, "/api/v1/version");
+	query.request().headers().add(HttpHeaders.ORIGIN, "42.com");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    final FullHttpResponse httpResponse = NettyMocks.writeReqestReadResponse(query.request(), rpc);
+    assertNotNull(httpResponse);
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    assertEquals("42.com", 
+    		httpResponse.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
   }
   
   @Test
   public void httpOptionsCORSSpecific() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.OPTIONS, "/api/v1/version");
-    req.headers().add(HttpHeaders.ORIGIN, "42.com");
-    
-    handleHttpRpc(req,
-      new Answer<ChannelFuture>() {
-        public ChannelFuture answer(final InvocationOnMock args) 
-          throws Throwable {
-          DefaultHttpResponse response = 
-            (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
-          assertEquals("42.com", 
-              response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
-          return null;
-        }        
-      }
-    );
-    
     tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", 
-      "aurther.com,dent.net,42.com,beeblebrox.org");
+    	      "aurther.com,dent.net,42.com,beeblebrox.org");
+	final HttpQuery query = NettyMocks.optionQuery(tsdb, "/api/v1/version");
+	query.request().headers().add(HttpHeaders.ORIGIN, "42.com");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    final FullHttpResponse httpResponse = NettyMocks.writeReqestReadResponse(query.request(), rpc);
+    assertNotNull(httpResponse);
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    assertEquals("42.com", 
+    		httpResponse.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
   }
   
   @Test
   public void httpOptionsCORSNotAllowed() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.OPTIONS, "/api/v1/version");
-    req.headers().add(HttpHeaders.ORIGIN, "42.com");
-    
-    handleHttpRpc(req,
-      new Answer<ChannelFuture>() {
-        public ChannelFuture answer(final InvocationOnMock args) 
-          throws Throwable {
-          DefaultHttpResponse response = 
-            (DefaultHttpResponse)args.getArguments()[0];
-          assertEquals(HttpResponseStatus.OK, response.status());
-          assertNull(response.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
-          return null;
-        }        
-      }
-    );
-    
     tsdb.getConfig().overrideConfig("tsd.http.request.cors_domains", 
-      "aurther.com,dent.net,beeblebrox.org");
-    final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    rpc.channelRead(ctx, req);
+    	      "aurther.com,dent.net,beeblebrox.org");
+	final HttpQuery query = NettyMocks.optionQuery(tsdb, "/api/v1/version");
+	query.request().headers().add(HttpHeaders.ORIGIN, "42.com");
+	final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
+	final FullHttpResponse httpResponse = NettyMocks.writeReqestReadResponse(query.request(), rpc);
+	assertNotNull(httpResponse);
+    assertEquals(HttpResponseStatus.OK, httpResponse.status());
+    assertNull(httpResponse.headers().get(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
   }
   
   @Test
@@ -346,64 +227,52 @@ public final class TestRpcHandler {
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
     final Channel mockChan = NettyMocks.fakeChannel();
     final Method meth = Whitebox.getMethod(RpcHandler.class, "createQueryInstance", 
-        TSDB.class, HttpRequest.class, Channel.class);
+        TSDB.class, FullHttpRequest.class, Channel.class);
     AbstractHttpQuery query = (AbstractHttpQuery) meth.invoke(
         rpc, tsdb, 
-        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/api/v1/version"), 
+        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/api/v1/version"), 
         mockChan);
     assertTrue(query instanceof HttpQuery);
     
     query = (AbstractHttpQuery) meth.invoke(
         rpc, tsdb, 
-        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/api/version"), 
+        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/api/version"), 
         mockChan);
     assertTrue(query instanceof HttpQuery);
     
     query = (AbstractHttpQuery) meth.invoke(
         rpc, tsdb, 
-        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/q"), 
+        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/q"), 
         mockChan);
     assertTrue(query instanceof HttpQuery);
     
     query = (AbstractHttpQuery) meth.invoke(
         rpc, tsdb, 
-        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/"), 
+        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/"), 
         mockChan);
     assertTrue(query instanceof HttpQuery);
   }
+  
+  //createQueryInstance(final TSDB tsdb, final FullHttpRequest request, final Channel channel)  
   
   @Test(expected=BadRequestException.class)
   public void createQueryInstanceEmptyRequestInvalid() throws Exception {
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
     final Channel mockChan = NettyMocks.fakeChannel();
     final Method meth = Whitebox.getMethod(RpcHandler.class, "createQueryInstance", 
-        TSDB.class, HttpRequest.class, Channel.class);
+        TSDB.class, FullHttpRequest.class, Channel.class);
     meth.invoke(
         rpc, tsdb, 
-        new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, ""), 
+        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, ""), 
         mockChan);
   }
   
   @Test
   public void emptyPathIsBadRequest() throws Exception {
-    final HttpRequest req = new DefaultHttpRequest(HttpVersion.HTTP_1_1, 
-        HttpMethod.GET, "");
-    
-    final Channel mockChan = handleHttpRpc(req,
-      new Answer<ChannelFuture>() {
-        public ChannelFuture answer(final InvocationOnMock args) 
-          throws Throwable {
-          DefaultHttpResponse response = 
-              (DefaultHttpResponse)args.getArguments()[0];
-            assertEquals(HttpResponseStatus.BAD_REQUEST, response.status());
-            return null; // EventExecutor.newSucceededFuture((Channel) args.getMock());
-            //return new SucceededChannelFuture();
-        }        
-      }
-    );
-    
+    final HttpQuery query = NettyMocks.getQuery(tsdb, "");
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
-    Whitebox.invokeMethod(rpc, "handleHttpQuery", tsdb, mockChan, req);
+    final HttpResponse httpResponse = NettyMocks.writeReqestReadResponse(query.request(), rpc);
+    assertEquals(HttpResponseStatus.BAD_REQUEST, httpResponse.status());
   }
   
   private Channel handleHttpRpc(final HttpRequest req, final Answer<?> answer) {
