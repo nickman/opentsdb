@@ -111,7 +111,7 @@ public class UnixDomainSocketServer  {
 				serverChannel.close().sync();				
 			}
 		} catch (Exception ex) {
-			log.error("Failed to stop UnixDomainSocketServer on [{}]", path, ex);
+			log.warn("Failed to stop UnixDomainSocketServer on [{}]", path, ex);
 		}				
 		try { bossGroup.shutdownGracefully(); } catch (Exception x) {/* No Op */}
 		try { workerGroup.shutdownGracefully(); } catch (Exception x) {/* No Op */}

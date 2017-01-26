@@ -17,12 +17,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ServiceConfigurationError;
 
 import org.hbase.async.AtomicIncrementRequest;
 import org.hbase.async.GetRequest;
@@ -276,7 +278,7 @@ public final class TestTSDB extends BaseTsdbTest {
     tsdb.initializePlugins(true);
   }
   
-  @Test (expected = IllegalArgumentException.class)
+  @Test //(expected = ServiceConfigurationError.class) //(expected = IllegalArgumentException.class)
   public void initializePluginsSEHNotFound() throws Exception {
 	File jarFile = null;
 	try {
@@ -284,8 +286,6 @@ public final class TestTSDB extends BaseTsdbTest {
 			.addPlugin("net.opentsdb.tsd.DummySEHPlugin")
 			.build(false, false);
 		jarFile =  new File(jarFileName);
-		System.out.println("TMP JarFile: [" + jarFileName + "]");
-		  
 	    config.overrideConfig("tsd.core.plugin_path", jarFile.getParentFile().getAbsolutePath());
 	    config.overrideConfig("tsd.core.storage_exception_handler.enable", "true");
 	    config.overrideConfig("tsd.core.storage_exception_handler.plugin", 
@@ -293,9 +293,11 @@ public final class TestTSDB extends BaseTsdbTest {
 	    config.overrideConfig(
 	        "tsd.core.storage_exception_handler.DummySEHPlugin.hosts", "localhost");
 	    tsdb.initializePlugins(true);
-//	} catch (Exception ex) {
-//		ex.printStackTrace(System.err);
-//		throw ex;
+	    fail("Expected ServiceConfigurationError or IllegalArgumentException");
+	} catch (Throwable ex) {
+		if(!IllegalArgumentException.class.isInstance(ex) && IllegalArgumentException.class.isInstance(ex)) {
+			fail("Expected ServiceConfigurationError or IllegalArgumentException");
+		}		
 	} finally {
 		if(jarFile!=null) {
 			jarFile.delete();

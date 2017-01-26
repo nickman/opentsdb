@@ -16,10 +16,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.List;
 
 import net.opentsdb.plugin.DummyPlugin;
+import net.opentsdb.plugin.PluginJarBuilder;
 import net.opentsdb.tsd.HttpRpcPlugin;
 import net.opentsdb.utils.PluginLoader;
 
@@ -112,10 +114,23 @@ public final class TestPluginLoader {
   
   @Test
   public void loadHttpRpcPlugin() throws Exception {
-    PluginLoader.loadJAR("plugin_test.jar");
-    HttpRpcPlugin plugin = PluginLoader.loadSpecificPlugin("net.opentsdb.tsd.DummyHttpRpcPlugin", HttpRpcPlugin.class);
-    assertNotNull(plugin);
-    assertEquals("/dummy/test", plugin.getPath());
+	File jarFile = null;  
+	try {
+		final String jarFileName = PluginJarBuilder.newBuilder("plugin_test.jar")
+			.addPlugin("net.opentsdb.tsd.DummyHttpRpcPlugin")
+			.build(false, false);
+		jarFile =  new File(jarFileName);
+	
+	    PluginLoader.loadJAR(jarFileName);
+	    HttpRpcPlugin plugin = PluginLoader.loadSpecificPlugin("net.opentsdb.tsd.DummyHttpRpcPlugin", HttpRpcPlugin.class);
+	    assertNotNull(plugin);
+	    assertEquals("/dummy/test", plugin.getPath());
+	} finally {
+		if(jarFile!=null) {
+			jarFile.delete();
+			jarFile.getParentFile().delete();
+		}		
+	}
   }
   
   @Test
