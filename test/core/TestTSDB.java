@@ -236,12 +236,13 @@ public final class TestTSDB extends BaseTsdbTest {
   
   @Test
   public void initializePluginsSEH() throws Exception {
-	final String jarFileName = PluginJarBuilder.newBuilder("DummySEHPlugin.jar")
-		.addPlugin("net.opentsdb.tsd.DummySEHPlugin")
-		.build(false, false);
-	final File jarFile =  new File(jarFileName);
-	System.out.println("TMP JarFile: [" + jarFileName + "]");
+	File jarFile =  null;
 	try {
+		final String jarFileName = PluginJarBuilder.newBuilder("DummySEHPlugin.jar")
+			.addPlugin("net.opentsdb.tsd.DummySEHPlugin")
+			.build(false, false);
+		jarFile =  new File(jarFileName);
+		System.out.println("TMP JarFile: [" + jarFileName + "]");		
 	    config.overrideConfig("tsd.core.plugin_path", jarFile.getParentFile().getAbsolutePath());
 	    config.overrideConfig("tsd.core.storage_exception_handler.enable", "true");
 	    config.overrideConfig("tsd.core.storage_exception_handler.plugin", 
@@ -251,8 +252,10 @@ public final class TestTSDB extends BaseTsdbTest {
 	    tsdb.initializePlugins(true);
 	    assertNotNull(tsdb.getStorageExceptionHandler());
 	} finally {
-		jarFile.delete();
-		jarFile.getParentFile().delete();
+		if(jarFile!=null) {
+			jarFile.delete();
+			jarFile.getParentFile().delete();
+		}
 	}
   }
   
@@ -275,13 +278,32 @@ public final class TestTSDB extends BaseTsdbTest {
   
   @Test (expected = IllegalArgumentException.class)
   public void initializePluginsSEHNotFound() throws Exception {
-    config.overrideConfig("tsd.core.plugin_path", "./");
-    config.overrideConfig("tsd.core.storage_exception_handler.enable", "true");
-    config.overrideConfig("tsd.core.storage_exception_handler.plugin", 
-        "net.opentsdb.tsd.DoesNotExistSEHPlugin");
-    config.overrideConfig(
-        "tsd.core.storage_exception_handler.DummySEHPlugin.hosts", "localhost");
-    tsdb.initializePlugins(true);
+	File jarFile = null;
+	try {
+		final String jarFileName = PluginJarBuilder.newBuilder("DummySEHPlugin.jar")
+			.addPlugin("net.opentsdb.tsd.DummySEHPlugin")
+			.build(false, false);
+		jarFile =  new File(jarFileName);
+		System.out.println("TMP JarFile: [" + jarFileName + "]");
+		  
+	    config.overrideConfig("tsd.core.plugin_path", jarFile.getParentFile().getAbsolutePath());
+	    config.overrideConfig("tsd.core.storage_exception_handler.enable", "true");
+	    config.overrideConfig("tsd.core.storage_exception_handler.plugin", 
+	        "net.opentsdb.tsd.DoesNotExistSEHPlugin");
+	    config.overrideConfig(
+	        "tsd.core.storage_exception_handler.DummySEHPlugin.hosts", "localhost");
+	    tsdb.initializePlugins(true);
+//	} catch (Exception ex) {
+//		ex.printStackTrace(System.err);
+//		throw ex;
+	} finally {
+		if(jarFile!=null) {
+			jarFile.delete();
+			jarFile.getParentFile().delete();
+		}
+		
+	}
+	    
   }
   
   @Test
