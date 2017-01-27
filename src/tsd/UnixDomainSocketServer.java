@@ -10,29 +10,33 @@
 // General Public License for more details.  You should have received a copy
 // of the GNU Lesser General Public License along with this program.  If not,
 // see <http://www.gnu.org/licenses/>.
-package net.opentsdb.tools;
+package net.opentsdb.tsd;
 import java.lang.management.ManagementFactory;
+import java.nio.charset.Charset;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerDomainSocketChannel;
 import io.netty.channel.unix.DomainSocketAddress;
+import io.netty.handler.codec.LineBasedFrameDecoder;
+import io.netty.handler.codec.string.StringEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import net.opentsdb.core.TSDB;
-import net.opentsdb.tsd.PipelineFactory;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.Threads;
 
 /**
  * <p>Title: UnixDomainSocketServer</p>
  * <p>Description: A unix socket put listener</p> 
- * <p><code>net.opentsdb.tools.UnixDomainSocketServer</code></p>
+ * <p><code>net.opentsdb.tsd.UnixDomainSocketServer</code></p>
  * Trace like this:  echo "put foo.bar 1460070776 5 dc=dc5 host=host5" | netcat -U /tmp/tsdb.sock
  */
 
@@ -56,19 +60,23 @@ public class UnixDomainSocketServer  {
 	
 	/** The number of core available to this JVM */
 	public static final int CORES = ManagementFactory.getOperatingSystemMXBean().getAvailableProcessors();
+	public static final Charset ISO8859 = Charset.forName("ISO-8859-1");
+	// Those are entirely stateless and thus a single instance is needed.
+	private static final StringEncoder ENCODER = new StringEncoder(ISO8859);
 	
 	
 	/**
 	 * Creates a new UnixDomainSocketServer
 	 * @param tsdb The parent TSDB instance
+	 * @param pipelineFactory The server pipeline factory
 	 */
-	public UnixDomainSocketServer(final TSDB tsdb) {
+	public UnixDomainSocketServer(final TSDB tsdb, final PipelineFactory pipelineFactory) {
 		final Config config = tsdb.getConfig();
 		path = config.getString("tsd.network.unixsocket.path");
 		final int workerThreads = config.getInt("tsd.network.unixsocket.workers", CORES*2);
 		bossGroup = new EpollEventLoopGroup(1, Threads.newThreadFactory("UnixSocketBoss"));
 		workerGroup = new EpollEventLoopGroup(workerThreads, Threads.newThreadFactory("UnixSocketWorker#%d"));		
-		pipelineFactory = new PipelineFactory(tsdb);
+		this.pipelineFactory = pipelineFactory; 
 		b.group(bossGroup, workerGroup)
 			.channel(EpollServerDomainSocketChannel.class)
 			.childHandler(pipelineFactory);
@@ -116,6 +124,7 @@ public class UnixDomainSocketServer  {
 		try { bossGroup.shutdownGracefully(); } catch (Exception x) {/* No Op */}
 		try { workerGroup.shutdownGracefully(); } catch (Exception x) {/* No Op */}
 	}
+
 	
 
 }

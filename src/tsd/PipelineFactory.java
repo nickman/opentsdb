@@ -119,7 +119,7 @@ public final class PipelineFactory extends ChannelInitializer<Channel> {
 
 	@Override
 	protected void initChannel(final Channel ch) throws Exception {
-		final ChannelPipeline pipeline = ch.pipeline();		
+	  final ChannelPipeline pipeline = ch.pipeline();		
 	  pipeline.addLast("connmgr", connmgr);
 	  pipeline.addLast("detect", HTTP_OR_RPC);
 	}

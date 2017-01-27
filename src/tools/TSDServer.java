@@ -39,6 +39,7 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.tsd.PipelineFactory;
+import net.opentsdb.tsd.UnixDomainSocketServer;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.Threads;
 import net.opentsdb.utils.buffermgr.BufferManager;
@@ -137,7 +138,7 @@ public class TSDServer {
 
 	/**
 	 * Creates a new TSDServer
-	 * @param config The final config, used to configure this server
+	 * @param tsdb The parent TSDB instance
 	 * @param pipelineFactory The channel pipeline initializer
 	 */
 	public TSDServer(final TSDB tsdb, final PipelineFactory pipelineFactory) {
@@ -173,6 +174,8 @@ public class TSDServer {
 		serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
 		serverBootstrap.option(ChannelOption.SO_RCVBUF, recvBuffer);
 		serverBootstrap.option(ChannelOption.SO_TIMEOUT, connectTimeout);
+		
+		//serverBootstrap.config().attrs()
 		final StringBuilder uri = new StringBuilder("tcp");
 		if(async) {
 			if(IS_LINUX && !disableEpoll) {
@@ -209,7 +212,8 @@ public class TSDServer {
 		}
 		serverURI = u;
 		if(IS_LINUX && config.hasProperty("tsd.network.unixsocket.path")) {
-			unixDomainSocketServer = new UnixDomainSocketServer(tsdb);
+			unixDomainSocketServer = new UnixDomainSocketServer(tsdb, pipelineFactory);
+			pipelineFactory.
 		} else {
 			unixDomainSocketServer = null;
 		}
