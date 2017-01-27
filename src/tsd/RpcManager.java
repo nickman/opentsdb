@@ -41,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.opentsdb.tools.BuildData;
+import net.opentsdb.tools.TSDServer;
 import net.opentsdb.core.Aggregators;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.query.filter.TagVFilter;
@@ -521,9 +522,8 @@ public final class RpcManager {
         ShutdownNetty() {
           super("ShutdownNetty");
         }
-        public void run() {        
-          //chan.factory().releaseExternalResources();
-        	// FIXME: We need a ref to the TSDServer
+        public void run() {
+        	TSDServer.getInstance().stop();
         }
       }
       new ShutdownNetty().start();  // Stop accepting new connections.

@@ -393,7 +393,7 @@ public class OpenTSDBMain {
       // here to fail fast.
       final RpcManager manager = RpcManager.instance(tsdb);
       final PipelineFactory pipelineFactory = new PipelineFactory(tsdb, manager);
-      server = new TSDServer(tsdb, pipelineFactory); 
+      server = TSDServer.getInstance(tsdb, pipelineFactory); 
       server.start();
 
     } catch (Throwable e) {

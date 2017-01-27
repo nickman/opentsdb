@@ -19,6 +19,7 @@ import java.net.URISyntaxException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
@@ -62,7 +63,11 @@ import net.opentsdb.utils.buffermgr.BufferManager;
  * <p><code>net.opentsdb.tools.TSDServer</code></p>
  */
 public class TSDServer {
-
+	/** The singleton instance */
+	private static volatile TSDServer instance = null;
+	/** The singleton instance ctor lock */
+	private static final Object lock = new Object();
+	
 	/** Indicates if we're on linux in which case, async will use epoll */
 	public static final boolean IS_LINUX = System.getProperty("os.name").toLowerCase().contains("linux");
 	/** The number of core available to this JVM */
@@ -70,6 +75,8 @@ public class TSDServer {
 	
 	/** The instance logger */
 	protected final Logger log = LoggerFactory.getLogger(getClass());
+	/** Atomic flag indicating if the TSDServer is started */
+	protected final AtomicBoolean started = new AtomicBoolean(false);
 	/** The port to listen on */
 	protected final int port;
 	/** The nic interface to bind to */
@@ -93,7 +100,6 @@ public class TSDServer {
 	protected final EventLoopGroup bossGroup;
 	/** The netty boss event loop group's executor and thread factory */
 	protected final Executor bossExecutorThreadFactory;
-	
 	
 	/** The netty worker event loop group */
 	protected final EventLoopGroup workerGroup;
@@ -135,13 +141,45 @@ public class TSDServer {
 	
 	/** The server URI */
 	public final URI serverURI;
+	
+	/**
+	 * Creates and initializes the TSDServer
+	 * @param tsdb The parent TSDB instance
+	 * @param pipelineFactory The channel pipeline initializer
+	 * @return the initialized TSDServer
+	 */
+	static TSDServer getInstance(final TSDB tsdb, final PipelineFactory pipelineFactory) {
+		if(instance==null) {
+			synchronized(lock) {
+				if(instance==null) {
+					instance = new TSDServer(tsdb, pipelineFactory);
+				}
+			}
+		}
+		return instance;
+	}
+	
+	/**
+	 * Acquires the already initialized TSDServer instance
+	 * @return
+	 */
+	public static TSDServer getInstance() {
+		if(instance==null) {
+			synchronized(lock) {
+				if(instance==null) {
+					throw new IllegalStateException("The TSDServer has not been initialized");
+				}
+			}
+		}
+		return instance;
+	}
 
 	/**
 	 * Creates a new TSDServer
 	 * @param tsdb The parent TSDB instance
 	 * @param pipelineFactory The channel pipeline initializer
 	 */
-	public TSDServer(final TSDB tsdb, final PipelineFactory pipelineFactory) {
+	private TSDServer(final TSDB tsdb, final PipelineFactory pipelineFactory) {
 		final Config config = tsdb.getConfig();
 		bufferManager = BufferManager.getInstance(config);
 		port = config.getInt("tsd.network.port");
@@ -213,7 +251,7 @@ public class TSDServer {
 		serverURI = u;
 		if(IS_LINUX && config.hasProperty("tsd.network.unixsocket.path")) {
 			unixDomainSocketServer = new UnixDomainSocketServer(tsdb, pipelineFactory);
-			pipelineFactory.
+			
 		} else {
 			unixDomainSocketServer = null;
 		}
@@ -225,25 +263,31 @@ public class TSDServer {
 	 * @throws Exception thrown if the server fails to bind to the requested port
 	 */
 	public void start() throws Exception {
-		try {
-			serverChannel = serverBootstrap.bind(bindSocket).sync().channel();
-			log.info("Started [{}] TCP server listening on [{}]", channelType.getSimpleName(), bindSocket);
-		} catch (Exception ex) {
-			log.error("Failed to bind to [{}]", bindSocket, ex);
-			throw ex;
+		if(started.compareAndSet(false, true)) {
+			try {
+				serverChannel = serverBootstrap.bind(bindSocket).sync().channel();
+				log.info("Started [{}] TCP server listening on [{}]", channelType.getSimpleName(), bindSocket);
+			} catch (Exception ex) {
+				log.error("Failed to bind to [{}]", bindSocket, ex);
+				throw ex;
+			} finally {
+				started.set(false);
+			}
 		}
 	}
 	
 	public void stop() {
-		log.info("Stopping TSDServer....");
-		try {
-			serverChannel.close().sync();
-			log.info("TSDServer Server Channel Closed");
-		} catch (Exception x) {/* No Op */}
-		try { bossGroup.shutdownGracefully(); } catch (Exception x) {/* No Op */}
-		try { workerGroup.shutdownGracefully(); } catch (Exception x) {/* No Op */}
-		if(unixDomainSocketServer!=null) unixDomainSocketServer.stop();
-		log.info("TSDServer Shut Down");
+		if(started.compareAndSet(true, false)) {
+			log.info("Stopping TSDServer....");
+			try {
+				serverChannel.close().sync();
+				log.info("TSDServer Server Channel Closed");
+			} catch (Exception x) {/* No Op */}
+			try { bossGroup.shutdownGracefully(); } catch (Exception x) {/* No Op */}
+			try { workerGroup.shutdownGracefully(); } catch (Exception x) {/* No Op */}
+			if(unixDomainSocketServer!=null) unixDomainSocketServer.stop();
+			log.info("TSDServer Shut Down");
+		}
 	}
 	
 

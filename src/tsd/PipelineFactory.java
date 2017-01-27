@@ -124,7 +124,19 @@ public final class PipelineFactory extends ChannelInitializer<Channel> {
 	  pipeline.addLast("detect", HTTP_OR_RPC);
 	}
   
-  
+	/**
+	 * Switches the passed context for handling telnet calls
+	 * @param ctx The channel handler context of the channel to switch
+	 */
+	public void switchToTelnet(final Channel channel) {
+		final ChannelPipeline p = channel.pipeline();
+		p.addLast("connmgr", connmgr);
+  		p.addLast("framer", new LineBasedFrameDecoder(1024, true, true));
+  		p.addLast("encoder", ENCODER);
+  		p.addLast("arrDecoder", new StringArrayDecoder());
+  		p.addLast("handler", rpchandler);
+		
+	}
 
 
   /**

@@ -40,7 +40,7 @@ import net.opentsdb.utils.Threads;
  * Trace like this:  echo "put foo.bar 1460070776 5 dc=dc5 host=host5" | netcat -U /tmp/tsdb.sock
  */
 
-public class UnixDomainSocketServer  {
+public class UnixDomainSocketServer extends ChannelInitializer<Channel> {
 	/** The boss event loop group */
 	final  EventLoopGroup bossGroup;
 	/** The worker event loop group */
@@ -125,6 +125,11 @@ public class UnixDomainSocketServer  {
 		try { workerGroup.shutdownGracefully(); } catch (Exception x) {/* No Op */}
 	}
 
+	@Override
+	protected void initChannel(Channel ch) throws Exception {
+		pipelineFactory.switchToTelnet(ch);
+		
+	}
 	
 
 }
