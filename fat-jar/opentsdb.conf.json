@@ -300,7 +300,7 @@
       "defaultValue": false,
       "description": "Disables the use of epoll (falls back to NIO) even on platforms where it is supported",
       "help": "extended",
-      "meta": "BOOLEAN"
+      "meta": "BOOL"
     },
     
     {
