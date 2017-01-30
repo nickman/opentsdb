@@ -22,23 +22,32 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.management.ObjectName;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ServerChannel;
+import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.oio.OioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import io.netty.util.concurrent.DefaultEventExecutor;
+import io.netty.util.concurrent.EventExecutor;
 import net.opentsdb.core.TSDB;
+import net.opentsdb.stats.StatsCollector;
 import net.opentsdb.tsd.PipelineFactory;
 import net.opentsdb.tsd.UnixDomainSocketServer;
 import net.opentsdb.utils.Config;
@@ -57,19 +66,14 @@ import net.opentsdb.utils.buffermgr.BufferManager;
  *  
  */
 
-/**
- * <p>Title: TSDServer</p>
- * <p>Description: The main TSD network server</p> 
- * <p><code>net.opentsdb.tools.TSDServer</code></p>
- */
-public class TSDServer {
+public class TSDServer implements TSDServerMBean {
 	/** The singleton instance */
 	private static volatile TSDServer instance = null;
 	/** The singleton instance ctor lock */
 	private static final Object lock = new Object();
 	
 	/** Indicates if we're on linux in which case, async will use epoll */
-	public static final boolean IS_LINUX = System.getProperty("os.name").toLowerCase().contains("linux");
+	public static final boolean EPOLL = Epoll.isAvailable();
 	/** The number of core available to this JVM */
 	public static final int CORES = ManagementFactory.getOperatingSystemMXBean().getAvailableProcessors();
 	
@@ -141,6 +145,16 @@ public class TSDServer {
 	
 	/** The server URI */
 	public final URI serverURI;
+	/** The TSDServer JMX ObjectName */
+	public final ObjectName objectName;
+	/** The channel group to track all connections */
+	protected final ChannelGroup channelGroup;
+	/** The channel group event executor */
+	protected final EventExecutor channelGroupExecutor;
+	/** The epoll monitor */
+	protected final EPollMonitor epollMonitor;
+	
+
 	
 	/**
 	 * Creates and initializes the TSDServer
@@ -173,6 +187,18 @@ public class TSDServer {
 		}
 		return instance;
 	}
+	
+	class GroupTracker extends ChannelInitializer<Channel> {
+		final PipelineFactory delegate;
+		GroupTracker(final PipelineFactory delegate) {
+			this.delegate = delegate;
+		}
+		@Override
+		protected void initChannel(final Channel ch) throws Exception {
+			delegate.initChannel(ch);
+			channelGroup.add(ch);			
+		}		
+	}
 
 	/**
 	 * Creates a new TSDServer
@@ -196,8 +222,12 @@ public class TSDServer {
 		tcpNoDelay = config.getBoolean("tsd.network.tcp_no_delay", true);
 		keepAlive = config.getBoolean("tsd.network.keep_alive", true);
 		reuseAddress = config.getBoolean("tsd.network.reuse_address", true);
-		serverBootstrap.handler(new LoggingHandler(getClass(), LogLevel.INFO));		
-		serverBootstrap.childHandler(pipelineFactory);
+		final LogLevel logLevel = config.getLogLevel("tsd.network.loglevel");
+		if(logLevel!=null) {
+			serverBootstrap.handler(new LoggingHandler(getClass(), logLevel));
+		}
+		final GroupTracker gp = new GroupTracker(pipelineFactory);
+		serverBootstrap.childHandler(gp);
 		
 		// Set the child options
 		serverBootstrap.childOption(ChannelOption.ALLOCATOR, bufferManager);
@@ -210,32 +240,38 @@ public class TSDServer {
 		serverBootstrap.option(ChannelOption.ALLOCATOR, bufferManager);
 		serverBootstrap.option(ChannelOption.SO_BACKLOG, backlog);
 		serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
-		serverBootstrap.option(ChannelOption.SO_RCVBUF, recvBuffer);
 		serverBootstrap.option(ChannelOption.SO_TIMEOUT, connectTimeout);
 		
+		// Fire up the channel group 
+		channelGroupExecutor = new DefaultEventExecutor(Threads.newThreadFactory("TSDServerChannelGroup-%d", true, Thread.NORM_PRIORITY));
+		channelGroup = new DefaultChannelGroup("TSDServerSocketConnections", channelGroupExecutor);
 		//serverBootstrap.config().attrs()
 		final StringBuilder uri = new StringBuilder("tcp");
 		if(async) {
-			if(IS_LINUX && !disableEpoll) {
-				bossExecutorThreadFactory = new ExecutorThreadFactory("EpollServerBoss", true);
+			if(EPOLL && !disableEpoll) {
+				bossExecutorThreadFactory = new ExecutorThreadFactory("EpollServerBoss#%d", true);
 				bossGroup = new EpollEventLoopGroup(1, (ThreadFactory)bossExecutorThreadFactory);
-				workerExecutorThreadFactory = new ExecutorThreadFactory("EpollServerWorker", true);
+				workerExecutorThreadFactory = new ExecutorThreadFactory("EpollServerWorker#%d", true);
 				workerGroup = new EpollEventLoopGroup(workerThreads, (ThreadFactory)workerExecutorThreadFactory);
 				channelType = EpollServerSocketChannel.class;
 				uri.append("epoll");
+				epollMonitor = new EPollMonitor("tcp", channelGroup);
 			} else {
-				bossExecutorThreadFactory = new ExecutorThreadFactory("NioServerBoss", true);
+				bossExecutorThreadFactory = new ExecutorThreadFactory("NioServerBoss#%d", true);
 				bossGroup = new NioEventLoopGroup(1, bossExecutorThreadFactory);
-				workerExecutorThreadFactory = new ExecutorThreadFactory("NioServerWorker", true);
+				workerExecutorThreadFactory = new ExecutorThreadFactory("NioServerWorker#%d", true);
 				workerGroup = new NioEventLoopGroup(workerThreads, workerExecutorThreadFactory);
 				channelType = NioServerSocketChannel.class;
 				uri.append("nio");
+				epollMonitor = null;
 			}
 			serverBootstrap.channel(channelType).group(bossGroup, workerGroup);
+			
 		} else {
+			epollMonitor = null;
 			bossExecutorThreadFactory = null;
 			bossGroup = null;
-			workerExecutorThreadFactory = new ExecutorThreadFactory("OioServer", true);
+			workerExecutorThreadFactory = new ExecutorThreadFactory("OioServerWorker#%d", true);
 			workerGroup = new OioEventLoopGroup(workerThreads, workerExecutorThreadFactory); // workerThreads == maxChannels. see ThreadPerChannelEventLoopGroup
 			channelType = OioServerSocketChannel.class;
 			serverBootstrap.channel(channelType).group(workerGroup);
@@ -248,8 +284,17 @@ public class TSDServer {
 		} catch (URISyntaxException e) {
 			log.warn("Failed server URI const: [{}]. Programmer Error", uri, e);
 		}
+		ObjectName tmp = null;
+		try {
+			tmp = new ObjectName(OBJECT_NAME);
+			ManagementFactory.getPlatformMBeanServer().registerMBean(this, tmp);
+		} catch (Exception e) {
+			tmp = null;
+			log.warn("Failed to register TSDServer management interface", e);
+		}
+		objectName = tmp;
 		serverURI = u;
-		if(IS_LINUX && config.hasProperty("tsd.network.unixsocket.path")) {
+		if(EPOLL && config.hasProperty("tsd.network.unixsocket.path")) {
 			unixDomainSocketServer = new UnixDomainSocketServer(tsdb, pipelineFactory);
 			
 		} else {
@@ -267,6 +312,9 @@ public class TSDServer {
 			try {
 				serverChannel = serverBootstrap.bind(bindSocket).sync().channel();
 				log.info("Started [{}] TCP server listening on [{}]", channelType.getSimpleName(), bindSocket);
+				if(unixDomainSocketServer!=null) {
+					unixDomainSocketServer.start();
+				}
 			} catch (Exception ex) {
 				log.error("Failed to bind to [{}]", bindSocket, ex);
 				throw ex;
@@ -276,19 +324,36 @@ public class TSDServer {
 		}
 	}
 	
+	/**
+	 * Stops the TSDServer
+	 */
 	public void stop() {
 		if(started.compareAndSet(true, false)) {
 			log.info("Stopping TSDServer....");
+			
 			try {
 				serverChannel.close().sync();
 				log.info("TSDServer Server Channel Closed");
 			} catch (Exception x) {/* No Op */}
 			try { bossGroup.shutdownGracefully(); } catch (Exception x) {/* No Op */}
 			try { workerGroup.shutdownGracefully(); } catch (Exception x) {/* No Op */}
+			try { channelGroupExecutor.shutdownGracefully(); } catch (Exception x) {/* No Op */}			
 			if(unixDomainSocketServer!=null) unixDomainSocketServer.stop();
 			log.info("TSDServer Shut Down");
 		}
 	}
+	
+	  /**
+	   * Collects the stats and metrics tracked by this instance.
+	   * @param collector The collector to use.
+	   */
+	  public void collectStats(final StatsCollector collector) {
+		  collector.record("tsdserver.connections", channelGroup.size());
+		  if(epollMonitor!=null) {
+			  epollMonitor.collectStats(collector);
+		  }
+	  }
+	
 	
 
 	/**
@@ -328,6 +393,144 @@ public class TSDServer {
 			return threadFactory.newThread(r);
 		}
 	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#isStarted()
+	 */
+	@Override
+	public boolean isStarted() {		
+		return started.get();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#getPort()
+	 */
+	public int getPort() {
+		return port;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#getBindInterface()
+	 */
+	public String getBindInterface() {
+		return bindInterface;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#getBindSocket()
+	 */
+	public String getBindSocket() {
+		return bindSocket==null ? null : bindSocket.toString();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#isAsync()
+	 */
+	public boolean isAsync() {
+		return async;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#isDisableEpoll()
+	 */
+	public boolean isDisableEpoll() {
+		return disableEpoll;
+	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#isEpollSupported()
+	 */
+	@Override
+	public boolean isEpollSupported() {		
+		return EPOLL;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#getWorkerThreads()
+	 */
+	public int getWorkerThreads() {
+		return workerThreads;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#getChannelType()
+	 */
+	public String getChannelType() {
+		return channelType==null ? null : channelType.getName();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#getBacklog()
+	 */
+	public int getBacklog() {
+		return backlog;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#getConnectTimeout()
+	 */
+	public int getConnectTimeout() {
+		return connectTimeout;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#isTcpNoDelay()
+	 */
+	public boolean isTcpNoDelay() {
+		return tcpNoDelay;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#isKeepAlive()
+	 */
+	public boolean isKeepAlive() {
+		return keepAlive;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#getWriteSpins()
+	 */
+	public int getWriteSpins() {
+		return writeSpins;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#getRecvBuffer()
+	 */
+	public int getRecvBuffer() {
+		return recvBuffer;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#getSendBuffer()
+	 */
+	public int getSendBuffer() {
+		return sendBuffer;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tools.TSDServerMBean#getServerURI()
+	 */
+	public String getServerURI() {
+		return serverURI==null ? null : serverURI.toString();
+	}
+
 
 }

@@ -10,8 +10,17 @@ Additions to Core OpenTSDB
 Changes and Additions to OpenTSDB Test Suite
  - Why the old tests broke and how they're fixed
  - Mods and new stuff in NettyMocks 
+ - Added netty3 interfaces
+ - Add fat-jar overlay for windows
+ - Internal netty loggers for servers
+ - TSDMode
+ - Fine socket tuning
  
- 
+-- TSDServer metrics and metrics collection from TSDB
+-- Update fat-jar-pom.in
+-- Fixed overlay to add gnuplot.sh to resource dir
+
+-- Update config.json  (TSDServer, UnixSocketServer, BufferManager)
 -- Move UnixSocketServer into pipeline.
 -- Implement connection limits
 -- Re-enable idle timeout handler

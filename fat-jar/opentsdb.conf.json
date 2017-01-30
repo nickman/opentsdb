@@ -198,6 +198,15 @@
       "meta": "GTZEROINT"
     },
     {
+      "key": "tsd.network.writespins",
+      "cl-option": "--writespins",
+      "defaultValue": "16",
+      "description": "The number of times the underlying Socket.write is called per Netty write operation",
+      "help": "extended",
+      "meta": "GTZEROINT"
+    },
+    
+    {
       "key": "tsd.network.bind",
       "cl-option": "--bind",
       "defaultValue": "0.0.0.0",
@@ -221,6 +230,14 @@
       "help": "default",
       "meta": "POSINT"
     },
+    {
+      "key": "tsd.network.loglevel",
+      "cl-option": "--net-loglevel",
+      "defaultValue": "OFF",
+      "description": "The logging level of the socket server internal netty logger or OFF to disable",
+      "help": "extended",
+      "meta": "NLOGLEVEL"
+    },    
     {
       "key": "tsd.network.reuse_address",
       "cl-option": "--reuse-address",
@@ -252,6 +269,77 @@
       "description": "The idle time timeout for allocated sockets (seconds)",
       "help": "extended",
       "meta": "POSINT"
+    },
+    {
+      "key": "tsd.network.sotimeout",
+      "cl-option": "--sotimeout",
+      "defaultValue": 0,
+      "description": "The timeout on blocking socket operations in ms. Zero is infinite timeout",
+      "help": "extended",
+      "meta": "POSINT"
+    },
+    {
+      "key": "tsd.network.recbuffer",
+      "cl-option": "--rec-buffer",
+      "defaultValue": 43690,
+      "description": "The buffer size used by the platform for input on sockets",
+      "help": "extended",
+      "meta": "GTZEROINT"
+    },
+    {
+      "key": "tsd.network.sendbuffer",
+      "cl-option": "--send-buffer",
+      "defaultValue": 8192,
+      "description": "The buffer size used by the platform for output on sockets",
+      "help": "extended",
+      "meta": "GTZEROINT"
+    },
+    {
+      "key": "tsd.network.epoll.disable",
+      "cl-option": "--no-epoll",
+      "defaultValue": false,
+      "description": "Disables the use of epoll (falls back to NIO) even on platforms where it is supported",
+      "help": "extended",
+      "meta": "BOOLEAN"
+    },
+    
+    {
+      "key": "tsd.network.netty.leaklevel",
+      "cl-option": "--leak-level",
+      "description": "The level of Netty ByteBuf leak detection",
+      "defaultValue": "DISABLED",
+      "help": "extended",
+      "meta": "NLEAKLEVEL"
+    },    
+    {
+      "key": "tsd.network.unixsocket.path",
+      "cl-option": "--unixsocket-path",
+      "description": "The path of the unix socket server's socket file. The unix socket server is diabled if not specified",
+      "help": "extended",
+      "meta": "NFILE"
+    },
+    {
+      "key": "tsd.network.unixsocket.worker_threads",
+      "cl-option": "--unix-worker-threads",
+      "defaultValue": "$[new Integer(cores)]",
+      "description": "The number of asynchronous IO worker threads for unix socket server",
+      "help": "extended",
+      "meta": "GTZEROINT"
+    },
+    {
+      "key": "tsd.network.unixsocket.stopcode",
+      "cl-option": "--unixsocket-stopcode",
+      "description": "The string sequence that will trigger the TSD shutdown",
+      "help": "extended",
+      "meta": "STRING"
+    },
+    {
+      "key": "tsd.network.unixsocket.loglevel",
+      "cl-option": "--unixsocket-loglevel",
+      "defaultValue": "OFF",
+      "description": "The logging level of the unix socket server internal netty logger or OFF to disable",
+      "help": "extended",
+      "meta": "NLOGLEVEL"
     },
     {
       "key": "tsd.no_diediedie",

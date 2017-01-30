@@ -29,7 +29,10 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.management.loading.MLet;
 
+import io.netty.handler.logging.LogLevel;
+import io.netty.util.ResourceLeakDetector;
 import net.opentsdb.tools.ConfigArgP.ConfigurationItem;
+import net.opentsdb.tsd.TSDMode;
 
 /**
  * <p>Title: ConfigMetaType</p>
@@ -54,7 +57,13 @@ public enum ConfigMetaType implements ArgValueValidator {
   /** A list of existing files or URLs that comprise a classpath, and when this option is loaded, a ClassLoader MBean will be registered */
   CLASSPATH("A list of comma separated existing files or accessible URLs", new ClassPathValidator()), 
   /** A file, optionally existing */
-  FILE("A file, optionally existing", new FileSystemValidator(false, false)), 
+  FILE("A file, optionally existing", new FileSystemValidator(false, false)),
+  /** A file that must be creatable but cannot exist */
+  NFILE("A file, not existing", new FileSystemValidator()),
+  /** A valid Netty log level */
+  NLOGLEVEL("A valid Netty log level", new EnumValidator<LogLevel>(LogLevel.class, true, "OFF")),
+  /** A valid Netty ResourceLeakDetector level */
+  NLEAKLEVEL("A valid Netty ResourceLeakDetector level", new EnumValidator<ResourceLeakDetector.Level>(ResourceLeakDetector.Level.class, true)),		  
   /** An existing directory */
   EDIR("An existing directory", new FileSystemValidator(true, true)),
   /** A fully qualified file name where the parent directory must exist, but the file is optional */
@@ -76,11 +85,14 @@ public enum ConfigMetaType implements ArgValueValidator {
   /** A znode path name */
   ZPATH("A znode path name", new StringValidator("ZPATH")),
   /** The read write mode */
-  RWMODE("Read/Write mode specification", new ReadWriteModeValidator()),
+  RWMODE("Read/Write mode specification", new EnumValidator<TSDMode>(TSDMode.class, true)),
   /** A time zone. e.g. "America/Los_Angeles"*/
   TIMEZONE("A time zone name", new TimeZoneValidator()),
   /** A list of comma separated class names that should be loadable with (or without) the assistance of a {@link #CLASSPATH} configured classloader */
-  BCLASSLIST("A comma separated list of loadable classes", new ClasspathConfiguredClassList());
+  BCLASSLIST("A comma separated list of loadable classes", new ClasspathConfiguredClassList()),
+  /** A non-zero length string */
+  STRING("A non-zero length string", new SimpleStringValidator());
+  
   
   /** The platform MBeanServer */
   public static final MBeanServer server = ManagementFactory.getPlatformMBeanServer();
@@ -124,38 +136,6 @@ public enum ConfigMetaType implements ArgValueValidator {
     validator.validate(citem);    
   }
 
-  /**
-   * <p>Title: ReadWriteModeValidator</p>
-   * <p>Description: Validator for ReadWrite Modes</p> 
-   */
-  public static class ReadWriteModeValidator implements ArgValueValidator {
-    /** The supported mode codes */
-    private static final Set<String> MODES = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
-        "rw",             // READ AND WRITE
-        "wo",       // WRITE ONLY
-        "ro"        // READ ONLY
-    )));
-    /**
-     * Creates a new ReadWriteModeValidator
-     */
-    public ReadWriteModeValidator() {
-      
-    }   
-    
-    /**
-     * {@inheritDoc}
-     * @see net.opentsdb.tools.ArgValueValidator#validate(net.opentsdb.tools.ConfigArgP.ConfigurationItem)
-     */
-    @Override
-    public void validate(final ConfigurationItem citem) {     
-      try {
-        final String _mode = citem.getValue();
-        if(!MODES.contains(_mode)) throw new Exception();
-      } catch (Exception ex) {
-        throw new IllegalArgumentException("Invalid ReadWrite Mode [" + citem.getValue() + "] for " + citem.getName());
-      }
-    }
-  }
   
   /**
    * <p>Title: ClassListValidator</p>
@@ -234,6 +214,72 @@ public enum ConfigMetaType implements ArgValueValidator {
         throw new IllegalArgumentException("Invalid Boolean value [" + citem.getValue() + "] for " + citem.getName());        
       }
     }
+  }
+  
+  /**
+   * <p>Title: SimpleStringValidator</p>
+   * <p>Description: Validator for non-zero length strings</p> 
+   */
+  public static class SimpleStringValidator implements ArgValueValidator {
+    /**
+     * {@inheritDoc}
+     * @see net.opentsdb.tools.ArgValueValidator#validate(net.opentsdb.tools.ConfigArgP.ConfigurationItem)
+     */
+    @Override
+    public void validate(final ConfigurationItem citem) {
+      final String s = citem.getValue();
+      if(s==null || s.trim().isEmpty()) {
+    	  throw new IllegalArgumentException("Null or empty String value for " + citem.getName());
+      }
+    }
+  }
+  
+  /**
+   * <p>Title: EnumValidator</p>
+   * <p>Description: Configurable enum validator</p> 
+   */
+ public static class EnumValidator<E extends Enum<E>> implements ArgValueValidator {
+	final Set<String> names;
+	final boolean forceUpper;
+	final String enumName;
+	
+	
+	public EnumValidator(final Class<E> enumClass, final boolean forceUpper, final String...additionals) {
+		this.forceUpper = forceUpper;
+		enumName = enumClass.getName();
+		final Set<String> tmpSet = new HashSet<String>();
+		for(Enum<?> en : enumClass.getEnumConstants()) {
+			final String ename = en.name();
+			if(forceUpper) {
+				tmpSet.add(ename.toUpperCase());
+			} else {
+				tmpSet.add(ename);
+			}			
+		}
+		for(String add : additionals) {
+			if(forceUpper) {
+				tmpSet.add(add.trim().toUpperCase());
+			} else {
+				tmpSet.add(add.trim());
+			}			
+		}
+		this.names = Collections.unmodifiableSet(tmpSet);
+	}
+
+	@Override
+	public void validate(final ConfigurationItem citem) {
+		final String s = citem.getValue();
+		if(s==null||s.trim().isEmpty()) {
+			throw new IllegalArgumentException("Null or empty String value for " + citem.getName() + ". Valid values are: " + names);
+		}
+		String value = s.trim();
+		if(forceUpper){
+			value = value.toUpperCase();
+		}
+		if(!names.contains(value)) {
+			throw new IllegalArgumentException("Invalid value [" + value + "] for enum [" + enumName + "] in config property [" + citem.getKey() + "]. Valid values are: " + names);
+		}
+	}
   }
   
   /**
@@ -390,6 +436,7 @@ public enum ConfigMetaType implements ArgValueValidator {
   public static class FileSystemValidator implements ArgValueValidator {
     private final boolean dir;
     private final boolean mustExist;
+    private final boolean mustNotExist;
     
     /**
      * Creates a new FileSystemValidator
@@ -399,7 +446,20 @@ public enum ConfigMetaType implements ArgValueValidator {
     public FileSystemValidator(boolean dir, boolean mustExist) {
       this.dir = dir;
       this.mustExist = mustExist;
+      this.mustNotExist = false;
     }
+    
+    /**
+     * Creates a new FileSystemValidator
+     * @param dir true for validating directories, false for files
+     * @param mustExist true if the target must exist, false if it can be created if it does not exist
+     */
+    public FileSystemValidator() {
+      this.dir = false;
+      this.mustExist = false;
+      this.mustNotExist = false;      
+    }
+    
 
     /**
      * {@inheritDoc}
@@ -424,6 +484,11 @@ public enum ConfigMetaType implements ArgValueValidator {
             if(!target.isDirectory()) throw new IllegalArgumentException(("[") + value + "] is a file not a directory for " + citem.getName());
           }
         } else {
+          if(mustNotExist) {
+        	  if(target.exists()) {
+        		  throw new IllegalArgumentException(("File must not exist but does: [") + value + "] for " + citem.getName());  
+        	  }        	  
+          }
           if(!target.getParentFile().exists()) {
             if(!target.getParentFile().mkdirs()) throw new IllegalArgumentException(("Could not create parent directory for file [") + value + "] for " + citem.getName());
           }
@@ -458,7 +523,8 @@ public enum ConfigMetaType implements ArgValueValidator {
         return;
       }
       TimeZone timeZone = TimeZone.getTimeZone(tz);
-      if("GMT".equals(timeZone.getID())) {
+      
+      if(GMT.getID().equals(timeZone.getID())) {
         if(!tz.toUpperCase().contains("GMT")) {
           throw new IllegalArgumentException("Unrecognized TimeZone [" + tz + "]");
         }

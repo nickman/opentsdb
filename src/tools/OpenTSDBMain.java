@@ -44,6 +44,7 @@ import ch.qos.logback.core.BasicStatusManager;
 import ch.qos.logback.core.joran.spi.JoranException;
 import ch.qos.logback.core.status.StatusListener;
 import io.netty.buffer.ByteBuf;
+import io.netty.util.ResourceLeakDetector;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.tools.ConfigArgP.ConfigurationItem;
 import net.opentsdb.tsd.PipelineFactory;
@@ -305,6 +306,13 @@ public class OpenTSDBMain {
     applyCommandLine(cap, argp);
     config.loadStaticVariables();   
     // All options are now correctly set in config
+    
+    // Set the netty bytebuf leak detection level
+    final String leakLevelName = config.getString("tsd.network.netty.leaklevel");
+    final ResourceLeakDetector.Level leakLevel = ResourceLeakDetector.Level.valueOf(leakLevelName);
+    ResourceLeakDetector.setLevel(leakLevel);
+    log.info("Netty ByteBuf Leak Detection Level: [{}]", leakLevel.name());
+    // FIXME: this doesn't work. 
     setJVMName(config.getInt("tsd.network.port"), config.getString("tsd.network.bind"));
     // Initialize Buffer Manager
     BufferManager.getInstance(config);

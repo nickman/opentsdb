@@ -20,7 +20,7 @@ package net.opentsdb.utils.buffermgr;
  */
 public interface BufferManagerMBean {
 	/** The JMX ObjectName string for the BufferManager management interface */
-	public static final String OBJECT_NAME = "com.heliosapm.streams.buffers:service=BufferManager";
+	public static final String OBJECT_NAME = "net.opentsdb.buffers:service=BufferManager";
 	
 	/**
 	 * Indicates if leak detection is enabled
@@ -87,5 +87,19 @@ public interface BufferManagerMBean {
 	 * @return a formatted report of the buffer stats
 	 */
 	public String printStats();
+	
+	/**
+	 * Returns the current buffer leak detection level
+	 * @return the current buffer leak detection level
+	 */
+	public String getLeakDetectionLevel();
+	
+	/**
+	 * Sets the current buffer leak detection level
+	 * @param level The level to set
+	 * @see {@link io.netty.util.ResourceLeakDetector.Level}
+	 */
+	public void setLeakDetectionLevel(final String level);
+	
 	
 }

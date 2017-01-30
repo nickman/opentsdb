@@ -101,9 +101,9 @@ final class RpcHandler extends IdleStateHandler {
     this.rpc_manager = manager;
 
     final String cors = tsdb.getConfig().getString("tsd.http.request.cors_domains");
-    final String mode = tsdb.getConfig().getString("tsd.mode");
+    final TSDMode mode = tsdb.getConfig().getTSDMode("tsd.mode");
 
-    LOG.info("TSD is in " + mode + " mode");
+    LOG.info("TSD is in [{}] mode", mode);
 
     if (cors == null || cors.isEmpty()) {
       cors_domains = null;
@@ -273,6 +273,7 @@ final class RpcHandler extends IdleStateHandler {
 		  fullRequest = (FullHttpRequest) req;
 	  }	 else {
 		  // FIXME: what do we do here ?
+		  return;
 	  }
 	  AbstractHttpQuery abstractQuery = null;
 	  try {
@@ -288,6 +289,7 @@ final class RpcHandler extends IdleStateHandler {
 		  final String route = abstractQuery.getQueryBaseRoute();
 		  if (abstractQuery.getClass().isAssignableFrom(HttpRpcPluginQuery.class)) {
 			  if (applyCorsConfig(fullRequest, abstractQuery)) {
+				  //fullRequest.release();
 				  return;
 			  }
 			  final HttpRpcPluginQuery pluginQuery = (HttpRpcPluginQuery) abstractQuery;
@@ -331,7 +333,9 @@ final class RpcHandler extends IdleStateHandler {
 	  } finally {
 	  	if(fullRequest!=null) {
 	  		fullRequest.touch("RpcHandler");
-//	  		fullRequest.release();
+//	  		if(fullRequest.refCnt()==1) {
+//	  			fullRequest.release();
+//	  		}
 	  	}
 	  }
   }

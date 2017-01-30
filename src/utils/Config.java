@@ -26,6 +26,9 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.ImmutableMap;
 
+import io.netty.handler.logging.LogLevel;
+import net.opentsdb.tsd.TSDMode;
+
 /**
  * OpenTSDB Configuration Class
  * 
@@ -434,6 +437,40 @@ public class Config {
   	} catch (Exception ex) {
   		return defaultValue;
   	}
+  }
+  
+  /**
+   * Returns the given property as a Netty log level, 
+   * unless the value is <b><code>OFF</code></b> in
+   * which case a null is returned.
+   * @param property The property key
+   * @return The log level or null 
+   */
+  public final LogLevel getLogLevel(final String property) {
+	  if(!hasProperty(property)) return null;
+	  final String levelName = getString(property, null);
+	  if(levelName==null || levelName.trim().isEmpty()) return null;
+	  if("OFF".equalsIgnoreCase(levelName.trim())) return null;
+	  try {
+		  return LogLevel.valueOf(levelName.trim().toUpperCase());
+	  } catch (Exception ex) {
+		  LOG.warn("Invalid log level [" + levelName + "] for property [" + property + "]");
+		  return null;
+	  }
+  }
+  
+  /**
+   * Decodes the passed property key to a {@link TSDMode}
+   * @param property The property key
+   * @return the mode
+   */
+  public final TSDMode getTSDMode(final String property) {
+	  try {
+		  TSDMode mode = TSDMode.decode(getString(property));
+		  return mode==null ? TSDMode.DEFAULT_MODE : mode;
+	  } catch (Exception ex) {
+		  return TSDMode.DEFAULT_MODE;
+	  }
   }
   
 

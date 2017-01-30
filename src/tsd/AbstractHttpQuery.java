@@ -139,7 +139,7 @@ public abstract class AbstractHttpQuery {
    * Returns the underlying Netty {@link Channel} of this query.
    */
   public Channel channel() {
-    return chan;
+    return chan==null ? ctx.channel() : chan;
   }
   
   /**

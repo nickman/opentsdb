@@ -15,12 +15,11 @@ package net.opentsdb.tools;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-
+import java.util.concurrent.atomic.AtomicBoolean;
 import io.netty.buffer.ByteBuf;
-import net.opentsdb.utils.buffermgr.BufferManager;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
  * <p>Title: GnuplotInstaller</p>
@@ -44,7 +43,7 @@ public class GnuplotInstaller {
   /** The java/io file representing the gnuplot shell file */
   public static final File GP_FILE = new File(GP_DIR, GP_BATCH_FILE_NAME);
   /** Indicates if gnuplot was found on the path */
-  public static final boolean FOUND_GP;
+  public static final AtomicBoolean FOUND_GP = new AtomicBoolean(false);
   
   static {
     boolean found = false;
@@ -65,7 +64,7 @@ public class GnuplotInstaller {
         }
       }
     }
-    FOUND_GP = found;
+    FOUND_GP.set(true);
     if(!found) LOG.warn("Failed to locate Gnuplot executable");
   }
   
@@ -77,7 +76,7 @@ public class GnuplotInstaller {
      * Installs the mygnuplot shell file 
      */
     public static void installMyGnuPlot() {
-      if(!FOUND_GP) {
+      if(!FOUND_GP.get()) {
         LOG.warn("Skipping Gnuplot Shell Script Install since Gnuplot executable was not found");
         return;
       }
@@ -89,6 +88,11 @@ public class GnuplotInstaller {
         FileOutputStream fos = null;
         try {
           is = GnuplotInstaller.class.getClassLoader().getResourceAsStream(GP_BATCH_FILE_NAME);
+          if(is==null) {
+        	  LOG.warn("Skipping Gnuplot Shell Script Install since Gnuplot batch file was not found on classpath: [{}]", GP_BATCH_FILE_NAME);
+        	  FOUND_GP.set(false);
+        	  return;
+          }
           ByteBuf buff = BufferManager.getInstance().buffer(is.available()); 
           buff.writeBytes(is, is.available());
           is.close(); is = null;

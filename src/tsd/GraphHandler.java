@@ -909,7 +909,7 @@ final class GraphHandler implements HttpRpc {
    * @return The path to the wrapper script.
    */
   private static String findGnuplotHelperScript() {
-    if(!GnuplotInstaller.FOUND_GP) {
+    if(!GnuplotInstaller.FOUND_GP.get()) {
       LOG.warn("Skipping Gnuplot Shell Script Install since Gnuplot executable was not found");
       return null;
     }
@@ -920,7 +920,9 @@ final class GraphHandler implements HttpRpc {
       LOG.info("Auto Installed Gnuplot Invoker at [{}]", GnuplotInstaller.GP_FILE.getAbsolutePath());
       return GnuplotInstaller.GP_FILE.getAbsolutePath();
     }
-    
+    if(!GnuplotInstaller.FOUND_GP.get()) {
+    	return null;
+    }
     final URL url = GraphHandler.class.getClassLoader().getResource(WRAPPER);
     if (url == null) {
       throw new RuntimeException("Couldn't find " + WRAPPER + " on the"

@@ -230,6 +230,7 @@ public final class JSON {
     } finally {
     	try { isr.close(); } catch (Exception x) {/* No Op */}
     	try { bbis.close(); } catch (Exception x) {/* No Op */}
+    	if(buf!=null) try { buf.release(); } catch (Exception x) {/* No Op */}
     }
   }
   

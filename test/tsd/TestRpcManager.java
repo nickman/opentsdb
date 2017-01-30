@@ -53,6 +53,9 @@ public class TestRpcManager {
       .thenReturn("true");
     when(config.getString("tsd.no_diediedie"))
       .thenReturn("false");
+    when(config.getTSDMode("tsd.mode"))
+    .thenReturn(TSDMode.DEFAULT_MODE);     
+    
     TSDB tsdb = mock(TSDB.class);
     when(tsdb.getConfig()).thenReturn(config);
     mock_tsdb_no_plugins = tsdb;
@@ -78,6 +81,8 @@ public class TestRpcManager {
       .thenReturn("true");
     when(config.getString("tsd.no_diediedie"))
      .thenReturn("false");
+     when(config.getTSDMode("tsd.mode"))
+     .thenReturn(TSDMode.DEFAULT_MODE);     
 
     TSDB tsdb = mock(TSDB.class);
     when(tsdb.getConfig()).thenReturn(config);
@@ -112,6 +117,9 @@ public class TestRpcManager {
       .thenReturn("true");
     when(config.getString("tsd.no_diediedie"))
       .thenReturn("false");
+    when(config.getTSDMode("tsd.mode"))
+    .thenReturn(TSDMode.DEFAULT_MODE);     
+    
 
     TSDB tsdb = mock(TSDB.class);
     when(tsdb.getConfig()).thenReturn(config);

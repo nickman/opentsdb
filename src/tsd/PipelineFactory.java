@@ -118,7 +118,7 @@ public final class PipelineFactory extends ChannelInitializer<Channel> {
   }  
 
 	@Override
-	protected void initChannel(final Channel ch) throws Exception {
+	public void initChannel(final Channel ch) throws Exception {
 	  final ChannelPipeline pipeline = ch.pipeline();		
 	  pipeline.addLast("connmgr", connmgr);
 	  pipeline.addLast("detect", HTTP_OR_RPC);
@@ -164,7 +164,7 @@ public final class PipelineFactory extends ChannelInitializer<Channel> {
   		}
   		ctx.pipeline().remove(this);
   		in.retain();
-  		log.info("Sending [{}] up pipeline {}", in, ctx.pipeline().names());
+  		log.debug("Sending [{}] up pipeline {}", in, ctx.pipeline().names());
   		ctx.fireChannelRead(in);  		
 	}
 	

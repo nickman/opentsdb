@@ -76,6 +76,7 @@ public class ByteSet extends AbstractSet<byte[]>
     map.clear();
   }
   
+  @SuppressWarnings("unchecked")
   @Override
   public ByteSet clone() {
     try {

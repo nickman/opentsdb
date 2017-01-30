@@ -28,7 +28,9 @@ import net.opentsdb.core.IncomingDataPoint;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.stats.QueryStats;
 import net.opentsdb.stats.StatsCollector;
+import net.opentsdb.tools.TSDServer;
 import net.opentsdb.utils.JSON;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
 import org.hbase.async.RegionClientStats;
 import io.netty.channel.Channel;
@@ -143,6 +145,8 @@ public final class StatsRpc implements TelnetRpc, HttpRpc {
     RpcManager.collectStats(collector);
     collectThreadStats(collector);
     tsdb.collectStats(collector);
+    BufferManager.getInstance().collectStats(collector);
+    TSDServer.getInstance().collectStats(collector);
   }
   
   /**

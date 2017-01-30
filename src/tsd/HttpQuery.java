@@ -706,7 +706,8 @@ final class HttpQuery extends AbstractHttpQuery {
 	  }, 0);
 	  FullHttpResponse fhr = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, fb);
 	  fhr.headers().add(request().headers());
-	  final ChannelFuture future = ctx().writeAndFlush(fhr);
+	  
+	  final ChannelFuture future = channel().writeAndFlush(fhr);
 //	  ctx().write(fb);
 //	  final ChannelFuture future = ctx().writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT); 
 			  

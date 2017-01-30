@@ -36,6 +36,7 @@ import net.opentsdb.utils.FileSystem;
 import net.opentsdb.utils.Pair;
 import net.opentsdb.utils.PluginLoader;
 import net.opentsdb.utils.Threads;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
  * Main class of the TSD, the Time Series Daemon.
@@ -107,6 +108,9 @@ final class TSDMain {
 
     // get a config object
     Config config = CliOptions.getConfig(argp);
+    // Initialize the buffer manager as early as possible
+    BufferManager.getInstance(config);
+
     
     // check for the required parameters
     try {
@@ -138,8 +142,6 @@ final class TSDMain {
     } catch (IllegalArgumentException e) {
       usage(argp, e.getMessage(), 3);
     }
-
-
     StartupPlugin startup = null;
     try {
       startup = loadStartupPlugins(config);

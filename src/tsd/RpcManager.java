@@ -133,7 +133,7 @@ public final class RpcManager {
     }
 
     final RpcManager manager = new RpcManager(tsdb);
-    final String mode = Strings.nullToEmpty(tsdb.getConfig().getString("tsd.mode"));
+    final TSDMode mode = tsdb.getConfig().getTSDMode("tsd.mode");
 
     // Load any plugins that are enabled via Config.  Fail if any plugin cannot be loaded.
 
@@ -146,7 +146,7 @@ public final class RpcManager {
 
     final ImmutableMap.Builder<String, TelnetRpc> telnetBuilder = ImmutableMap.builder();
     final ImmutableMap.Builder<String, HttpRpc> httpBuilder = ImmutableMap.builder();
-    manager.initializeBuiltinRpcs(mode, telnetBuilder, httpBuilder);
+    manager.initializeBuiltinRpcs(mode, tsdb, telnetBuilder, httpBuilder);
     manager.telnet_commands = telnetBuilder.build();
     manager.http_commands = httpBuilder.build();
 
@@ -243,23 +243,26 @@ public final class RpcManager {
   /**
    * Load and init instances of {@link TelnetRpc}s and {@link HttpRpc}s.
    * These are not generally configurable via TSDB config.
-   * @param mode is this TSD in read/write ("rw") or read-only ("ro")
-   * mode?
+   * @param mode the read/write mode for the TSD
+   * @param tsdb The parent TSDB instance so some RPCs can be initialized
+   * with the tsdb instance.
    * @param telnet a map of telnet command names to {@link TelnetRpc}
    * instances.
    * @param http a map of API endpoints to {@link HttpRpc} instances.
    */
-  private void initializeBuiltinRpcs(final String mode,
+  private void initializeBuiltinRpcs(final TSDMode mode,
+		final TSDB tsdb,
         final ImmutableMap.Builder<String, TelnetRpc> telnet,
         final ImmutableMap.Builder<String, HttpRpc> http) {
 
-    final Boolean enableApi = tsdb.getConfig().getString("tsd.core.enable_api").equals("true");
-    final Boolean enableUi = tsdb.getConfig().getString("tsd.core.enable_ui").equals("true");
-    final Boolean enableDieDieDie = tsdb.getConfig().getString("tsd.no_diediedie").equals("false");
+    final Boolean enableApi = tsdb.getConfig().getBoolean("tsd.core.enable_api");
+    final Boolean enableUi = tsdb.getConfig()
+    		.getBoolean("tsd.core.enable_ui") && mode.readable;
+    final Boolean enableDieDieDie = tsdb.getConfig().getBoolean("tsd.no_diediedie");
 
     LOG.info("Mode: {}, HTTP UI Enabled: {}, HTTP API Enabled: {}", mode, enableUi, enableApi);
 
-    if (mode.equals("rw") || mode.equals("wo")) {
+    if (mode.writable) {
       final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
       final RollupDataPointRpc rollups = new RollupDataPointRpc(tsdb.getConfig());
       telnet.put("put", put);
@@ -270,8 +273,8 @@ public final class RpcManager {
       }
     }
 
-    if (mode.equals("rw") || mode.equals("ro")) {
-      final StaticFileRpc staticfile = new StaticFileRpc();
+    if (mode.readable) {
+      final StaticFileRpc staticfile = new StaticFileRpc(tsdb);
       final StatsRpc stats = new StatsRpc();
       final DropCachesRpc dropcaches = new DropCachesRpc();
       final ListAggregators aggregators = new ListAggregators();
@@ -327,8 +330,7 @@ public final class RpcManager {
   /**
    * Load and init the {@link HttpRpcPlugin}s provided as an array of
    * {@code pluginClassNames}.
-   * @param mode is this TSD in read/write ("rw") or read-only ("ro")
-   * mode?
+   * @param mode the read/write mode for the TSD
    * @param pluginClassNames fully-qualified class names that are
    * instances of {@link HttpRpcPlugin}s
    * @param http a map of canonicalized paths
@@ -336,7 +338,7 @@ public final class RpcManager {
    * to {@link HttpRpcPlugin} instance.
    */
   @VisibleForTesting
-  protected void initializeHttpRpcPlugins(final String mode,
+  protected void initializeHttpRpcPlugins(final TSDMode mode,
         final String[] pluginClassNames,
         final ImmutableMap.Builder<String, HttpRpcPlugin> http) {
     for (final String plugin : pluginClassNames) {

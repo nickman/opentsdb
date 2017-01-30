@@ -20,6 +20,8 @@ if [ ! -d src-resources ]; then
   (cd src-resources && ln -s ../fat-jar/logback.xml)
   (cd src-resources && ln -s ../fat-jar/file-logback.xml)
   (cd src-resources && ln -s ../fat-jar/opentsdb.conf.json)
+  (cd src-resources && ln -s ../src/mygnuplot.sh)
+  (cd src-resources && ln -s ../src/mygnuplot.bat)
 fi
 if [ ! -d test-resources ]; then
   mkdir test-resources

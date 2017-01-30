@@ -129,7 +129,7 @@ public class BufferArenaMonitor implements BufferArenaMonitorMBean, Runnable {
 		this.direct = direct;
 		this.type = direct ? "Direct" : "Heap";
 
-		objectName = objectName("com.heliosapm.streams.buffers:service=BufferManagerStats,type=" + type);
+		objectName = objectName("net.opentsdb.buffers:service=BufferManagerStats,type=" + type);
 		run();
 		schedulerHandle = scheduler.scheduleAtFixedRate(this, 5, 5, TimeUnit.SECONDS);
 		if(registerMBean) {

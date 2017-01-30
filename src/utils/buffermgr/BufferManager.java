@@ -1,24 +1,19 @@
-/**
-Licensed to the Apache Software Foundation (ASF) under one
-or more contributor license agreements.  See the NOTICE file
-distributed with this work for additional information
-regarding copyright ownership.  The ASF licenses this file
-to you under the Apache License, Version 2.0 (the
-"License"); you may not use this file except in compliance
-with the License.  You may obtain a copy of the License at
-
-  http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing,
-software distributed under the License is distributed on an
-"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, either express or implied.  See the License for the
-specific language governing permissions and limitations
-under the License.
- */
+// This file is part of OpenTSDB.
+// Copyright (C) 2010-2016  The OpenTSDB Authors.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 2.1 of the License, or (at your
+// option) any later version.  This program is distributed in the hope that it
+// will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+// of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser
+// General Public License for more details.  You should have received a copy
+// of the GNU Lesser General Public License along with this program.  If not,
+// see <http://www.gnu.org/licenses/>.
 package net.opentsdb.utils.buffermgr;
 
 import java.lang.management.ManagementFactory;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -33,14 +28,14 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.PoolArenaMetric;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
+import io.netty.util.ResourceLeakDetector;
 import net.opentsdb.stats.StatsCollector;
+import net.opentsdb.tsd.RpcManager;
 import net.opentsdb.utils.Config;
 
 /**
  * <p>Title: BufferManager</p>
  * <p>Description: Manages and monitors buffer allocation</p> 
- * <p>Company: Helios Development Group LLC</p>
- * @author Whitehead (nwhitehead AT heliosdev DOT org)
  * <p><code>net.opentsdb.buffers.BufferManager</code></p>
  */
 
@@ -75,8 +70,6 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 	protected final boolean pooledBuffers;
 	/** Indicates if we prefer using direct byteBuffs in the child channels */
 	protected final boolean directBuffers;
-	/** Indicates if leak detection is enabled */
-	protected final boolean leakDetection;
 	
 	
 	/** The number of pooled buffer heap arenas */
@@ -124,6 +117,7 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 			synchronized(lock) {
 				if(instance==null) {
 					instance = new BufferManager(config);
+					tsdbConfigured.set(true);
 				}
 			}
 		} else {
@@ -167,7 +161,6 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 	 * @param The TSD configuration
 	 */
 	private BufferManager(final Config config) {
-		leakDetection = config.getBoolean("tsd.network.buffers.leakdetection", false);
 		pooledBuffers = config.getBoolean("tsd.network.buffers.pooled", true);
 		directBuffers = config.getBoolean("tsd.network.buffers.direct", true);
 		nHeapArena = config.getInt("tsd.network.buffers.heaparenas", DEFAULT_NUM_HEAP_ARENA);
@@ -178,7 +171,7 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 		smallCacheSize = config.getInt("tsd.network.buffers.scachesize", DEFAULT_SMALL_CACHE_SIZE);
 		normalCacheSize = config.getInt("tsd.network.buffers.ncachesize", DEFAULT_NORMAL_CACHE_SIZE);			
 		pooledBufferAllocator = new PooledByteBufAllocator(directBuffers, nHeapArena, nDirectArena, pageSize, maxOrder, tinyCacheSize, smallCacheSize, normalCacheSize);
-		unpooledBufferAllocator = new UnpooledByteBufAllocator(directBuffers, leakDetection);
+		unpooledBufferAllocator = new UnpooledByteBufAllocator(directBuffers);
 		defaultBufferAllocator = pooledBuffers ? pooledBufferAllocator : unpooledBufferAllocator;
 		if(pooledBuffers) {
 			childChannelBufferAllocator = pooledBufferAllocator;
@@ -203,7 +196,7 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 	 * @param registerMBean true to register the management interface, false otherwise
 	 */
 	private BufferManager(final boolean registerMBean) {
-		leakDetection = false;
+		
 		pooledBuffers = true;
 		directBuffers = true;
 		nHeapArena = DEFAULT_NUM_HEAP_ARENA;
@@ -213,8 +206,8 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 		tinyCacheSize = DEFAULT_TINY_CACHE_SIZE;
 		smallCacheSize = DEFAULT_SMALL_CACHE_SIZE;
 		normalCacheSize = DEFAULT_NORMAL_CACHE_SIZE;			
-		pooledBufferAllocator = new PooledByteBufAllocator(directBuffers, nHeapArena, nDirectArena, pageSize, maxOrder, tinyCacheSize, smallCacheSize, normalCacheSize);
-		unpooledBufferAllocator = new UnpooledByteBufAllocator(directBuffers, leakDetection);
+		pooledBufferAllocator = new PooledByteBufAllocator(directBuffers, nHeapArena, nDirectArena, pageSize, maxOrder, tinyCacheSize, smallCacheSize, normalCacheSize);		
+		unpooledBufferAllocator = new UnpooledByteBufAllocator(directBuffers);
 		defaultBufferAllocator = pooledBuffers ? pooledBufferAllocator : unpooledBufferAllocator;
 		if(pooledBuffers) {
 			childChannelBufferAllocator = pooledBufferAllocator;
@@ -235,6 +228,8 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 		heapMonitor = new BufferArenaMonitor(pooledBufferAllocator, false, registerMBean);
 		log.info("Created Default BufferManager. Pooled: [{}], Direct:[{}]", pooledBuffers, directBuffers);
 	}
+	
+
 	
 	private void reset() {
 		directMonitor.stop();
@@ -389,6 +384,16 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 	public ByteBuf wrap(final byte[] bytes) {
 		return childChannelBufferAllocator.buffer(bytes.length).writeBytes(bytes);
 	}
+	
+	/**
+	 * Wraps the passed CharSequence in a ByteBuf of the default type using UTF8 to convert
+	 * @param cs The CharSequence to wrap
+	 * @return the wrapping ByteBuf
+	 */
+	public ByteBuf wrap(final ByteBuffer bb) {
+		return childChannelBufferAllocator.buffer(bb.position()).writeBytes(bb);
+	}
+	
 	
 	/**
 	 * Wraps the passed CharSequence in a ByteBuf of the default type
@@ -568,7 +573,26 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 	 */
 	@Override
 	public boolean isLeakDetectionEnabled() {
-		return leakDetection;
+		return ResourceLeakDetector.isEnabled();
 	}
+	
+	/**
+	 * Returns the current buffer leak detection level
+	 * @return the current buffer leak detection level
+	 */
+	public String getLeakDetectionLevel() {
+		return ResourceLeakDetector.getLevel().name();
+	}
+	
+	/**
+	 * Sets the current buffer leak detection level
+	 * @param level The level to set
+	 * @see {@link io.netty.util.ResourceLeakDetector.Level}
+	 */
+	public void setLeakDetectionLevel(final String level) {
+		if(level==null || level.trim().isEmpty()) throw new IllegalArgumentException("The passed level was null or empty");
+		ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.valueOf(level.trim().toUpperCase()));
+	}
+	
 	
 }
