@@ -12,13 +12,13 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.unixsock;
 
-import io.netty.channel.*;
-import io.netty.channel.epoll.*;
-import io.netty.channel.unix.*;
-
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+
+import io.netty.channel.epoll.Epoll;
+import io.netty.channel.unix.DomainSocketAddress;
+import io.netty.channel.unix.Socket;
 
 
 /**
@@ -59,14 +59,16 @@ public class UnixSockClient {
 			log("Connected Socket:" + usock + ":" + connected);
 			connected = usock.finishConnect();
 			log("Connect finished:" + connected + ", Remote:" + usock.remoteAddress() + ", Port:" + usock.remoteAddress().getPort());
-			
-			final String put = "put sna.foo 1460070776 4 dc=dcX host=host7\n";
-			final byte[] bytes = put.getBytes(UTF8);
-			final ByteBuffer b = ByteBuffer.allocateDirect(bytes.length);
-			b.put(bytes);
-//			final int bytesWritten = usock.sendTo(b, 0, bytes.length, usock.remoteAddress().getAddress(), usock.remoteAddress().getPort());
-			final int bytesWritten = usock.write(b, 0, bytes.length);			
-			log("Wrote Bytes:" + bytesWritten);
+			for(int i = 0; i < 1000; i++) {
+				final String put = String.format("put sna.foo2 %s 4 dc=dcX%s host=host7\n", System.currentTimeMillis()/1000, i);
+				final byte[] bytes = put.getBytes(UTF8);
+				final ByteBuffer b = ByteBuffer.allocateDirect(bytes.length);
+				b.put(bytes);
+	//			final int bytesWritten = usock.sendTo(b, 0, bytes.length, usock.remoteAddress().getAddress(), usock.remoteAddress().getPort());
+				final int bytesWritten = usock.write(b, 0, bytes.length);			
+				log("Wrote Bytes:" + bytesWritten);
+				Thread.sleep(1000);
+			}
 		} catch (Exception ex) {
 			ex.printStackTrace(System.err);
 		} finally {

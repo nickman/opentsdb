@@ -129,5 +129,10 @@ public interface TSDServerMBean {
 	 */
 	public String getServerURI();
 	
+	/**
+	 * Returns the number of clients connected through TSDServer
+	 * @return the number of client connections
+	 */
+	public int getActiveConnections();
 
 }

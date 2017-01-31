@@ -91,15 +91,11 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	/** Started flag */
 	final AtomicBoolean started = new AtomicBoolean(false);
 	/** The logging handler to add to the server pipeline */
-	volatile LoggingHandler loggingHandler = null; 
-	/** The epoll monitor */
-	final EPollMonitor monitor;
-	
+	volatile LoggingHandler loggingHandler = null; 	
 	/** The number of core available to this JVM */
 	public static final int CORES = ManagementFactory.getOperatingSystemMXBean().getAvailableProcessors();
 	/** The charset for telnet decoding */
 	public static final Charset ISO8859 = Charset.forName("ISO-8859-1");
-	// Those are entirely stateless and thus a single instance is needed.
 	/** The string decoder */
 	private static final StringEncoder ENCODER = new StringEncoder(ISO8859);
 	/** If we get this on the unixsocket server, we shutdown */
@@ -160,7 +156,6 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 				}
 			});
 		socketAddress = new DomainSocketAddress(path);	
-		monitor = new EPollMonitor("unix", remoteConnections);
 	}
 	
 	/**

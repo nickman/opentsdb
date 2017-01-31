@@ -21,6 +21,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.ObjectName;
 
@@ -117,6 +118,23 @@ public class TSDServer implements TSDServerMBean {
 	protected Channel serverChannel = null;
 	/** The Unix Socket Server */
 	protected final UnixDomainSocketServer unixDomainSocketServer;
+	
+	// =============================================
+	// Connection Metrics
+	// =============================================	
+	/** The monotinic counter of the total number of successful connection events */
+	protected final AtomicLong connections_established = new AtomicLong();
+	/** The monotinic counter of the total number of rejected connection events */
+	protected final AtomicLong connections_rejected = new AtomicLong();
+	/** The monotinic counter of the total number of unknown connection (channel) exceptions */
+	protected final AtomicLong exceptions_unknown = new AtomicLong();
+	/** The monotinic counter of the total number of connection closed events */
+	protected final AtomicLong exceptions_closed = new AtomicLong();
+	/** The monotinic counter of the total number of successful reset events */
+	protected final AtomicLong exceptions_reset = new AtomicLong();
+	/** The monotinic counter of the total number of connection timeout events */
+	protected final AtomicLong exceptions_timeout = new AtomicLong();
+	
 	
 	// =============================================
 	// Channel Configs
@@ -532,5 +550,11 @@ public class TSDServer implements TSDServerMBean {
 		return serverURI==null ? null : serverURI.toString();
 	}
 
-
+	/**
+	 * Returns the number of clients connected through TSDServer
+	 * @return the number of client connections
+	 */
+	public int getActiveConnections() {
+		return channelGroup.size();
+	}
 }
