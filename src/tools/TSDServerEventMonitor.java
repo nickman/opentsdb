@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelException;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.group.ChannelGroup;
@@ -31,15 +32,42 @@ import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 
+
 /**
  * <p>Title: TSDServerEventMonitor</p>
  * <p>Description: Inbound and outbound handler to monitor and control events in client channel pipelines</p> 
  * <p><code>net.opentsdb.tools.TSDServerEventMonitor</code></p>
  */
 
+
+/*
+Inbound event propagation methods:
+	ChannelHandlerContext.fireChannelRegistered()
+	ChannelHandlerContext.fireChannelActive()
+	ChannelHandlerContext.fireChannelRead(Object)
+	ChannelHandlerContext.fireChannelReadComplete()
+	ChannelHandlerContext.fireExceptionCaught(Throwable)
+	ChannelHandlerContext.fireUserEventTriggered(Object)
+	ChannelHandlerContext.fireChannelWritabilityChanged()
+	ChannelHandlerContext.fireChannelInactive()
+	ChannelHandlerContext.fireChannelUnregistered()
+Outbound event propagation methods:
+	ChannelHandlerContext.bind(SocketAddress, ChannelPromise)
+	ChannelHandlerContext.connect(SocketAddress, SocketAddress, ChannelPromise)
+	ChannelHandlerContext.write(Object, ChannelPromise)
+	ChannelHandlerContext.flush()
+	ChannelHandlerContext.read()
+	ChannelHandlerContext.disconnect(ChannelPromise)
+	ChannelHandlerContext.close(ChannelPromise)
+	ChannelHandlerContext.deregister(ChannelPromise)
+ */
+
+@ChannelHandler.Sharable
 public class TSDServerEventMonitor extends IdleStateHandler {
 	/** The maximum number of connections allowed, or zero for unlimited */
 	protected final int maxConnections;
+	/** The channel group we're tracking */
+	protected final ChannelGroup channelGroup;
 	/** Instance logger */
 	protected final Logger log = LoggerFactory.getLogger(getClass());	
 	
@@ -69,6 +97,7 @@ public class TSDServerEventMonitor extends IdleStateHandler {
 	public TSDServerEventMonitor(final ChannelGroup channelGroup, final int maxConnections, final long allIdleTime) {
 		super(0L, 0L, allIdleTime, TimeUnit.SECONDS);
 		this.maxConnections = maxConnections;
+		this.channelGroup = channelGroup;
 	}
 
 	
@@ -108,6 +137,23 @@ public class TSDServerEventMonitor extends IdleStateHandler {
 			final ChannelPromise promise) throws Exception {
 		connections_established.incrementAndGet();
 	}
+	
+	/**
+	 * Limits number of connections
+	 * {@inheritDoc}
+	 * @see io.netty.channel.ChannelHandler#handlerAdded(io.netty.channel.ChannelHandlerContext)
+	 */
+	@Override
+	public void handlerAdded(final ChannelHandlerContext ctx) throws Exception {
+		if (maxConnections > 0) {		
+			final int size = channelGroup.size(); 
+	        if (size >= maxConnections) {
+	            throw new ConnectionRefusedException("Channel size (" + size + ") exceeds total "
+	                    + "connection limit (" + maxConnections + ")");
+	        }
+		}
+	}
+	
 	
 	
 	/**
@@ -301,14 +347,6 @@ public class TSDServerEventMonitor extends IdleStateHandler {
 		/* No Op */
 	}
 	
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelHandler#handlerAdded(io.netty.channel.ChannelHandlerContext)
-	 */
-	@Override
-	public void handlerAdded(final ChannelHandlerContext ctx) throws Exception {
-		/* No Op */
-	}
 
 	/**
 	 * {@inheritDoc}
@@ -317,48 +355,6 @@ public class TSDServerEventMonitor extends IdleStateHandler {
 	@Override
 	public void handlerRemoved(final ChannelHandlerContext ctx) throws Exception {
 		/* No Op */
-	}
-
-
-
-	public AtomicLong getConnections_established() {
-		return connections_established;
-	}
-
-
-
-	public AtomicLong getConnections_closed() {
-		return connections_closed;
-	}
-
-
-
-	public AtomicLong getConnections_rejected() {
-		return connections_rejected;
-	}
-
-
-
-	public AtomicLong getExceptions_unknown() {
-		return exceptions_unknown;
-	}
-
-
-
-	public AtomicLong getExceptions_closed() {
-		return exceptions_closed;
-	}
-
-
-
-	public AtomicLong getExceptions_reset() {
-		return exceptions_reset;
-	}
-
-
-
-	public AtomicLong getExceptions_timeout() {
-		return exceptions_timeout;
 	}
 
 	
