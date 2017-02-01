@@ -373,6 +373,21 @@ public class Config {
   public final long getLong(final String property) {
     return Long.parseLong(sanitize(properties.get(property)));
   }
+  
+  /**
+   * Returns the given property as a long
+   * @param property The property to load
+   * @param defaultValue The value to return if the specified property is not defined
+   * @return A parsed long or the default
+   */
+  public final long getLong(final String property, final long defaultValue) {
+  	try {
+  		return getLong(property);
+  	} catch (Exception ex) {
+  		return defaultValue;
+  	}
+  }
+  
 
   /**
    * Returns the given property as a float

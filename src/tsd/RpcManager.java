@@ -261,6 +261,10 @@ public final class RpcManager {
     final Boolean enableDieDieDie = tsdb.getConfig().getBoolean("tsd.no_diediedie");
 
     LOG.info("Mode: {}, HTTP UI Enabled: {}, HTTP API Enabled: {}", mode, enableUi, enableApi);
+    
+    final Ping ping = new Ping();
+    telnet.put("ping", ping);
+    http.put("api/ping", ping);
 
     if (mode.writable) {
       final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());

@@ -19,6 +19,7 @@ import java.net.URISyntaxException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -29,9 +30,13 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFactory;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.ReflectiveChannelFactory;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
@@ -44,6 +49,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.concurrent.DefaultEventExecutor;
 import io.netty.util.concurrent.EventExecutor;
 import net.opentsdb.core.TSDB;
@@ -91,6 +97,9 @@ public class TSDServer implements TSDServerMBean {
 	protected final boolean async;
 	/** Indicates if epoll has been disabled even if we're on linux and using asynchronous net io */
 	protected final boolean disableEpoll;
+	
+	/** The channel event monitor for handling max connections, idle connections and event counts */
+	protected final TSDServerEventMonitor eventMonitor;
 	
 	/** The netty server bootstrap */
 	protected final ServerBootstrap serverBootstrap = new ServerBootstrap();
@@ -143,6 +152,11 @@ public class TSDServer implements TSDServerMBean {
 	/** The size of a channel's send buffer in bytes */
 	protected final int sendBuffer;
 	
+	/** The maximum number of connections; Zero means unlimited */
+	protected final int maxConnections;
+	/** The maximum idle time in seconds; Zero means unlimited */
+	protected final long maxIdleTime;
+	
 	/** The server URI */
 	public final URI serverURI;
 	/** The TSDServer JMX ObjectName */
@@ -175,7 +189,7 @@ public class TSDServer implements TSDServerMBean {
 	
 	/**
 	 * Acquires the already initialized TSDServer instance
-	 * @return
+	 * @return the TSDServer instance
 	 */
 	public static TSDServer getInstance() {
 		if(instance==null) {
@@ -193,12 +207,38 @@ public class TSDServer implements TSDServerMBean {
 		GroupTracker(final PipelineFactory delegate) {
 			this.delegate = delegate;
 		}
+		final ChannelFutureListener cfl = new ChannelFutureListener() {
+			@Override
+			public void operationComplete(final ChannelFuture future) throws Exception {
+				eventMonitor.incrementCloses();				
+			}
+		};
 		@Override
 		protected void initChannel(final Channel ch) throws Exception {
-			delegate.initChannel(ch);
-			channelGroup.add(ch);			
+			ch.pipeline().remove(this);
+			if (maxConnections > 0) {		
+				final int size = channelGroup.size(); 
+		        if (size >= maxConnections) {
+		        	try { ch.close(); } catch (Exception x) {/* No Op */}
+		        	// increment rejected and close
+		        	eventMonitor.incrementRejected();
+		        } else {
+		        	ch.closeFuture().addListener(cfl);
+		        	eventMonitor.incrementConnects();
+					channelGroup.add(ch);
+					if(maxIdleTime > 0) {
+						ch.pipeline().addFirst("idle-state", new IdleStateHandler(0L, 0L, maxIdleTime, TimeUnit.SECONDS));
+//						log.info("Adding Idle Handler");
+					}
+					ch.pipeline().addLast("eventmonitor", eventMonitor);
+					delegate.initChannel(ch);			
+//					ch.pipeline().addLast("eventmonitor2", eventMonitor);		
+					log.info("Final Pipeline: {}", ch.pipeline().names());
+		        }
+			}
 		}		
 	}
+	
 
 	/**
 	 * Creates a new TSDServer
@@ -222,13 +262,14 @@ public class TSDServer implements TSDServerMBean {
 		tcpNoDelay = config.getBoolean("tsd.network.tcp_no_delay", true);
 		keepAlive = config.getBoolean("tsd.network.keep_alive", true);
 		reuseAddress = config.getBoolean("tsd.network.reuse_address", true);
+		maxConnections = config.getInt("tsd.core.connections.limit", 0);
+		maxIdleTime = config.getLong("tsd.core.socket.timeout", 0L);
 		final LogLevel logLevel = config.getLogLevel("tsd.network.loglevel");
 		if(logLevel!=null) {
 			serverBootstrap.handler(new LoggingHandler(getClass(), logLevel));
 		}
 		final GroupTracker gp = new GroupTracker(pipelineFactory);
 		serverBootstrap.childHandler(gp);
-		
 		// Set the child options
 		serverBootstrap.childOption(ChannelOption.ALLOCATOR, bufferManager);
 		serverBootstrap.childOption(ChannelOption.TCP_NODELAY, tcpNoDelay);
@@ -245,6 +286,9 @@ public class TSDServer implements TSDServerMBean {
 		// Fire up the channel group 
 		channelGroupExecutor = new DefaultEventExecutor(Threads.newThreadFactory("TSDServerChannelGroup-%d", true, Thread.NORM_PRIORITY));
 		channelGroup = new DefaultChannelGroup("TSDServerSocketConnections", channelGroupExecutor);
+		
+		// Initialize the channel event monitor
+		eventMonitor = new TSDServerEventMonitor(channelGroup, maxConnections, maxIdleTime);
 		//serverBootstrap.config().attrs()
 		final StringBuilder uri = new StringBuilder("tcp");
 		if(async) {
@@ -265,7 +309,7 @@ public class TSDServer implements TSDServerMBean {
 				uri.append("nio");
 				epollMonitor = null;
 			}
-			serverBootstrap.channel(channelType).group(bossGroup, workerGroup);
+			serverBootstrap.group(bossGroup, workerGroup);
 			
 		} else {
 			epollMonitor = null;
@@ -274,9 +318,11 @@ public class TSDServer implements TSDServerMBean {
 			workerExecutorThreadFactory = new ExecutorThreadFactory("OioServerWorker#%d", true);
 			workerGroup = new OioEventLoopGroup(workerThreads, workerExecutorThreadFactory); // workerThreads == maxChannels. see ThreadPerChannelEventLoopGroup
 			channelType = OioServerSocketChannel.class;
-			serverBootstrap.channel(channelType).group(workerGroup);
+			serverBootstrap.group(workerGroup);
 			uri.append("oio");
 		}
+		serverBootstrap.channel(channelType);
+		
 		uri.append("://").append(bindInterface).append(":").append(port);
 		URI u = null;
 		try {
@@ -539,4 +585,203 @@ public class TSDServer implements TSDServerMBean {
 	public int getActiveConnections() {
 		return channelGroup.size();
 	}
+
+	/**
+	 * Returns the maximum number of connections; Zero means unlimited
+	 * @return the maximum number of connections
+	 */
+	public int getMaxConnections() {
+		return maxConnections;
+	}
+
+	/**
+	 * Returns the maximum idle time in seconds; Zero means unlimited
+	 * @return the the maximum idle time
+	 */
+	public long getMaxIdleTime() {
+		return maxIdleTime;
+	}
+
+	/**
+	 * Returns the total monotonic count of established connections
+	 * @return the established connections count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getConnectionsEstablished()
+	 */
+	public long getConnectionsEstablished() {
+		return eventMonitor.getConnectionsEstablished();
+	}
+
+	/**
+	 * Returns the total monotonic  count of closed connections
+	 * @return the closed connections count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getClosedConnections()
+	 */
+	public long getClosedConnections() {
+		return eventMonitor.getClosedConnections();
+	}
+
+	/**
+	 * Returns the total monotonic  count of rejected connections
+	 * @return the rejected connections count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getRejectedConnections()
+	 */
+	public long getRejectedConnections() {
+		return eventMonitor.getRejectedConnections();
+	}
+
+	/**
+	 * Returns the total monotonic  count of unknown connection exceptions
+	 * @return the unknown connection exceptions count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getUnknownExceptions()
+	 */
+	public long getUnknownExceptions() {
+		return eventMonitor.getUnknownExceptions();
+	}
+
+	/**
+	 * Returns the total monotonic  count of connection close exceptions
+	 * @return the connection close exceptions count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getCloseExceptions()
+	 */
+	public long getCloseExceptions() {
+		return eventMonitor.getCloseExceptions();
+	}
+
+	/**
+	 * Returns the total monotonic  count of connection reset exceptions
+	 * @return the connection reset exceptions count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getResetExceptions()
+	 */
+	public long getResetExceptions() {
+		return eventMonitor.getResetExceptions();
+	}
+
+	/**
+	 * Returns the total monotonic  count of idle connection closes
+	 * @return the idle connection closes count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getTimeoutExceptions()
+	 */
+	public long getTimeoutExceptions() {
+		return eventMonitor.getTimeoutExceptions();
+	}
+	
+	/**
+	 * Resets the connection and exception counters
+	 */
+	public void resetCounters() {
+		eventMonitor.resetCounters();
+	}
 }
+
+
+/*
+import com.heliosapm.utils.jmx.JMXHelper;
+
+def connector = null;
+def tsdServer = JMXHelper.objectName("net.opentsdb:service=TSDServer");
+def mbeanServer = null
+def counters = new TreeSet();
+def host = "localhost";
+def port = 4242;
+def sockets = [];
+
+getCounters = {
+    return JMXHelper.getAttributes(tsdServer, mbeanServer, counters);
+}
+
+resetCounters = {
+    JMXHelper.invoke(tsdServer, mbeanServer, "resetCounters");
+}
+
+
+closeSockets = {
+    int socks = sockets.size();
+    sockets.each() {
+        try { it.close(); } catch (x) {}
+    }
+    sockets.clear();
+}
+
+connect = {
+    Socket socket = new Socket(host, port);
+    socket.setSoTimeout(10000);
+    sockets.add(socket);
+    Thread.sleep(100);
+    assert socket.isConnected();
+    return socket;
+}
+
+close = { sock ->
+    sock.close();
+    Thread.sleep(100);
+    assert sock.isClosed();
+    
+}
+
+
+ping = { sock ->
+    msg = null;
+    sock.withStreams({ een, out ->
+        out << "ping\n";
+        out.flush();
+        byte[] b = new byte[4];
+        een.read(b);
+        msg = new String(b);
+    });
+    assert "pong".equals(msg);
+    return msg;
+}
+
+try {
+    connector = JMXHelper.getJMXConnection("service:jmx:attach:///[.*OpenTSDBMain.*]");
+    mbeanServer = connector.getMBeanServerConnection();
+    println "Connected.";
+    allAttrNames = JMXHelper.getAttributeNames(tsdServer, mbeanServer);
+    allAttrNames.each() {
+        if(it.contains("Connections") || it.contains("Exceptions")) counters.add(it);
+    }
+    resetCounters();
+    
+    
+    
+    sock = connect(); 
+    assert getCounters()["ActiveConnections"] == 1;
+    close(sock);
+    assert getCounters()["ActiveConnections"] == 0;
+
+//    sock = connect();
+//    assert getCounters()["ActiveConnections"] == 1;
+//    Thread.sleep(6000);
+//    assert getCounters()["ActiveConnections"] == 0;
+//
+    
+    println getCounters();
+    
+    sock = connect();
+    ping(sock);
+    
+    for(i in 1..10) {
+        try {
+            sock = connect();
+            ping(sock);
+            println "Connected #$i.  Active: ${getCounters()['ActiveConnections']}";
+        } catch (x) {
+            println "Connect Failed on #$i";
+        }
+    }
+ 
+    closeSockets();
+    //sock = connect();
+    println getCounters();
+} finally {
+    try { connector.close(); println "JMX Connector Closed"; } catch (x) {}
+    int socks = sockets.size();
+    sockets.each() {
+        try { it.close(); } catch (x) {}
+    }
+    sockets.clear();
+    println "$socks Sockets Closed";
+}
+
+return null;
+*/

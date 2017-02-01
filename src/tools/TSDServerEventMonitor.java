@@ -15,14 +15,13 @@ package net.opentsdb.tools;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelException;
+import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
@@ -30,7 +29,6 @@ import io.netty.channel.group.ChannelGroup;
 import io.netty.handler.codec.CodecException;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
-import io.netty.handler.timeout.IdleStateHandler;
 
 
 /**
@@ -63,9 +61,11 @@ Outbound event propagation methods:
  */
 
 @ChannelHandler.Sharable
-public class TSDServerEventMonitor extends IdleStateHandler {
+public class TSDServerEventMonitor extends ChannelDuplexHandler {
 	/** The maximum number of connections allowed, or zero for unlimited */
 	protected final int maxConnections;
+	/** The max idle time in seconds */
+	protected final long allIdleTime;
 	/** The channel group we're tracking */
 	protected final ChannelGroup channelGroup;
 	/** Instance logger */
@@ -74,8 +74,7 @@ public class TSDServerEventMonitor extends IdleStateHandler {
 	/** The monotinic counter of the total number of successful connection events */
 	protected final AtomicLong connections_established = new AtomicLong();
 	/** The monotinic counter of the total number of connection closed events */
-	protected final AtomicLong connections_closed = new AtomicLong();
-	
+	protected final AtomicLong connections_closed = new AtomicLong();	
 	/** The monotinic counter of the total number of rejected connection events */
 	protected final AtomicLong connections_rejected = new AtomicLong();
 	/** The monotinic counter of the total number of unknown connection (channel) exceptions */
@@ -95,38 +94,46 @@ public class TSDServerEventMonitor extends IdleStateHandler {
 	 * @param allIdleTime The idle time after which a channel is closed
 	 */
 	public TSDServerEventMonitor(final ChannelGroup channelGroup, final int maxConnections, final long allIdleTime) {
-		super(0L, 0L, allIdleTime, TimeUnit.SECONDS);
 		this.maxConnections = maxConnections;
 		this.channelGroup = channelGroup;
+		this.allIdleTime = allIdleTime;
+	}
+	
+	/**
+	 * Resets the connection and exception counters
+	 */
+	public void resetCounters() {
+		connections_established.set(0L);
+		connections_closed.set(0L);	
+		connections_rejected.set(0L);
+		exceptions_unknown.set(0L);
+		exceptions_closed.set(0L);
+		exceptions_reset.set(0L);
+		exceptions_timeout.set(0L);
 	}
 
 	
-	
 	/**
-	 * Closes idle channels.
 	 * {@inheritDoc}
-	 * @see io.netty.handler.timeout.IdleStateHandler#channelIdle(io.netty.channel.ChannelHandlerContext, io.netty.handler.timeout.IdleStateEvent)
+	 * @see io.netty.channel.ChannelInboundHandlerAdapter#userEventTriggered(io.netty.channel.ChannelHandlerContext, java.lang.Object)
 	 */
 	@Override
-	protected void channelIdle(final ChannelHandlerContext ctx, final IdleStateEvent evt) throws Exception {
-		if (evt.state() == IdleState.ALL_IDLE) {
-			final String channel_info = ctx.channel().toString();
-			log.debug("Closing idle socket: [{}]", channel_info);
-			ctx.channel().close();
-			log.info("Closed idle socket: [{}]", channel_info);			
-		}
-		super.channelIdle(ctx, evt);
+	public void userEventTriggered(final ChannelHandlerContext ctx, final Object event) throws Exception {
+        if (event instanceof IdleStateEvent) {
+            final IdleStateEvent evt = (IdleStateEvent) event;
+    		if (evt.state() == IdleState.ALL_IDLE) {
+    			final String channel_info = ctx.channel().toString();
+    			log.debug("Closing idle socket: [{}]", channel_info);
+    			ctx.channel().close();
+    			exceptions_timeout.incrementAndGet();
+    			log.info("Closed idle socket: [{}]", channel_info);			
+    		}
+        }
+        super.userEventTriggered(ctx, event);
 	}
 	
-	/**
-	 * Counts channel closed events
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelOutboundHandler#close(io.netty.channel.ChannelHandlerContext, io.netty.channel.ChannelPromise)
-	 */
-	@Override
-	public void close(final ChannelHandlerContext ctx, final ChannelPromise promise) throws Exception {
-		connections_closed.incrementAndGet();
-	}
+	
+	
 	
 	/**
 	 * {@inheritDoc}
@@ -136,29 +143,35 @@ public class TSDServerEventMonitor extends IdleStateHandler {
 	public void connect(final ChannelHandlerContext ctx, final SocketAddress remoteAddress, final SocketAddress localAddress,
 			final ChannelPromise promise) throws Exception {
 		connections_established.incrementAndGet();
+		super.connect(ctx, remoteAddress, localAddress, promise);
 	}
 	
-	/**
-	 * Limits number of connections
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelHandler#handlerAdded(io.netty.channel.ChannelHandlerContext)
-	 */
-	@Override
-	public void handlerAdded(final ChannelHandlerContext ctx) throws Exception {
-		if (maxConnections > 0) {		
-			final int size = channelGroup.size(); 
-	        if (size >= maxConnections) {
-	            throw new ConnectionRefusedException("Channel size (" + size + ") exceeds total "
-	                    + "connection limit (" + maxConnections + ")");
-	        }
-		}
-	}
+//	/**
+//	 * Limits number of connections
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelHandler#handlerAdded(io.netty.channel.ChannelHandlerContext)
+//	 */
+//	@Override
+//	public void handlerAdded(final ChannelHandlerContext ctx) throws Exception {
+//		if (maxConnections > 0) {		
+//			final int size = channelGroup.size(); 
+//	        if (size >= maxConnections) {
+//	            throw new ConnectionRefusedException("Channel size (" + size + ") exceeds total "
+//	                    + "connection limit (" + maxConnections + ")");
+//	        }
+//		}
+//		channelGroup.add(ctx.channel());
+//		if(allIdleTime > 0) {
+//			ctx.pipeline().addFirst("idle-state", new IdleStateHandler(0L, 0L, allIdleTime, TimeUnit.SECONDS));			
+//		}
+//		super.handlerAdded(ctx);
+//	}
 	
 	
 	
 	/**
 	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelHandler#exceptionCaught(io.netty.channel.ChannelHandlerContext, java.lang.Throwable)
+	 * @see io.netty.channel.ChannelInboundHandlerAdapter#exceptionCaught(io.netty.channel.ChannelHandlerContext, java.lang.Throwable)
 	 */
 	@Override
 	public void exceptionCaught(final ChannelHandlerContext ctx, final Throwable cause) throws Exception {
@@ -182,10 +195,11 @@ public class TSDServerEventMonitor extends IdleStateHandler {
 	        return;
 	      } else if (cause instanceof ConnectionRefusedException) {
 	        connections_rejected.incrementAndGet();
-	        if (log.isDebugEnabled()) {
-	        	log.debug("Refusing connection from " + chan, cause);
-	        }
-	        chan.close();
+//	        if (log.isDebugEnabled()) {
+//	        	log.debug("Refusing connection from " + chan, cause);
+//	        }
+	        log.warn("Refusing connection from " + chan);
+	        try { chan.close(); } catch (Exception x) {/* No Op */}
 	        return;
 	      }
 	    }
@@ -201,161 +215,214 @@ public class TSDServerEventMonitor extends IdleStateHandler {
 
 	}
 	
-	  /** Simple exception for refusing a connection. */
-	  private static class ConnectionRefusedException extends ChannelException {
-	    
-		/**  */
-		private static final long serialVersionUID = -8713880417174327967L;
-
-		/**
-	     * Default ctor with a message.
-	     * @param message A descriptive message for the exception.
-	     */
-	    public ConnectionRefusedException(final String message) {
-	      super(message);
-	    }
-
-	    
-	  }
-	
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelInboundHandler#channelRegistered(io.netty.channel.ChannelHandlerContext)
-	 */
-	@Override
-	public void channelRegistered(final ChannelHandlerContext ctx) throws Exception {
-		/* No Op */
+	public TSDServerEventMonitor incrementCloses() {
+		connections_closed.incrementAndGet();
+		return this;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelInboundHandler#channelUnregistered(io.netty.channel.ChannelHandlerContext)
-	 */
-	@Override
-	public void channelUnregistered(final ChannelHandlerContext ctx) throws Exception {
-		/* No Op */
+	public TSDServerEventMonitor incrementRejected() {
+		connections_rejected.incrementAndGet();
+		return this;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelInboundHandler#channelActive(io.netty.channel.ChannelHandlerContext)
-	 */
-	@Override
-	public void channelActive(final ChannelHandlerContext ctx) throws Exception {
-		/* No Op */
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelInboundHandler#channelInactive(io.netty.channel.ChannelHandlerContext)
-	 */
-	@Override
-	public void channelInactive(final ChannelHandlerContext ctx) throws Exception {
-		/* No Op */
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelInboundHandler#channelRead(io.netty.channel.ChannelHandlerContext, java.lang.Object)
-	 */
-	@Override
-	public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-		/* No Op */
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelInboundHandler#channelReadComplete(io.netty.channel.ChannelHandlerContext)
-	 */
-	@Override
-	public void channelReadComplete(final ChannelHandlerContext ctx) throws Exception {
-		/* No Op */
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelInboundHandler#userEventTriggered(io.netty.channel.ChannelHandlerContext, java.lang.Object)
-	 */
-	@Override
-	public void userEventTriggered(final ChannelHandlerContext ctx, final Object evt) throws Exception {
-		/* No Op */
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelInboundHandler#channelWritabilityChanged(io.netty.channel.ChannelHandlerContext)
-	 */
-	@Override
-	public void channelWritabilityChanged(final ChannelHandlerContext ctx) throws Exception {
-		/* No Op */
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelOutboundHandler#bind(io.netty.channel.ChannelHandlerContext, java.net.SocketAddress, io.netty.channel.ChannelPromise)
-	 */
-	@Override
-	public void bind(final ChannelHandlerContext ctx, final SocketAddress localAddress, final ChannelPromise promise) throws Exception {
-		/* No Op */
-	}
-
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelOutboundHandler#disconnect(io.netty.channel.ChannelHandlerContext, io.netty.channel.ChannelPromise)
-	 */
-	@Override
-	public void disconnect(final ChannelHandlerContext ctx, final ChannelPromise promise) throws Exception {
-		/* No Op */
-	}
-
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelOutboundHandler#deregister(io.netty.channel.ChannelHandlerContext, io.netty.channel.ChannelPromise)
-	 */
-	@Override
-	public void deregister(final ChannelHandlerContext ctx, final ChannelPromise promise) throws Exception {
-		/* No Op */
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelOutboundHandler#read(io.netty.channel.ChannelHandlerContext)
-	 */
-	@Override
-	public void read(final ChannelHandlerContext ctx) throws Exception {
-		/* No Op */
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelOutboundHandler#write(io.netty.channel.ChannelHandlerContext, java.lang.Object, io.netty.channel.ChannelPromise)
-	 */
-	@Override
-	public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
-		/* No Op */
-	}
-
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelOutboundHandler#flush(io.netty.channel.ChannelHandlerContext)
-	 */
-	@Override
-	public void flush(final ChannelHandlerContext ctx) throws Exception {
-		/* No Op */
+	public TSDServerEventMonitor incrementConnects() {
+		connections_established.incrementAndGet();
+		return this;
 	}
 	
+	/**
+	 * Returns the total number of established connections
+	 * @return the connections established
+	 */
+	public long getConnectionsEstablished() {
+		return connections_established.get();
+	}
 
 	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelHandler#handlerRemoved(io.netty.channel.ChannelHandlerContext)
+	 * Returns the total number of closed connections
+	 * @return the closed connections
 	 */
-	@Override
-	public void handlerRemoved(final ChannelHandlerContext ctx) throws Exception {
-		/* No Op */
+	public long getClosedConnections() {
+		return connections_closed.get();
 	}
+
+	/**
+	 * Returns the total number of rejected connections
+	 * @return the rejected connections
+	 */
+	public long getRejectedConnections() {
+		return connections_rejected.get();
+	}
+
+	/**
+	 * Returns the total number of unknown exceptions
+	 * @return the unknown exceptions
+	 */
+	public long getUnknownExceptions() {
+		return exceptions_unknown.get();
+	}
+
+	/**
+	 * Returns the total number of connection closed exceptions
+	 * @return the connection closed exceptions
+	 */
+	public long getCloseExceptions() {
+		return exceptions_closed.get();
+	}
+
+	/**
+	 * Returns the total number of reset connections
+	 * @return the reset connections
+	 */
+	public long getResetExceptions() {
+		return exceptions_reset.get();
+	}
+
+	/**
+	 * Returns the total number of timeout exceptions
+	 * @return the timeout exceptions
+	 */
+	public long getTimeoutExceptions() {
+		return exceptions_timeout.get();
+	}
+
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelInboundHandler#channelRegistered(io.netty.channel.ChannelHandlerContext)
+//	 */
+//	@Override
+//	public void channelRegistered(final ChannelHandlerContext ctx) throws Exception {
+//		/* No Op */
+//	}
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelInboundHandler#channelUnregistered(io.netty.channel.ChannelHandlerContext)
+//	 */
+//	@Override
+//	public void channelUnregistered(final ChannelHandlerContext ctx) throws Exception {
+//		/* No Op */
+//	}
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelInboundHandler#channelActive(io.netty.channel.ChannelHandlerContext)
+//	 */
+//	@Override
+//	public void channelActive(final ChannelHandlerContext ctx) throws Exception {
+//		/* No Op */
+//	}
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelInboundHandler#channelInactive(io.netty.channel.ChannelHandlerContext)
+//	 */
+//	@Override
+//	public void channelInactive(final ChannelHandlerContext ctx) throws Exception {
+//		/* No Op */
+//	}
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelInboundHandler#channelRead(io.netty.channel.ChannelHandlerContext, java.lang.Object)
+//	 */
+//	@Override
+//	public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+//		/* No Op */
+//	}
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelInboundHandler#channelReadComplete(io.netty.channel.ChannelHandlerContext)
+//	 */
+//	@Override
+//	public void channelReadComplete(final ChannelHandlerContext ctx) throws Exception {
+//		/* No Op */
+//	}
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelInboundHandler#userEventTriggered(io.netty.channel.ChannelHandlerContext, java.lang.Object)
+//	 */
+//	@Override
+//	public void userEventTriggered(final ChannelHandlerContext ctx, final Object evt) throws Exception {
+//		/* No Op */
+//	}
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelInboundHandler#channelWritabilityChanged(io.netty.channel.ChannelHandlerContext)
+//	 */
+//	@Override
+//	public void channelWritabilityChanged(final ChannelHandlerContext ctx) throws Exception {
+//		/* No Op */
+//	}
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelOutboundHandler#bind(io.netty.channel.ChannelHandlerContext, java.net.SocketAddress, io.netty.channel.ChannelPromise)
+//	 */
+//	@Override
+//	public void bind(final ChannelHandlerContext ctx, final SocketAddress localAddress, final ChannelPromise promise) throws Exception {
+//		/* No Op */
+//	}
+//
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelOutboundHandler#disconnect(io.netty.channel.ChannelHandlerContext, io.netty.channel.ChannelPromise)
+//	 */
+//	@Override
+//	public void disconnect(final ChannelHandlerContext ctx, final ChannelPromise promise) throws Exception {
+//		/* No Op */
+//	}
+//
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelOutboundHandler#deregister(io.netty.channel.ChannelHandlerContext, io.netty.channel.ChannelPromise)
+//	 */
+//	@Override
+//	public void deregister(final ChannelHandlerContext ctx, final ChannelPromise promise) throws Exception {
+//		/* No Op */
+//	}
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelOutboundHandler#read(io.netty.channel.ChannelHandlerContext)
+//	 */
+//	@Override
+//	public void read(final ChannelHandlerContext ctx) throws Exception {
+//		/* No Op */
+//	}
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelOutboundHandler#write(io.netty.channel.ChannelHandlerContext, java.lang.Object, io.netty.channel.ChannelPromise)
+//	 */
+//	@Override
+//	public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
+//		/* No Op */
+//	}
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelOutboundHandler#flush(io.netty.channel.ChannelHandlerContext)
+//	 */
+//	@Override
+//	public void flush(final ChannelHandlerContext ctx) throws Exception {
+//		/* No Op */
+//	}
+//	
+//
+//	/**
+//	 * {@inheritDoc}
+//	 * @see io.netty.channel.ChannelHandler#handlerRemoved(io.netty.channel.ChannelHandlerContext)
+//	 */
+//	@Override
+//	public void handlerRemoved(final ChannelHandlerContext ctx) throws Exception {
+//		/* No Op */
+//	}
 
 	
 

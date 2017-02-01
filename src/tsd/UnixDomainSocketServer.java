@@ -18,6 +18,8 @@ import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.management.ObjectName;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,8 +51,8 @@ import io.netty.util.CharsetUtil;
 import io.netty.util.concurrent.DefaultEventExecutor;
 import io.netty.util.concurrent.EventExecutor;
 import net.opentsdb.core.TSDB;
-import net.opentsdb.tools.EPollMonitor;
 import net.opentsdb.tools.TSDServer;
+import net.opentsdb.tools.TSDServerEventMonitor;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.Threads;
 import net.opentsdb.utils.buffermgr.BufferManager;
@@ -63,7 +65,7 @@ import net.opentsdb.utils.buffermgr.BufferManager;
  * TODO: fine socket config
  */
 @Sharable
-public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf> {
+public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf> implements UnixDomainSocketServerMBean {
 	/** The boss event loop group */
 	final  EventLoopGroup bossGroup;
 	/** The worker event loop group */
@@ -91,7 +93,10 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	/** Started flag */
 	final AtomicBoolean started = new AtomicBoolean(false);
 	/** The logging handler to add to the server pipeline */
-	volatile LoggingHandler loggingHandler = null; 	
+	volatile LoggingHandler loggingHandler = null;
+	/** The channel event monitor for handling max connections, idle connections and event counts */
+	protected final TSDServerEventMonitor eventMonitor;
+	
 	/** The number of core available to this JVM */
 	public static final int CORES = ManagementFactory.getOperatingSystemMXBean().getAvailableProcessors();
 	/** The charset for telnet decoding */
@@ -102,6 +107,11 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	public final ByteBuf STOP_CODE;
 	/** The number of bytes in the stop code */
 	public final int STOP_CODE_SIZE;
+	
+	/** The maximum number of connections; Zero means unlimited */
+	protected final int maxConnections;
+	/** The maximum idle time in seconds; Zero means unlimited */
+	protected final long maxIdleTime;
 	
 	
 	/**
@@ -125,6 +135,11 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 		channelGroupExecutor = new DefaultEventExecutor(Threads.newThreadFactory("UnixSocketGroup-%d", true, Thread.NORM_PRIORITY));
 		remoteConnections = new DefaultChannelGroup("RemoteUnixSocketConnections", channelGroupExecutor);
 		localConnections = new DefaultChannelGroup("LocalUnixSocketConnections", channelGroupExecutor);
+		maxConnections = config.getInt("tsd.network.unixsocket.connections.limit", 0);
+		maxIdleTime = config.getLong("tsd.network.unixsocket.timeout", 0L);
+		// Initialize the channel event monitor
+		eventMonitor = new TSDServerEventMonitor(remoteConnections, maxConnections, maxIdleTime);
+		
 		this.pipelineFactory = pipelineFactory; 
 		b.group(bossGroup, workerGroup)
 			.channel(EpollServerDomainSocketChannel.class)
@@ -133,6 +148,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 			.childHandler(new ChannelInitializer<Channel>() {
 				@Override
 				protected void initChannel(final Channel ch) throws Exception {
+					ch.pipeline().addLast("eventmonitor", eventMonitor);
 					if(STOP_CODE!=null) {
 						ch.pipeline().addLast("StopListener", UnixDomainSocketServer.this);
 					}
@@ -155,7 +171,13 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 					localConnections.add(ch);
 				}
 			});
-		socketAddress = new DomainSocketAddress(path);	
+		socketAddress = new DomainSocketAddress(path);
+		try {
+			final ObjectName objectName = new ObjectName(OBJECT_NAME);
+			ManagementFactory.getPlatformMBeanServer().registerMBean(this, objectName);
+		} catch (Exception e) {
+			log.warn("Failed to register UnixDomainSocketServer management interface", e);
+		}		
 	}
 	
 	/**
@@ -260,10 +282,6 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 		return cf;
 	}
 	
-	public static StringQueue stringQueue(final Channel channel) {
-		return (StringQueue)channel.pipeline().get("squeue");
-	}
-
 	
 	/**
 	 * Indicates if the server is started
@@ -273,4 +291,87 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 		return started.get();
 	}
 
+	/**
+	 * Returns the maximum number of connections; Zero means unlimited
+	 * @return the maximum number of connections
+	 */
+	public int getMaxConnections() {
+		return maxConnections;
+	}
+	
+	public static StringQueue stringQueue(final Channel channel) {
+		return (StringQueue) channel.pipeline().get("squeue");
+	}
+
+	/**
+	 * Returns the maximum idle time in seconds; Zero means unlimited
+	 * @return the the maximum idle time
+	 */
+	public long getMaxIdleTime() {
+		return maxIdleTime;
+	}
+	
+	/**
+	 * Returns the total monotonic count of established connections
+	 * @return the established connections count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getConnectionsEstablished()
+	 */
+	public long getConnectionsEstablished() {
+		return eventMonitor.getConnectionsEstablished();
+	}
+
+	/**
+	 * Returns the total monotonic  count of closed connections
+	 * @return the closed connections count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getClosedConnections()
+	 */
+	public long getClosedConnections() {
+		return eventMonitor.getClosedConnections();
+	}
+
+	/**
+	 * Returns the total monotonic  count of rejected connections
+	 * @return the rejected connections count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getRejectedConnections()
+	 */
+	public long getRejectedConnections() {
+		return eventMonitor.getRejectedConnections();
+	}
+
+	/**
+	 * Returns the total monotonic  count of unknown connection exceptions
+	 * @return the unknown connection exceptions count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getUnknownExceptions()
+	 */
+	public long getUnknownExceptions() {
+		return eventMonitor.getUnknownExceptions();
+	}
+
+	/**
+	 * Returns the total monotonic  count of connection close exceptions
+	 * @return the connection close exceptions count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getCloseExceptions()
+	 */
+	public long getCloseExceptions() {
+		return eventMonitor.getCloseExceptions();
+	}
+
+	/**
+	 * Returns the total monotonic  count of connection reset exceptions
+	 * @return the connection reset exceptions count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getResetExceptions()
+	 */
+	public long getResetExceptions() {
+		return eventMonitor.getResetExceptions();
+	}
+
+	/**
+	 * Returns the total monotonic  count of idle connection closes
+	 * @return the idle connection closes count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getTimeoutExceptions()
+	 */
+	public long getTimeoutExceptions() {
+		return eventMonitor.getTimeoutExceptions();
+	}
+	
 }

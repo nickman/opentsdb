@@ -134,5 +134,71 @@ public interface TSDServerMBean {
 	 * @return the number of client connections
 	 */
 	public int getActiveConnections();
+	
+	/**
+	 * Returns the maximum number of connections; Zero means unlimited
+	 * @return the maximum number of connections
+	 */
+	public int getMaxConnections();
+
+	/**
+	 * Returns the maximum idle time in seconds; Zero means unlimited
+	 * @return the the maximum idle time
+	 */
+	public long getMaxIdleTime();
+	
+	/**
+	 * Returns the total monotonic count of established connections
+	 * @return the established connections count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getConnectionsEstablished()
+	 */
+	public long getConnectionsEstablished();
+
+	/**
+	 * Returns the total monotonic  count of closed connections
+	 * @return the closed connections count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getClosedConnections()
+	 */
+	public long getClosedConnections();
+
+	/**
+	 * Returns the total monotonic  count of rejected connections
+	 * @return the rejected connections count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getRejectedConnections()
+	 */
+	public long getRejectedConnections();
+
+	/**
+	 * Returns the total monotonic  count of unknown connection exceptions
+	 * @return the unknown connection exceptions count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getUnknownExceptions()
+	 */
+	public long getUnknownExceptions();
+
+	/**
+	 * Returns the total monotonic  count of connection close exceptions
+	 * @return the connection close exceptions count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getCloseExceptions()
+	 */
+	public long getCloseExceptions();
+
+	/**
+	 * Returns the total monotonic  count of connection reset exceptions
+	 * @return the connection reset exceptions count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getResetExceptions()
+	 */
+	public long getResetExceptions();
+
+	/**
+	 * Returns the total monotonic  count of idle connection closes
+	 * @return the idle connection closes count
+	 * @see net.opentsdb.tools.TSDServerEventMonitor#getTimeoutExceptions()
+	 */
+	public long getTimeoutExceptions();
+	
+	/**
+	 * Resets the connection and exception counters
+	 */
+	public void resetCounters();	
 
 }

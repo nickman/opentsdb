@@ -26,7 +26,7 @@
     },
     {
       "key": "tsd.core.connections.limit",
-      "cl-option": "--max-connection",
+      "cl-option": "--max-connections",
       "defaultValue": 0,
       "description": "Sets the maximum number of connections a TSD will handle, additional connections are immediately closed",
       "help": "default",
@@ -264,7 +264,7 @@
     },
     {
       "key": "tsd.core.socket.timeout",
-      "cl-option": "--socket-timeout",
+      "cl-option": "--socket-maxidle",
       "defaultValue": 0,
       "description": "The idle time timeout for allocated sockets (seconds)",
       "help": "extended",
@@ -340,6 +340,22 @@
       "description": "The logging level of the unix socket server internal netty logger or OFF to disable",
       "help": "extended",
       "meta": "NLOGLEVEL"
+    },
+    {
+      "key": "tsd.network.unixsocket.connections.limit",
+      "cl-option": "--unixsocket-maxconns",
+      "defaultValue": 0,
+      "description": "The maximum number of unix socket connections. Zero means unlimited.",
+      "help": "extended",
+      "meta": "POSINT"
+    },
+    {
+      "key": "tsd.network.unixsocket.timeout",
+      "cl-option": "--unixsocket-maxidle",
+      "defaultValue": 0,
+      "description": "The maximum idle time of unix socket connections in seconds. Zero means unlimited.",
+      "help": "extended",
+      "meta": "POSINT"
     },
     {
       "key": "tsd.no_diediedie",
