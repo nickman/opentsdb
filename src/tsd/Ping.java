@@ -17,6 +17,8 @@ import java.io.IOException;
 import com.stumbleupon.async.Deferred;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import net.opentsdb.core.TSDB;
 
@@ -43,7 +45,25 @@ public class Ping implements TelnetRpc, HttpRpc {
 	 */
 	@Override
 	public Deferred<Object> execute(final TSDB tsdb, final Channel chan, final String[] command) {
-		chan.writeAndFlush("pong");
+		final Deferred<Object> def = new Deferred<Object>();
+		chan.writeAndFlush("pong").addListener(new ChannelFutureListener(){
+			@Override
+			public void operationComplete(final ChannelFuture f) throws Exception {
+				if(f.isSuccess()) {
+					def.callback("pong");
+//					System.err.println("Ponged:[" + chan.id() + "]");
+				} else {
+					def.callback(f.cause());
+				}				
+			}
+		});		
+//		chan.closeFuture().addListener(new ChannelFutureListener(){
+//			@Override
+//			public void operationComplete(final ChannelFuture future) throws Exception {
+////				new Exception().printStackTrace(System.err);
+//				
+//			}
+//		});
 		return Deferred.fromResult(null);
 	}
 

@@ -568,7 +568,7 @@ public final class RpcManager {
         buf.append(command).append(' ');
       }
       buf.append('\n');
-      chan.write(buf.toString());
+      chan.writeAndFlush(buf.toString());      
       return Deferred.fromResult(null);
     }
   }

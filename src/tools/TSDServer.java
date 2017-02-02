@@ -210,34 +210,36 @@ public class TSDServer implements TSDServerMBean {
 		final ChannelFutureListener cfl = new ChannelFutureListener() {
 			@Override
 			public void operationComplete(final ChannelFuture future) throws Exception {
-				System.err.println("Channel Closed:" + future.channel().id());
+//				System.err.println("Channel Closed:" + future.channel().id());
 				eventMonitor.incrementCloses();				
 			}
 		};
 		@Override
 		protected void initChannel(final Channel ch) throws Exception {
-			ch.pipeline().remove(this);
-			if (maxConnections > 0) {		
-				final int size = channelGroup.size(); 
-		        if (size >= maxConnections) {
-		        	try { ch.close(); } catch (Exception x) {/* No Op */}
-		        	System.err.println("Rejected connection. Current Connections:" + size);
-		        	// increment rejected and close
-		        	eventMonitor.incrementRejected();
-		        	return;
-		        }
+			try {
+				if (maxConnections > 0) {		
+					final int size = channelGroup.size(); 
+			        if (size >= maxConnections) {
+			        	try { ch.close().sync(); } catch (Exception x) {/* No Op */}
+			        	log.warn("Rejected connection. Current Connections:{}", size);
+			        	// increment rejected and close
+			        	eventMonitor.incrementRejected();
+			        	return;
+			        }
+				}
+	        	ch.closeFuture().addListener(cfl);
+	        	eventMonitor.incrementConnects();
+				channelGroup.add(ch);
+				if(maxIdleTime > 0) {
+					ch.pipeline().addFirst("idle-state", new IdleStateHandler(0L, 0L, maxIdleTime, TimeUnit.SECONDS));
+							log.info("Adding Idle Handler");
+				}
+				ch.pipeline().addLast("eventmonitor", eventMonitor);
+				delegate.initChannel(ch);			
+				log.info("CHGRP: [{}], Final Pipeline: {}", channelGroup.size(), ch.pipeline().names());
+			} finally {
+				ch.pipeline().remove(this);
 			}
-        	ch.closeFuture().addListener(cfl);
-        	eventMonitor.incrementConnects();
-			channelGroup.add(ch);
-			if(maxIdleTime > 0) {
-				ch.pipeline().addFirst("idle-state", new IdleStateHandler(0L, 0L, maxIdleTime, TimeUnit.SECONDS));
-//						log.info("Adding Idle Handler");
-			}
-			ch.pipeline().addLast("eventmonitor", eventMonitor);
-			delegate.initChannel(ch);			
-//					ch.pipeline().addLast("eventmonitor2", eventMonitor);		
-			log.info("CHGRP: [{}], Final Pipeline: {}", channelGroup.size(), ch.pipeline().names());
 		}		
 	}
 	

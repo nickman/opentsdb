@@ -16,6 +16,10 @@ resetCounters = {
     JMXHelper.invoke(tsdServer, mbeanServer, "resetCounters");
 }
 
+setMaxConnections = { max ->
+    JMXHelper.setAttribute(tsdServer.toString(), mbeanServer, "MaxConnections", max);
+}
+
 
 closeSockets = {
     int socks = sockets.size();
@@ -27,7 +31,7 @@ closeSockets = {
 
 connect = {
     Socket socket = new Socket(host, port);
-    socket.setSoTimeout(10000);
+    socket.setSoTimeout(20000);
     sockets.add(socket);
     Thread.sleep(200);
     assert socket.isConnected();
@@ -44,6 +48,7 @@ close = { sock ->
 
 ping = { sock ->
     msg = null;
+    expected = "available commands: ping put rollup stats dropcaches version exit help";
     sock.withStreams({ een, out ->
         out << "ping\n";
         out.flush();
@@ -52,6 +57,16 @@ ping = { sock ->
         msg = new String(b);
     });
     assert "pong".equals(msg);
+    return msg;
+}
+
+help = { sock ->
+    msg = null;
+    sock.withStreams({ een, out ->
+        out << "help\n";
+        out.flush();
+        msg = een.getText();
+    });
     return msg;
 }
 
@@ -68,6 +83,7 @@ try {
     
     
     sock = connect(); 
+    println help(sock);
     println getCounters();
     assert getCounters()["ActiveConnections"] == 1;
     close(sock);
@@ -79,6 +95,7 @@ try {
 //    assert getCounters()["ActiveConnections"] == 0;
 //
     
+    setMaxConnections(5);
     println getCounters();
     
     sock = connect();
@@ -87,7 +104,7 @@ try {
     for(i in 1..10) {
         try {
             sock = connect();
-            //ping(sock);
+            ping(sock);
             println "Connected #$i.  Active: ${getCounters()['ActiveConnections']}";
         } catch (x) {
             println "Connect Failed on #$i";
