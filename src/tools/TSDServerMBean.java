@@ -199,6 +199,18 @@ public interface TSDServerMBean {
 	/**
 	 * Resets the connection and exception counters
 	 */
-	public void resetCounters();	
+	public void resetCounters();
+	
+	/**
+	 * Sets the maximum number of connections, enforced as of the next connection attempt.
+	 * @param maxConnections the new maximum number of connections
+	 */
+	public void setMaxConnections(final int maxConnections);
+
+	/**
+	 * Sets the maximum connection idle time in seconds enforced on future connections
+	 * @param maxIdleTime the new maxIdleTime to set
+	 */
+	public void setMaxIdleTime(final long maxIdleTime);
 
 }

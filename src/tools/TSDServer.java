@@ -153,9 +153,9 @@ public class TSDServer implements TSDServerMBean {
 	protected final int sendBuffer;
 	
 	/** The maximum number of connections; Zero means unlimited */
-	protected final int maxConnections;
+	protected int maxConnections;
 	/** The maximum idle time in seconds; Zero means unlimited */
-	protected final long maxIdleTime;
+	protected  long maxIdleTime;
 	
 	/** The server URI */
 	public final URI serverURI;
@@ -210,6 +210,7 @@ public class TSDServer implements TSDServerMBean {
 		final ChannelFutureListener cfl = new ChannelFutureListener() {
 			@Override
 			public void operationComplete(final ChannelFuture future) throws Exception {
+				System.err.println("Channel Closed:" + future.channel().id());
 				eventMonitor.incrementCloses();				
 			}
 		};
@@ -220,22 +221,23 @@ public class TSDServer implements TSDServerMBean {
 				final int size = channelGroup.size(); 
 		        if (size >= maxConnections) {
 		        	try { ch.close(); } catch (Exception x) {/* No Op */}
+		        	System.err.println("Rejected connection. Current Connections:" + size);
 		        	// increment rejected and close
 		        	eventMonitor.incrementRejected();
-		        } else {
-		        	ch.closeFuture().addListener(cfl);
-		        	eventMonitor.incrementConnects();
-					channelGroup.add(ch);
-					if(maxIdleTime > 0) {
-						ch.pipeline().addFirst("idle-state", new IdleStateHandler(0L, 0L, maxIdleTime, TimeUnit.SECONDS));
-//						log.info("Adding Idle Handler");
-					}
-					ch.pipeline().addLast("eventmonitor", eventMonitor);
-					delegate.initChannel(ch);			
-//					ch.pipeline().addLast("eventmonitor2", eventMonitor);		
-					log.info("Final Pipeline: {}", ch.pipeline().names());
+		        	return;
 		        }
 			}
+        	ch.closeFuture().addListener(cfl);
+        	eventMonitor.incrementConnects();
+			channelGroup.add(ch);
+			if(maxIdleTime > 0) {
+				ch.pipeline().addFirst("idle-state", new IdleStateHandler(0L, 0L, maxIdleTime, TimeUnit.SECONDS));
+//						log.info("Adding Idle Handler");
+			}
+			ch.pipeline().addLast("eventmonitor", eventMonitor);
+			delegate.initChannel(ch);			
+//					ch.pipeline().addLast("eventmonitor2", eventMonitor);		
+			log.info("CHGRP: [{}], Final Pipeline: {}", channelGroup.size(), ch.pipeline().names());
 		}		
 	}
 	
@@ -670,6 +672,24 @@ public class TSDServer implements TSDServerMBean {
 	 */
 	public void resetCounters() {
 		eventMonitor.resetCounters();
+	}
+
+	/**
+	 * Sets the maximum number of connections, enforced as of the next connection attempt.
+	 * @param maxConnections the new maximum number of connections
+	 */
+	public void setMaxConnections(final int maxConnections) {
+		if(maxConnections < 0) throw new IllegalArgumentException("Invalid max connections:" + maxConnections);
+		this.maxConnections = maxConnections;
+	}
+
+	/**
+	 * Sets the maximum connection idle time in seconds enforced on future connections
+	 * @param maxIdleTime the new maxIdleTime to set
+	 */
+	public void setMaxIdleTime(final long maxIdleTime) {
+		if(maxIdleTime < 0) throw new IllegalArgumentException("Invalid max idle time:" + maxIdleTime);
+		this.maxIdleTime = maxIdleTime;
 	}
 }
 
