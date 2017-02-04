@@ -26,7 +26,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.nio.charset.Charset;
 import java.util.HashMap;
 
 import org.hbase.async.HBaseException;
@@ -40,7 +39,10 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import com.stumbleupon.async.Deferred;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import net.opentsdb.core.TSDB;
 
 @RunWith(PowerMockRunner.class)
 //"Classloader hell"...  It's real.  Tell PowerMock to ignore these classes
@@ -62,7 +64,8 @@ public final class TestPutRpc extends BaseTestPutRpc {
   public void execute() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, new String[] { "put", METRIC_STRING, 
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -70,25 +73,47 @@ public final class TestPutRpc extends BaseTestPutRpc {
     verify(chan, never()).isOpen();
     validateSEH(false);
   }
-
+  
   @Test
   public void executeBadValue() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, new String[] { "put", METRIC_STRING, 
-        "1365465600", "notanum", TAGK_STRING + "=" + TAGV_STRING })
-      .joinUninterruptibly();
+    final String response = NettyMocks.writeRequestReadResponse(
+    		tsdb, put, "put", METRIC_STRING, 
+            "1365465600", "notanum", TAGK_STRING + "=" + TAGV_STRING);
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+    assertEquals("put: invalid value: Invalid character 'n' in notanum\n", response);
+//    verify(chan, times(1)).write(any());
+//    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
+  
+
+//  @Test
+//  public void priorExecuteBadValue() throws Exception {
+//    final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
+//    final EmbeddedChannel chan = NettyMocks.fakeChannel();
+//    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+//    assertEquals(0L, NettyMocks.getReadCount(chan)); 
+//    assertEquals(0L, NettyMocks.getWriteCount(chan));
+//    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
+//        "1365465600", "notanum", TAGK_STRING + "=" + TAGV_STRING })
+//      .joinUninterruptibly();
+//    chan.runPendingTasks();
+//    final String response = chan.readOutbound();
+//    validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
+//    assertEquals(1L, NettyMocks.getWriteCount(chan));
+//    assertEquals("put: invalid value: Invalid character 'n' in notanum\n", response);
+////    verify(chan, times(1)).write(any());
+////    verify(chan, times(1)).isOpen();
+//    validateSEH(false);
+//  }
   
   @Test
   public void executeMissingMetric() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, new String[] { "put", "", 
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(tsdb, ctx, new String[] { "put", "", 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
@@ -101,8 +126,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
   public void executeMissingMetricNotWriteable() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
     when(chan.isWritable()).thenReturn(false);
-    put.execute(tsdb, chan, new String[] { "put", "", 
+    put.execute(tsdb, ctx, new String[] { "put", "", 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0);
@@ -115,7 +141,8 @@ public final class TestPutRpc extends BaseTestPutRpc {
   public void executeUnknownMetric() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, new String[] { "put", NSUN_METRIC, 
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(tsdb, ctx, new String[] { "put", NSUN_METRIC, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
@@ -133,7 +160,8 @@ public final class TestPutRpc extends BaseTestPutRpc {
     
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, new String[] { "put", METRIC_STRING, 
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING });
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
     validateSEH(true);
@@ -146,7 +174,8 @@ public final class TestPutRpc extends BaseTestPutRpc {
     
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, new String[] { "put", METRIC_STRING, 
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -162,8 +191,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
     
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
     when(chan.isWritable()).thenReturn(false);
-    put.execute(tsdb, chan, new String[] { "put", METRIC_STRING, 
+    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0);
@@ -180,7 +210,8 @@ public final class TestPutRpc extends BaseTestPutRpc {
     
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, new String[] { "put", METRIC_STRING, 
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -195,7 +226,8 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .thenReturn(Deferred.fromError(mock(PleaseThrottleException.class)));
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, new String[] { "put", METRIC_STRING, 
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
@@ -210,8 +242,9 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .thenReturn(Deferred.fromError(mock(PleaseThrottleException.class)));
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
     when(chan.isWritable()).thenReturn(false);
-    put.execute(tsdb, chan, new String[] { "put", METRIC_STRING, 
+    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0);
@@ -227,7 +260,8 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .thenReturn(Deferred.fromError(mock(PleaseThrottleException.class)));
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, new String[] { "put", METRIC_STRING, 
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
       .joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
@@ -240,7 +274,8 @@ public final class TestPutRpc extends BaseTestPutRpc {
   public void executeNullTSDB() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(null, chan, new String[] { "put", METRIC_STRING, 
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(null, ctx, new String[] { "put", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING });
   }
   
@@ -269,21 +304,24 @@ public final class TestPutRpc extends BaseTestPutRpc {
   public void executeNullArray() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, null);
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(tsdb, ctx, null);
   }
   
   @Test (expected = ArrayIndexOutOfBoundsException.class)
   public void executeEmptyArray() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, new String[0]);
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(tsdb, ctx, new String[0]);
   }
   
   @Test
   public void executeShortArray() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
     final Channel chan = NettyMocks.fakeChannel();
-    put.execute(tsdb, chan, new String[] { "put", METRIC_STRING, 
+    final ChannelHandlerContext ctx = NettyMocks.context(chan);
+    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
         "1365465600", "42" }).joinUninterruptibly();
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     verify(chan, times(1)).write(any());

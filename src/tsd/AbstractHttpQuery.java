@@ -90,7 +90,6 @@ public abstract class AbstractHttpQuery {
    *
    * @param tsdb The parent TSDB
    * @param request the incoming HTTP request
-   * @param chan the {@link Channel} the request was received on
    * @param ctx The channel handler comtext
    */
   protected AbstractHttpQuery(final TSDB tsdb, final FullHttpRequest request, final ChannelHandlerContext ctx) {
@@ -101,21 +100,6 @@ public abstract class AbstractHttpQuery {
     this.method = request.method();
   }
   
-  /**
-   * Set up required internal state.  For subclasses.
-   * 
-   * @param tsdb The parent TSDB
-   * @param request the incoming HTTP request
-   * @param chan the {@link Channel} the request was received on
-
-   */
-  protected AbstractHttpQuery(final TSDB tsdb, final FullHttpRequest request, final Channel channel) {
-    this.tsdb = tsdb;
-    this.request = request;
-    this.ctx = null;
-    this.chan = channel;
-    this.method = request.method();
-  }
   
   
   /**

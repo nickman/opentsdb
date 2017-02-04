@@ -35,6 +35,7 @@ import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import org.slf4j.Logger;
@@ -505,21 +506,21 @@ public final class RpcManager {
 
   /** The "diediedie" command and "/diediedie" endpoint. */
   private final class DieDieDie implements TelnetRpc, HttpRpc {
-    public Deferred<Object> execute(final TSDB tsdb, final Channel chan,
+    public Deferred<Object> execute(final TSDB tsdb, final ChannelHandlerContext ctx,
                                     final String[] cmd) {
-      LOG.warn("{} {}", chan, "shutdown requested");
-      chan.write("Cleaning up and exiting now.\n");
-      return doShutdown(tsdb, chan);
+      LOG.warn("{} {}", ctx.channel(), "shutdown requested");
+      ctx.writeAndFlush("Cleaning up and exiting now.\n");
+      return doShutdown(tsdb);
     }
 
     public void execute(final TSDB tsdb, final HttpQuery query) {
       LOG.warn("{} {}", query, "shutdown requested");
       query.sendReply(HttpQuery.makePage("TSD Exiting", "You killed me",
                                          "Cleaning up and exiting now."));
-      doShutdown(tsdb, query.channel());
+      doShutdown(tsdb);
     }
 
-    private Deferred<Object> doShutdown(final TSDB tsdb, final Channel chan) {
+    private Deferred<Object> doShutdown(final TSDB tsdb) {
       ((GraphHandler) http_commands.get("q")).shutdown();
       ConnectionManager.closeAllConnections();
       // Netty gets stuck in an infinite loop if we shut it down from within a
@@ -550,16 +551,16 @@ public final class RpcManager {
 
   /** The "exit" command. */
   private static final class Exit implements TelnetRpc {
-    public Deferred<Object> execute(final TSDB tsdb, final Channel chan,
+    public Deferred<Object> execute(final TSDB tsdb, final ChannelHandlerContext ctx,
                                     final String[] cmd) {
-      chan.disconnect();
+      ctx.disconnect();      
       return Deferred.fromResult(null);
     }
   }
 
   /** The "help" command. */
   private final class Help implements TelnetRpc {
-    public Deferred<Object> execute(final TSDB tsdb, final Channel chan,
+    public Deferred<Object> execute(final TSDB tsdb, final ChannelHandlerContext ctx,
                                     final String[] cmd) {
       final StringBuilder buf = new StringBuilder();
       buf.append("available commands: ");
@@ -568,7 +569,7 @@ public final class RpcManager {
         buf.append(command).append(' ');
       }
       buf.append('\n');
-      chan.writeAndFlush(buf.toString());      
+      ctx.writeAndFlush(buf.toString());      
       return Deferred.fromResult(null);
     }
   }
@@ -609,10 +610,10 @@ public final class RpcManager {
 
   /** The "version" command. */
   private static final class Version implements TelnetRpc, HttpRpc {
-    public Deferred<Object> execute(final TSDB tsdb, final Channel chan,
+    public Deferred<Object> execute(final TSDB tsdb, final ChannelHandlerContext ctx,
                                     final String[] cmd) {
-      if (chan.isOpen()) {
-        chan.write(BuildData.revisionString() + '\n'
+      if (ctx.channel().isOpen()) {
+        ctx.writeAndFlush(BuildData.revisionString() + '\n'
                    + BuildData.buildString() + '\n');
       }
       return Deferred.fromResult(null);

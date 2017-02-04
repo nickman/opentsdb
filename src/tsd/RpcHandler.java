@@ -24,6 +24,7 @@ import com.google.common.base.Strings;
 import com.stumbleupon.async.Deferred;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
@@ -40,7 +41,6 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
-import io.netty.handler.timeout.IdleStateHandler;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.stats.StatsCollector;
 
@@ -49,7 +49,7 @@ import net.opentsdb.stats.StatsCollector;
  * HTTP.
  */
 @ChannelHandler.Sharable
-final class RpcHandler extends IdleStateHandler {
+final class RpcHandler extends ChannelDuplexHandler {
 
   private static final Logger LOG = LoggerFactory.getLogger(RpcHandler.class);
   
@@ -95,7 +95,7 @@ final class RpcHandler extends IdleStateHandler {
    */
   
   public RpcHandler(final TSDB tsdb, final RpcManager manager) {
-	super(0,0,tsdb.getConfig().getInt("tsd.core.socket.timeout"), TimeUnit.SECONDS);  // tsd.core.connections.limit ?
+	//super(0,0,tsdb.getConfig().getInt("tsd.core.socket.timeout"), TimeUnit.SECONDS);  // tsd.core.connections.limit ?
 	
     this.tsdb = tsdb;
     this.rpc_manager = manager;
@@ -139,9 +139,13 @@ final class RpcHandler extends IdleStateHandler {
   	final Channel channel = ctx.channel();
     try {      
       if (message instanceof String[]) {
-        handleTelnetRpc(channel, (String[]) message);
+        handleTelnetRpc(ctx, (String[]) message);
+        ctx.flush();
+        super.channelRead(ctx, message);
       } else if (message instanceof HttpObject) {
         handleHttpQuery(tsdb, ctx, (HttpObject) message);
+        ctx.flush();
+        super.channelRead(ctx, message);
       } else {
         logError(channel, "Unexpected message type "
                  + message.getClass() + ": " + message);
@@ -164,16 +168,16 @@ final class RpcHandler extends IdleStateHandler {
   
   /**
    * Finds the right handler for a telnet-style RPC and executes it.
-   * @param chan The channel on which the RPC was received.
+   * @param chan The channel handler context on which the RPC was received.
    * @param command The split telnet-style command.
    */
-  private void handleTelnetRpc(final Channel chan, final String[] command) {
+  private void handleTelnetRpc(final ChannelHandlerContext ctx, final String[] command) {
     TelnetRpc rpc = rpc_manager.lookupTelnetRpc(command[0]);
     if (rpc == null) {
       rpc = unknown_cmd;
     }
     telnet_rpcs_received.incrementAndGet();
-    rpc.execute(tsdb, chan, command);
+    rpc.execute(tsdb, ctx, command);    
   }
 
   /**
@@ -181,14 +185,14 @@ final class RpcHandler extends IdleStateHandler {
    * the given request.
    * @param tsdb the TSDB instance we are running within
    * @param request the incoming HTTP request
-   * @param channel the {@link Channel} the request came in on.
+   * @param ctx the channel handler context
    * @return a subclass of {@link AbstractHttpQuery}
    * @throws BadRequestException if the request is invalid in a way that
    * can be detected early, here.
    */
   private AbstractHttpQuery createQueryInstance(final TSDB tsdb,
         final FullHttpRequest request,
-        final Channel channel) 
+        final ChannelHandlerContext ctx) 
             throws BadRequestException {
     final String uri = request.uri();
     if (Strings.isNullOrEmpty(uri)) {
@@ -197,10 +201,10 @@ final class RpcHandler extends IdleStateHandler {
       throw new BadRequestException("Request URI doesn't start with a slash");
     } else if (rpc_manager.isHttpRpcPluginPath(uri)) {
       http_plugin_rpcs_received.incrementAndGet();
-      return new HttpRpcPluginQuery(tsdb, request, channel);
+      return new HttpRpcPluginQuery(tsdb, request, ctx);
     } else {
       http_rpcs_received.incrementAndGet();
-      HttpQuery builtinQuery = new HttpQuery(tsdb, request, channel);
+      HttpQuery builtinQuery = new HttpQuery(tsdb, request, ctx);
       return builtinQuery;
     }
   }
@@ -277,7 +281,7 @@ final class RpcHandler extends IdleStateHandler {
 	  }
 	  AbstractHttpQuery abstractQuery = null;
 	  try {
-		  abstractQuery = createQueryInstance(tsdb, fullRequest, ctx.channel());
+		  abstractQuery = createQueryInstance(tsdb, fullRequest, ctx);
 		  if (!tsdb.getConfig().enable_chunked_requests() && HttpUtil.isTransferEncodingChunked(fullRequest)) {
 			  logError(abstractQuery, "Received an unsupported chunked request: "
 					  + abstractQuery.request());
@@ -463,28 +467,19 @@ final class RpcHandler extends IdleStateHandler {
   
   /** For unknown commands. */
   private static final class Unknown implements TelnetRpc {
-    public Deferred<Object> execute(final TSDB tsdb, final Channel chan,
+    public Deferred<Object> execute(final TSDB tsdb, final ChannelHandlerContext ctx,
                                     final String[] cmd) {
-      logWarn(chan, "unknown command : " + Arrays.toString(cmd));
-      chan.write("unknown command: " + cmd[0] + ".  Try `help'.\n");
+      logWarn(ctx.channel(), "unknown command : " + Arrays.toString(cmd));
+      ctx.writeAndFlush("unknown command: " + cmd[0] + ".  Try `help'.\n");
       return Deferred.fromResult(null);
     }
   }
 
-  @Override
-  public void channelIdle(ChannelHandlerContext ctx, IdleStateEvent e) {
-    if (e.state() == IdleState.ALL_IDLE) {
-      final String channel_info = ctx.channel().toString();
-      LOG.debug("Closing idle socket: " + channel_info);
-      ctx.channel().close();
-      LOG.info("Closed idle socket: " + channel_info);
-    }
-  }
   
-  @Override
-	public void channelReadComplete(final ChannelHandlerContext ctx) throws Exception {
-		ctx.flush();		
-	}
+//  @Override
+//	public void channelReadComplete(final ChannelHandlerContext ctx) throws Exception {
+//		ctx.flush();		
+//	}
   
   @Override
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {

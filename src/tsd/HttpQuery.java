@@ -114,18 +114,18 @@ final class HttpQuery extends AbstractHttpQuery {
     this.serializer = new HttpJsonSerializer(this);
   }
   
-  /**
-   * Constructor.
-   * @param tsdb The parent TSDB
-   * @param request The request in this HTTP query.
-   * @param chan The channel on which the request was received.
-   */
-  public HttpQuery(final TSDB tsdb, final FullHttpRequest request, final Channel channel) {
-    super(tsdb, request, channel);
-    this.show_stack_trace =
-      tsdb.getConfig().getBoolean("tsd.http.show_stack_trace");
-    this.serializer = new HttpJsonSerializer(this);
-  }
+//  /**
+//   * Constructor.
+//   * @param tsdb The parent TSDB
+//   * @param request The request in this HTTP query.
+//   * @param chan The channel on which the request was received.
+//   */
+//  public HttpQuery(final TSDB tsdb, final FullHttpRequest request, final Channel channel) {
+//    super(tsdb, request, channel);
+//    this.show_stack_trace =
+//      tsdb.getConfig().getBoolean("tsd.http.show_stack_trace");
+//    this.serializer = new HttpJsonSerializer(this);
+//  }
   
 
   /**

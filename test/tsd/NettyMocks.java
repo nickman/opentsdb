@@ -16,9 +16,9 @@ package net.opentsdb.tsd;
 import static org.powermock.api.mockito.PowerMockito.mock;
 import static org.powermock.api.mockito.PowerMockito.when;
 
-import java.net.SocketAddress;
 import java.nio.charset.Charset;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.Ignore;
 import org.mockito.Mockito;
@@ -36,7 +36,9 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.LineBasedFrameDecoder;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -44,6 +46,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.string.StringEncoder;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.buffermgr.BufferManager;
@@ -75,9 +78,57 @@ public final class NettyMocks {
     return tsdb;
   }
   
+  /**
+ * <p>Title: NoOpHandler</p>
+ * <p>Description: No op handler for counting channel ops and so we can get a channel handler context</p> 
+ * <p><code>net.opentsdb.tsd.NettyMocks.NoOpHandler</code></p>
+ */  
+  public static class NoOpHandler extends ChannelDuplexHandler {
+	  final AtomicLong writes = new AtomicLong(0L);
+	  final AtomicLong reads = new AtomicLong(0L);
+	@Override
+	public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
+		writes.incrementAndGet();
+		super.write(ctx, msg, promise);
+	}
+	@Override
+	public void read(final ChannelHandlerContext ctx) throws Exception {
+		reads.incrementAndGet();		
+		super.read(ctx);
+	}
+	/**
+	 * {@inheritDoc}
+	 * @see io.netty.channel.ChannelInboundHandlerAdapter#channelRead(io.netty.channel.ChannelHandlerContext, java.lang.Object)
+	 */
+	@Override
+	public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+		// TODO Auto-generated method stub
+		super.channelRead(ctx, msg);
+	}
+	
+	/**
+	 * Returns the
+	 * @return the reads
+	 */
+	public long getReads() {
+		return reads.get();
+	}
+	/**
+	 * Returns the
+	 * @return the writes
+	 */
+	public long getWrites() {
+		return writes.get();
+	}
+  }
+  
+  
+  
   public static HttpQuery returnUpdatingQuery(final TSDB tsdb, final FullHttpRequest request) {
-	  final EmbeddedChannel chan = new EmbeddedChannel();
-	  final HttpQuery q = new HttpQuery(tsdb, request, chan);
+	  final EmbeddedChannel chan = new EmbeddedChannel(new NoOpHandler());
+	  final ChannelHandlerContext ctx = chan.pipeline().context(NoOpHandler.class);
+	  
+	  final HttpQuery q = new HttpQuery(tsdb, request, ctx);
 	  final Answer<Void> sendBufferIntercept = new Answer<Void>(){
 		  @Override
 		public Void answer(final InvocationOnMock invocation) throws Throwable {
@@ -154,7 +205,33 @@ public final class NettyMocks {
 	  return ec.readOutbound();	  
   }
   
+	// Why this instead of UTF-8 ? I don't know. TODO: find out
+	public static final Charset ISO8859 = Charset.forName("ISO-8859-1");
+	// Those are entirely stateless and thus a single instance is needed.
+	public static final StringEncoder ENCODER = new StringEncoder(ISO8859);
   
+  
+  /**
+   * Creates a new embedded channel contatining a channel handler wrapping the passed telnet rpc.
+   * The passed string array is written to the channel and a response is read back out and returned.
+   * @param tsdb The test TSDB instance
+   * @param telnetRpc The rpc to wrap in a channel handler
+   * @param args The telnet rpc arguments to write to the channel
+   * @return the telnet rpc response
+ */
+  public static <T> T writeRequestReadResponse(final TSDB tsdb, final TelnetRpc telnetRpc, final String...args) {
+		final ChannelDuplexHandler rpcWrapper = new ChannelDuplexHandler() {
+			@Override
+			public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+				final String[] command = (String[])msg;
+				telnetRpc.execute(tsdb, ctx, command);
+			}
+		};
+		final EmbeddedChannel ec = new EmbeddedChannel(rpcWrapper);
+		ec.writeInbound(new Object[]{args});
+		ec.runPendingTasks();
+		return ec.readOutbound();		
+  }
   
   public static FullHttpResponse writeReqestReadResponse(final TSDB tsdb, final HttpQuery request, final HttpRpc rpc) {
 	  final ChannelDuplexHandler handler = new ChannelDuplexHandler() {
@@ -285,7 +362,7 @@ public final class NettyMocks {
 	   * the given request.
 	   * @param tsdb the TSDB instance we are running within
 	   * @param request the incoming HTTP request
-	   * @param chan the {@link Channel} the request came in on.
+	   * @param ctx the channel handler context
 	   * @return a subclass of {@link AbstractHttpQuery}
 	   * @throws BadRequestException if the request is invalid in a way that
 	   * can be detected early, here.
@@ -300,7 +377,7 @@ public final class NettyMocks {
 	    } else if (uri.charAt(0) != '/') {
 	      throw new BadRequestException("Request URI doesn't start with a slash");
 	    } else if (isHttpRpcPluginPath(uri)) {
-	      return new HttpRpcPluginQuery(tsdb, request, ctx.channel());
+	      return new HttpRpcPluginQuery(tsdb, request, ctx);
 	    } else {
 	      HttpQuery builtinQuery = new HttpQuery(tsdb, request, ctx);
 	      return builtinQuery;
@@ -313,24 +390,40 @@ public final class NettyMocks {
    * [fake channel]
    * @return A Channel mock
    */
-  public static Channel fakeChannel() {
-    final EmbeddedChannel chan = mock(EmbeddedChannel.class);
-    when(chan.toString()).thenReturn("[fake channel]");
-    when(chan.isOpen()).thenReturn(true);
-    when(chan.isWritable()).thenReturn(true);
-    
-    final SocketAddress socket = mock(SocketAddress.class);
-    when(socket.toString()).thenReturn("192.168.1.1:4243");
-    when(chan.remoteAddress()).thenReturn(socket);
-    return chan;
+  public static EmbeddedChannel fakeChannel() {
+//    final EmbeddedChannel chan = mock(EmbeddedChannel.class);
+//    when(chan.toString()).thenReturn("[fake channel]");
+//    when(chan.isOpen()).thenReturn(true);
+//    when(chan.isWritable()).thenReturn(true);
+//    
+//    final SocketAddress socket = mock(SocketAddress.class);
+//    when(socket.toString()).thenReturn("192.168.1.1:4243");
+//    when(chan.remoteAddress()).thenReturn(socket);
+	  final EmbeddedChannel chan = new EmbeddedChannel();
+	  chan.pipeline().addLast("NOOP", new NoOpHandler());
+	  //final ChannelHandlerContext ctx = chan.pipeline().context(NoOpHandler.class);
+      return chan;
+  }
+  
+  public static ChannelHandlerContext context(final Channel channel) {
+	  return channel.pipeline().context(NoOpHandler.class);
+  }
+  
+  public static long getWriteCount(final Channel channel) {
+	  return context(channel).pipeline().get(NoOpHandler.class).getWrites();
+  }
+  
+  public static long getReadCount(final Channel channel) {
+	  return context(channel).pipeline().get(NoOpHandler.class).getReads();			  
   }
   
   
   
   
   public static HttpRpcPluginQuery pluginQuery(final TSDB tsdb, final FullHttpRequest req) {
-	  final EmbeddedChannel chan = new EmbeddedChannel();
-	  return new HttpRpcPluginQuery(tsdb, req, chan);
+	  final EmbeddedChannel chan = new EmbeddedChannel(new NoOpHandler());
+	  final ChannelHandlerContext ctx = chan.pipeline().context(NoOpHandler.class);
+	  return new HttpRpcPluginQuery(tsdb, req, ctx);
   }
   
   

@@ -32,6 +32,7 @@ closeSockets = {
 connect = {
     Socket socket = new Socket(host, port);
     socket.setSoTimeout(20000);
+    socket.setKeepAlive(true);
     sockets.add(socket);
     Thread.sleep(200);
     assert socket.isConnected();
@@ -55,6 +56,7 @@ ping = { sock ->
         byte[] b = new byte[4];
         een.read(b);
         msg = new String(b);
+        println "MSG: [${msg}]";
     });
     assert "pong".equals(msg);
     return msg;
@@ -82,13 +84,12 @@ try {
     
     
     
-    sock = connect(); 
-    println help(sock);
-    println getCounters();
-    assert getCounters()["ActiveConnections"] == 1;
-    close(sock);
-    assert getCounters()["ActiveConnections"] == 0;
-
+//    sock = connect();     
+//    println getCounters();
+//    assert getCounters()["ActiveConnections"] == 1;
+//    close(sock);
+//    assert getCounters()["ActiveConnections"] == 0;
+//
 //    sock = connect();
 //    assert getCounters()["ActiveConnections"] == 1;
 //    Thread.sleep(6000);
@@ -97,14 +98,18 @@ try {
     
     setMaxConnections(5);
     println getCounters();
-    
-    sock = connect();
-    ping(sock);
-    
+//    
+//    sock = connect();
+//    ping(sock);
+//    
     for(i in 1..10) {
         try {
             sock = connect();
-            ping(sock);
+            if(i > 5) {
+                try { ping(sock); } catch (x) { println x; }
+            } else {
+                ping.sock();
+            }
             println "Connected #$i.  Active: ${getCounters()['ActiveConnections']}";
         } catch (x) {
             println "Connect Failed on #$i";

@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import com.stumbleupon.async.Deferred;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpMethod;
 import net.opentsdb.core.TSDB;
 
@@ -28,10 +29,10 @@ import net.opentsdb.core.TSDB;
 public final class DropCachesRpc implements TelnetRpc, HttpRpc {
     private static final Logger LOG = LoggerFactory.getLogger(DropCachesRpc.class);
 
-    public Deferred<Object> execute(final TSDB tsdb, final Channel chan,
+    public Deferred<Object> execute(final TSDB tsdb, final ChannelHandlerContext ctx,
                                     final String[] cmd) {
-        dropCaches(tsdb, chan);
-        chan.write("Caches dropped.\n");
+        dropCaches(tsdb, ctx.channel());
+        ctx.write("Caches dropped.\n");
         return Deferred.fromResult(null);
     }
 

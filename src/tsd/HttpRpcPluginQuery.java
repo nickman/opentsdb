@@ -12,7 +12,7 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
-import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.FullHttpRequest;
 import net.opentsdb.core.TSDB;
 
@@ -23,8 +23,8 @@ import net.opentsdb.core.TSDB;
  * @since 2.2
  */
 public final class HttpRpcPluginQuery extends AbstractHttpQuery {
-  public HttpRpcPluginQuery(final TSDB tsdb, final FullHttpRequest request, final Channel channel) {
-    super(tsdb, request, channel);
+  public HttpRpcPluginQuery(final TSDB tsdb, final FullHttpRequest request, final ChannelHandlerContext ctx) {
+    super(tsdb, request, ctx);
   }
 
   /**

@@ -34,6 +34,7 @@ import net.opentsdb.utils.buffermgr.BufferManager;
 
 import org.hbase.async.RegionClientStats;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import org.slf4j.Logger;
@@ -55,16 +56,16 @@ public final class StatsRpc implements TelnetRpc, HttpRpc {
   /**
    * Telnet RPC responder that returns the stats in ASCII style
    * @param tsdb The TSDB to use for fetching stats
-   * @param chan The netty channel to respond on
+   * @param ctx The netty channel handler context to respond on
    * @param cmd call parameters
    */
-  public Deferred<Object> execute(final TSDB tsdb, final Channel chan,
+  public Deferred<Object> execute(final TSDB tsdb, final ChannelHandlerContext ctx,
       final String[] cmd) {
     final boolean canonical = tsdb.getConfig().getBoolean("tsd.stats.canonical");
     final StringBuilder buf = new StringBuilder(1024);
     final ASCIICollector collector = new ASCIICollector("tsd", buf, null);
     doCollectStats(tsdb, collector, canonical);
-    chan.write(buf.toString());
+    ctx.writeAndFlush(buf.toString());
     return Deferred.fromResult(null);
   }
 

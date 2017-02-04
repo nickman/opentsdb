@@ -30,13 +30,14 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFactory;
+import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.ReflectiveChannelFactory;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
@@ -227,18 +228,34 @@ public class TSDServer implements TSDServerMBean {
 			        	return;
 			        }
 				}
+//				ch.config().setAutoClose(false);
+//				ch.config().setOption(ChannelOption.SO_KEEPALIVE, true);
+//				ch.pipeline().addLast("util", new ChannelDuplexHandler(){
+//					@Override
+//					public void close(final ChannelHandlerContext ctx, final ChannelPromise promise) throws Exception {						
+//						super.close(ctx, promise);
+//					}
+//					@Override
+//					public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+//						cause.printStackTrace(System.err);
+//						super.exceptionCaught(ctx, cause);
+//					}					
+//				});
+				ch.config().setAutoClose(false);
 	        	ch.closeFuture().addListener(cfl);
 	        	eventMonitor.incrementConnects();
-				channelGroup.add(ch);
+				
 				if(maxIdleTime > 0) {
 					ch.pipeline().addFirst("idle-state", new IdleStateHandler(0L, 0L, maxIdleTime, TimeUnit.SECONDS));
 							log.info("Adding Idle Handler");
 				}
-				ch.pipeline().addLast("eventmonitor", eventMonitor);
-				delegate.initChannel(ch);			
+//				ch.pipeline().addLast("eventmonitor", eventMonitor);
+				delegate.initChannel(ch);
+				channelGroup.add(ch);
+				ch.pipeline().remove(this);
 				log.info("CHGRP: [{}], Final Pipeline: {}", channelGroup.size(), ch.pipeline().names());
 			} finally {
-				ch.pipeline().remove(this);
+				
 			}
 		}		
 	}
@@ -261,7 +278,7 @@ public class TSDServer implements TSDServerMBean {
 		writeSpins = config.getInt("tsd.network.writespins", 16);
 		recvBuffer = config.getInt("tsd.network.recbuffer", 43690);
 		sendBuffer = config.getInt("tsd.network.sendbuffer", 8192);
-		disableEpoll = config.getBoolean("tsd.network.epoll.disable", false);
+		disableEpoll = true; //config.getBoolean("tsd.network.epoll.disable", true);  // FIXME
 		async = config.getBoolean("tsd.network.async_io", true);
 		tcpNoDelay = config.getBoolean("tsd.network.tcp_no_delay", true);
 		keepAlive = config.getBoolean("tsd.network.keep_alive", true);

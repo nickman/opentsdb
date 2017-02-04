@@ -28,6 +28,7 @@ import com.stumbleupon.async.TimeoutException;
 import org.hbase.async.HBaseException;
 import org.hbase.async.PleaseThrottleException;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.Timeout;
@@ -111,7 +112,7 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
   }
   
   @Override
-  public Deferred<Object> execute(final TSDB tsdb, final Channel chan,
+  public Deferred<Object> execute(final TSDB tsdb, final ChannelHandlerContext ctx,
                                   final String[] cmd) {
     telnet_requests.incrementAndGet();
     final DataPointType type;
@@ -157,9 +158,9 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
           handleStorageException(tsdb, getDataPointFromString(cmd), arg);
           
           if (send_telnet_errors) {
-            if (chan.isOpen()) {
-              if (chan.isWritable()) {
-                chan.write(errmsg);
+            if (ctx.channel().isOpen()) {
+              if(ctx.channel().isWritable()) {
+                ctx.writeAndFlush(errmsg);
               } else {
                 writes_blocked.incrementAndGet();
               }
@@ -221,9 +222,9 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
       throw rex;
     }
     
-    if (errmsg != null && chan.isOpen()) {
-      if (chan.isWritable()) {
-        chan.write(errmsg);
+    if (errmsg != null && ctx.channel().isOpen()) {
+      if (ctx.channel().isWritable()) {
+        ctx.channel().writeAndFlush(errmsg);
       } else {
         writes_blocked.incrementAndGet();
       }
