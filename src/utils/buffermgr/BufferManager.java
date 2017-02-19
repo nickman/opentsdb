@@ -14,6 +14,7 @@ package net.opentsdb.utils.buffermgr;
 
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -30,7 +31,6 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.ResourceLeakDetector;
 import net.opentsdb.stats.StatsCollector;
-import net.opentsdb.tsd.RpcManager;
 import net.opentsdb.utils.Config;
 
 /**
@@ -393,7 +393,6 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 	public ByteBuf wrap(final ByteBuffer bb) {
 		return childChannelBufferAllocator.buffer(bb.position()).writeBytes(bb);
 	}
-	
 	
 	/**
 	 * Wraps the passed CharSequence in a ByteBuf of the default type

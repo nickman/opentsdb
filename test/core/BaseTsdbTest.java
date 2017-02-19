@@ -118,8 +118,11 @@ public class BaseTsdbTest {
     uid_map = Maps.newHashMap();
     PowerMockito.mockStatic(Threads.class);
     timer = new FakeTaskTimer();
+    Threads.track(timer);
+    PowerMockito.when(Threads.track(timer)).thenCallRealMethod();
     PowerMockito.when(Threads.newTimer(anyString())).thenReturn(timer);
     PowerMockito.when(Threads.newTimer(anyInt(), anyString())).thenReturn(timer);
+    PowerMockito.when(Threads.newTimer(anyInt(), anyInt(), anyString())).thenReturn(timer);
     
     PowerMockito.whenNew(HashedWheelTimer.class).withNoArguments()
       .thenReturn(timer);
@@ -129,6 +132,7 @@ public class BaseTsdbTest {
     config = new Config(false);
     config.overrideConfig("tsd.storage.enable_compaction", "false");
     tsdb = PowerMockito.spy(new TSDB(config));
+    
 
     config.setAutoMetric(true);
     

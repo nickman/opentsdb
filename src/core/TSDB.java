@@ -1603,8 +1603,9 @@ public final class TSDB {
     return deferreds.size() > 0
       ? Deferred.group(deferreds).addCallbackDeferring(new HClientShutdown())
           .addErrback(new ShutdownErrback())
-      : new HClientShutdown().call(null);
+      : new HClientShutdown().call(null);          
   }
+  
 
   /**
    * Given a prefix search, returns a few matching metric names.

@@ -232,7 +232,7 @@ final class IncomingDataPoints implements WritableDataPoints {
    */
   private static void copyInRowKey(final byte[] row, final short offset,
       final byte[] bytes) {
-    System.arraycopy(bytes, 0, row, offset, bytes.length);
+	System.arraycopy(bytes, 0, row, offset, bytes.length);
   }
 
   /**

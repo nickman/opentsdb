@@ -253,7 +253,7 @@ public class TSDServer implements TSDServerMBean {
 				delegate.initChannel(ch);
 				channelGroup.add(ch);
 				ch.pipeline().remove(this);
-				log.info("CHGRP: [{}], Final Pipeline: {}", channelGroup.size(), ch.pipeline().names());
+				//log.info("CHGRP: [{}], Final Pipeline: {}", channelGroup.size(), ch.pipeline().names());
 			} finally {
 				
 			}

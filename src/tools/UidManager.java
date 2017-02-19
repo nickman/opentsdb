@@ -12,6 +12,9 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tools;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -22,9 +25,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.hbase.async.AtomicIncrementRequest;
 import org.hbase.async.Bytes;
 import org.hbase.async.DeleteRequest;
@@ -34,6 +36,8 @@ import org.hbase.async.HBaseException;
 import org.hbase.async.KeyValue;
 import org.hbase.async.PutRequest;
 import org.hbase.async.Scanner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import net.opentsdb.core.TSDB;
 import net.opentsdb.meta.TSMeta;
@@ -161,6 +165,12 @@ final class UidManager {
         return 2;
       }
       return assign(tsdb, table, idwidth, args);
+    } else if (args[0].equals("assignf")) {
+        if (nargs < 2) {
+          usage("Wrong number of arguments");
+          return 2;
+        }
+        return assignf(tsdb, table, idwidth, args);      
     } else if (args[0].equals("rename")) {
       if (nargs != 4) {
         usage("Wrong number of arguments");
@@ -361,10 +371,11 @@ final class UidManager {
                             final byte[] table,
                             final short idwidth,
                             final String[] args) {
-    boolean randomize = false;
-    if (UniqueId.stringToUniqueIdType(args[1]) == UniqueIdType.METRIC) {
-      randomize = tsdb.getConfig().getBoolean("tsd.core.uid.random_metrics");
-    }
+//    boolean randomize = false;
+//    if (UniqueId.stringToUniqueIdType(args[1]) == UniqueIdType.METRIC) {
+//      randomize = tsdb.getConfig().getBoolean("tsd.core.uid.random_metrics");
+//    }
+	  boolean randomize = true;
     final UniqueId uid = new UniqueId(tsdb.getClient(), table, args[1], 
         (int) idwidth, randomize);
     for (int i = 2; i < args.length; i++) {
@@ -379,6 +390,60 @@ final class UidManager {
     }
     return 0;
   }
+    
+  /**
+   * Implements the {@code assign} subcommand, 
+   * reading values from the passed file names.
+   * @param tsdb The TSDB to use.
+   * @param table The name of the HBase table to use.
+   * @param idwidth Number of bytes on which the UIDs should be.
+   * @param args Command line arguments ({@code assign name [names]}).
+   * @return The exit status of the command (0 means success).
+   */
+  private static int assignf(final TSDB tsdb,
+                            final byte[] table,
+                            final short idwidth,
+                            final String[] args) {
+    final Pattern whiteSpaceSplitter = Pattern.compile("\\s+");
+    final String linePrefix = "assign ";
+    int filesProcessed = 0;
+    for(int i = 1; i < args.length; i++) {
+    	if(args[i] != null && !args[i].trim().isEmpty()) {
+    		final File f = new File(args[i].trim());
+    		if(!f.canRead()) {
+    			LOG.warn("Cannot read file [{}]", f.getAbsolutePath());
+    			continue;
+    		}
+    		LOG.info("Reading file {}", f.getAbsolutePath());
+    		FileReader fr = null;
+    		BufferedReader br = null;
+    		try {
+    			fr = new FileReader(f);
+    			br = new BufferedReader(fr, 8192 * 10);
+    			String line = null;
+    			final StringBuilder b = new StringBuilder(8192);
+    			while((line = br.readLine()) != null) {
+    				try {
+    					if(line.trim().isEmpty()) continue;
+    					final String[] fargs = whiteSpaceSplitter.split(b.append(linePrefix).append(line));
+    					assign(tsdb, table, idwidth, fargs);
+    				} finally {
+    					b.setLength(0);
+    				}
+    			}
+    			filesProcessed++;
+    		} catch (Exception ex) {
+    			LOG.error("Error processing file [{}]", f.getAbsolutePath(), ex);
+    		} finally {
+    			if(br!=null) try { br.close(); } catch (Exception x) {}
+    			if(fr!=null) try { fr.close(); } catch (Exception x) {}
+    		}
+    	}
+    }
+    LOG.info("Processed {} files", filesProcessed);
+    return 0;
+  }
+  
 
   /**
    * Implements the {@code rename} subcommand.

@@ -12,27 +12,11 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
-import net.opentsdb.rollup.RollupConfig;
-import net.opentsdb.rollup.RollupInterval;
-import net.opentsdb.storage.MockBase;
-
-import org.hamcrest.CoreMatchers;
-import org.hbase.async.HBaseException;
-import org.hbase.async.PleaseThrottleException;
-import io.netty.channel.Channel;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PowerMockIgnore;
-import org.powermock.modules.junit4.PowerMockRunner;
-import org.powermock.reflect.Whitebox;
-
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.List;
-
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
@@ -43,11 +27,27 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.hamcrest.CoreMatchers;
+import org.hbase.async.HBaseException;
+import org.hbase.async.PleaseThrottleException;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.powermock.api.mockito.PowerMockito;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
+import org.powermock.modules.junit4.PowerMockRunner;
+import org.powermock.reflect.Whitebox;
+
+import io.netty.channel.Channel;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import net.opentsdb.FakeChannel;
+import net.opentsdb.rollup.RollupConfig;
+import net.opentsdb.rollup.RollupInterval;
+import net.opentsdb.storage.MockBase;
 
 @SuppressWarnings("javadoc")
 @RunWith(PowerMockRunner.class)
@@ -108,8 +108,8 @@ public class TestRollupRpc extends BaseTestPutRpc {
 //  @Test
 //  public void execute() throws Exception {
 //    final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-//    final Channel chan = NettyMocks.fakeChannel();
-//    assertNotNull(rollup.execute(tsdb, chan, new String[] { "rollup", 
+//    final FakeChannel chan = NettyMocks.fakeChannel(false);
+//    assertNotNull(rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", 
 //        "1h-sum", METRIC_STRING, "1365465600", "42", 
 //          TAGK_STRING + "=" + TAGV_STRING })
 //        .joinUninterruptibly());
@@ -130,14 +130,15 @@ public class TestRollupRpc extends BaseTestPutRpc {
   @Test
   public void execute() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    assertNotNull(rollup.execute(tsdb, chan, new String[] { "rollup", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    assertNotNull(rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", 
         "1h-sum", METRIC_STRING, "1356998400", "42", 
           TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly());
     validateCounters(1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-    verify(chan, never()).write(any());
-    verify(chan, never()).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 0, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 1, chan.isOpenCount());
     validateSEH(false);
     
     final byte[] qualifier = new byte[] {0x73, 0x75, 0x6D, 0x3A, 0, 0};
@@ -153,26 +154,29 @@ public class TestRollupRpc extends BaseTestPutRpc {
     Whitebox.setInternalState(tsdb, "rollup_config", (RollupConfig) null);
     Whitebox.setInternalState(tsdb, "default_interval", (RollupInterval) null);
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", METRIC_STRING, 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    final Object response = rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
+    assertNull(response);
+    System.err.println("RESP:[" + response + "]");
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+    assertEquals(1, chan.anyWriteAndFlushCount());
+    assertEquals(2, chan.isOpenCount());
     validateSEH(false);
   }
   
   @Test
   public void executeAggOnly() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "sum", 
         METRIC_STRING, "1356998400", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-    verify(chan, never()).write(any());
-    verify(chan, never()).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 0, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 1, chan.isOpenCount());
     validateSEH(false);
     
     row = getRowKey(METRIC_STRING, 1356998400, TAGK_STRING, TAGV_STRING, 
@@ -188,13 +192,14 @@ public class TestRollupRpc extends BaseTestPutRpc {
   @Test
   public void executeRollupWithAgg() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum:sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum:sum", 
         METRIC_STRING, "1356998400", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-    verify(chan, never()).write(any());
-    verify(chan, never()).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 0, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 1, chan.isOpenCount());
     validateSEH(false);
     
     row = getRowKey(METRIC_STRING, 1356998400, TAGK_STRING, TAGV_STRING, 
@@ -210,53 +215,57 @@ public class TestRollupRpc extends BaseTestPutRpc {
   @Test
   public void executeBadValue() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "10-msum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "10-msum", 
         METRIC_STRING, "1365465600", "notanum", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(false);
   }
 
   @Test
   public void executeBadValueNotWriteable() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    when(chan.isWritable()).thenReturn(false);
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false).setWritable(false);
+    
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", 
         METRIC_STRING, "1365465600", "notanum", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0);
-    verify(chan, never()).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 0, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(false);
   }
   
   @Test
   public void executeMissingMetric() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", "", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", "", 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
-      .joinUninterruptibly();
+      .joinUninterruptibly();    
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(false);
   }
   
   @Test
   public void executeUnknownMetric() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", NSUN_METRIC, 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", NSUN_METRIC, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(false);
   }
 
@@ -264,11 +273,11 @@ public class TestRollupRpc extends BaseTestPutRpc {
   @Test (expected = RuntimeException.class)
   public void executeRuntimeException() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
     PowerMockito.when(tsdb.addAggregatePoint(anyString(), anyLong(), anyLong(), 
         anyMap(), anyBoolean(), anyString(), anyString(), anyString()))
         .thenThrow(new RuntimeException("Fail!"));
-    rollup.execute(tsdb, chan, new String[] { "rollup", "rollup", "1h-sum", 
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "rollup", "1h-sum", 
         METRIC_STRING, "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
   }
@@ -278,13 +287,14 @@ public class TestRollupRpc extends BaseTestPutRpc {
     storage.throwException(MockBase.stringToBytes("0000015158CE00000001000001"), 
         mock(HBaseException.class));
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", 
         METRIC_STRING, "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(true);
   }
   
@@ -293,14 +303,15 @@ public class TestRollupRpc extends BaseTestPutRpc {
     storage.throwException(MockBase.stringToBytes("0000015158CE00000001000001"), 
         mock(HBaseException.class));
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    when(chan.isWritable()).thenReturn(false);
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false).setWritable(false);
+    
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", 
         METRIC_STRING, "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0);
-    verify(chan, never()).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 0, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(true);
   }
 
@@ -310,13 +321,14 @@ public class TestRollupRpc extends BaseTestPutRpc {
     storage.throwException(MockBase.stringToBytes("0000015158CE00000001000001"), 
         mock(HBaseException.class));
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", 
         METRIC_STRING, "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(true);
   }
 
@@ -325,13 +337,14 @@ public class TestRollupRpc extends BaseTestPutRpc {
     storage.throwException(MockBase.stringToBytes("0000015158CE00000001000001"), 
         mock(PleaseThrottleException.class));
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", 
         METRIC_STRING, "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(true);
   }
 
@@ -340,14 +353,14 @@ public class TestRollupRpc extends BaseTestPutRpc {
     storage.throwException(MockBase.stringToBytes("0000015158CE00000001000001"), 
         mock(PleaseThrottleException.class));
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    when(chan.isWritable()).thenReturn(false);
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false).setWritable(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", 
         METRIC_STRING, "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0);
-    verify(chan, never()).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 0, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(true);
   }
 
@@ -357,21 +370,22 @@ public class TestRollupRpc extends BaseTestPutRpc {
     storage.throwException(MockBase.stringToBytes("0000015158CE00000001000001"), 
         mock(PleaseThrottleException.class));
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", 
         METRIC_STRING, "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(true);
   }
   
   @Test (expected = NullPointerException.class)
   public void executeNullTSDB() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(null, chan, new String[] { "rollup", "1h-sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(null, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", 
         METRIC_STRING, "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
   }
@@ -399,52 +413,55 @@ public class TestRollupRpc extends BaseTestPutRpc {
   @Test (expected = NullPointerException.class)
   public void executeNullArray() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, null).joinUninterruptibly();
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), null).joinUninterruptibly();
   }
   
   @Test (expected = ArrayIndexOutOfBoundsException.class)
   public void executeEmptyArray() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[0]).joinUninterruptibly();
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[0]).joinUninterruptibly();
   }
   
   @Test
   public void executeShortArray() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", 
         METRIC_STRING, "1365465600", "42" }).joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(false);
   }
   
   @Test
   public void executeMissingInterval() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup","", METRIC_STRING,
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup","", METRIC_STRING,
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(false);
   }
   
   @Test
   public void executeUnknownInterval() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "13m-sum", 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "13m-sum", 
         METRIC_STRING, "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(false);
   }
 
@@ -452,8 +469,8 @@ public class TestRollupRpc extends BaseTestPutRpc {
 //  @Test
 //  public void executePreAggOnly() throws Exception {
 //    final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-//    final Channel chan = NettyMocks.fakeChannel();
-//    rollup.execute(tsdb, chan, new String[] { "rollup", "sum", METRIC_STRING, 
+//    final FakeChannel chan = NettyMocks.fakeChannel(false);
+//    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "sum", METRIC_STRING, 
 //        "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
 //        .joinUninterruptibly();
 //    validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -465,13 +482,14 @@ public class TestRollupRpc extends BaseTestPutRpc {
   @Test
   public void executeMissingAggregator() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", METRIC_STRING, 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(false);
   }
 
@@ -480,39 +498,42 @@ public class TestRollupRpc extends BaseTestPutRpc {
   @Test
   public void executeMissingTags() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup","1h-sum", METRIC_STRING, 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup","1h-sum", METRIC_STRING, 
         "1365465600", "42", "" })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(false);
   }
 
   @Test
   public void executeNSUNTagk() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup","1h-sum", METRIC_STRING, 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup","1h-sum", METRIC_STRING, 
         "1365465600", "42", NSUN_TAGK + "=" + TAGV_STRING })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(false);
   }
   
   @Test
   public void executeNSUNTagV() throws Exception {
     final RollupDataPointRpc rollup = new RollupDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    rollup.execute(tsdb, chan, new String[] { "rollup", "1h-sum", METRIC_STRING, 
+    final FakeChannel chan = NettyMocks.fakeChannel(false);
+    rollup.execute(tsdb, NettyMocks.context(chan), new String[] { "rollup", "1h-sum", METRIC_STRING, 
         "1365465600", "42", TAGK_STRING + "=" + NSUN_TAGV })
         .joinUninterruptibly();
     validateCounters(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+	assertEquals("WriteCount", 0, chan.anyWriteCount());
+	assertEquals("WriteAndFlushCount", 1, chan.anyWriteAndFlushCount());
+	assertEquals("isOpenCount", 2, chan.isOpenCount());
     validateSEH(false);
   }
   

@@ -15,6 +15,7 @@ package net.opentsdb.tsd;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
@@ -31,8 +32,10 @@ import java.util.HashMap;
 import org.hbase.async.HBaseException;
 import org.hbase.async.PleaseThrottleException;
 import org.hbase.async.PutRequest;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.modules.junit4.PowerMockRunner;
 
@@ -40,9 +43,10 @@ import com.stumbleupon.async.Deferred;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import net.opentsdb.core.TSDB;
+import net.opentsdb.FakeChannel;
+import net.opentsdb.tsd.NettyMocks.ChannelConfiguration;
+import net.opentsdb.tsd.NettyMocks.EmptyChannelConfiguration;
 
 @RunWith(PowerMockRunner.class)
 //"Classloader hell"...  It's real.  Tell PowerMock to ignore these classes
@@ -57,6 +61,21 @@ public final class TestPutRpc extends BaseTestPutRpc {
   public void constructor() {
     assertNotNull(new PutDataPointRpc(tsdb.getConfig()));
   }
+  
+  // Common post rpc execution test
+  final ChannelConfiguration noWriteOpenCountConfig = new EmptyChannelConfiguration() {
+  	@Override
+  	public void after(final FakeChannel channel) {
+  		assertEquals("WriteCount", 0, channel.anyWriteCount());
+  		assertEquals("WriteAndFlushCount", 1, channel.anyWriteAndFlushCount());
+  		assertEquals("isOpenCount", 4, channel.isOpenCount());
+//  		verify(channel, never()).write(any());
+//  		verify(channel, never()).writeAndFlush(any());
+//  	    verify(channel, times(2)).isOpen();  // EmbeddedChannel checks this twice.    		
+  	}  	
+  };
+  
+  
   
   // Socket RPC Tests ------------------------------------
 
@@ -77,78 +96,62 @@ public final class TestPutRpc extends BaseTestPutRpc {
   @Test
   public void executeBadValue() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final String response = NettyMocks.writeRequestReadResponse(
+    final String response = NettyMocks.writeRequestReadResponse(noWriteOpenCountConfig,
     		tsdb, put, "put", METRIC_STRING, 
             "1365465600", "notanum", TAGK_STRING + "=" + TAGV_STRING);
-    validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
     assertEquals("put: invalid value: Invalid character 'n' in notanum\n", response);
-//    verify(chan, times(1)).write(any());
-//    verify(chan, times(1)).isOpen();
+    validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
   
 
-//  @Test
-//  public void priorExecuteBadValue() throws Exception {
-//    final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-//    final EmbeddedChannel chan = NettyMocks.fakeChannel();
-//    final ChannelHandlerContext ctx = NettyMocks.context(chan);
-//    assertEquals(0L, NettyMocks.getReadCount(chan)); 
-//    assertEquals(0L, NettyMocks.getWriteCount(chan));
-//    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
-//        "1365465600", "notanum", TAGK_STRING + "=" + TAGV_STRING })
-//      .joinUninterruptibly();
-//    chan.runPendingTasks();
-//    final String response = chan.readOutbound();
-//    validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0);
-//    assertEquals(1L, NettyMocks.getWriteCount(chan));
-//    assertEquals("put: invalid value: Invalid character 'n' in notanum\n", response);
-////    verify(chan, times(1)).write(any());
-////    verify(chan, times(1)).isOpen();
-//    validateSEH(false);
-//  }
+  
   
   @Test
   public void executeMissingMetric() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    final ChannelHandlerContext ctx = NettyMocks.context(chan);
-    put.execute(tsdb, ctx, new String[] { "put", "", 
-        "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
-      .joinUninterruptibly();
-    validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
+    final String response = NettyMocks.writeRequestReadResponse(noWriteOpenCountConfig,
+    		tsdb, put, "put", "", 
+            "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING);    
+    assertEquals("put: illegal argument: empty metric name\n", response);
+	validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
     validateSEH(false);
   }
+  
   
   @Test
   public void executeMissingMetricNotWriteable() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    final ChannelHandlerContext ctx = NettyMocks.context(chan);
-    when(chan.isWritable()).thenReturn(false);
-    put.execute(tsdb, ctx, new String[] { "put", "", 
-        "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
-      .joinUninterruptibly();
+    final ChannelConfiguration setNotWriteable = new EmptyChannelConfiguration(){
+    	@Override
+    	public void before(final FakeChannel channel) {
+    		channel.setWritable(false);    		
+    	}
+    	@Override
+    	public void after(final FakeChannel channel) {
+    		assertEquals("WriteCount", 0, channel.anyWriteCount());
+    		assertEquals("WriteAndFlushCount", 0, channel.anyWriteAndFlushCount());
+    		assertEquals("isOpenCount", 4, channel.isOpenCount());
+    	}
+    }; 
+    final String response = NettyMocks.writeRequestReadResponse(setNotWriteable,
+    		tsdb, put, "put", "", 
+            "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING);
+    assertNull(response);    
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0);
-    verify(chan, never()).write(any());
-    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   
   @Test
   public void executeUnknownMetric() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    final ChannelHandlerContext ctx = NettyMocks.context(chan);
-    put.execute(tsdb, ctx, new String[] { "put", NSUN_METRIC, 
-        "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
-      .joinUninterruptibly();
+    final String response = NettyMocks.writeRequestReadResponse(noWriteOpenCountConfig,
+    		tsdb, put, "put", NSUN_METRIC, 
+            "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING);
+    assertEquals("put: unknown metric: No such name for 'sys.cpu.nice': 'metric'\n", response);
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
     validateSEH(false);
+    
   }
   
   @SuppressWarnings("unchecked")
@@ -171,17 +174,14 @@ public final class TestPutRpc extends BaseTestPutRpc {
   public void executeHBaseError() throws Exception {
     when(client.put(any(PutRequest.class)))
         .thenReturn(Deferred.fromError(mock(HBaseException.class)));
-    
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    final ChannelHandlerContext ctx = NettyMocks.context(chan);
-    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
-        "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
-      .joinUninterruptibly();
+    final String response = NettyMocks.writeRequestReadResponse( //new EmptyChannelConfiguration(), //noWriteOpenCountConfig,
+    		tsdb, put, "put", METRIC_STRING, 
+            "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING);
+    
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
     validateSEH(true);
+    assertEquals("put: HBase error: null\n", response);
   }
   
   @Test
@@ -190,15 +190,23 @@ public final class TestPutRpc extends BaseTestPutRpc {
       .thenReturn(Deferred.fromError(mock(HBaseException.class)));
     
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    final ChannelHandlerContext ctx = NettyMocks.context(chan);
-    when(chan.isWritable()).thenReturn(false);
-    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
-        "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
-      .joinUninterruptibly();
+    final ChannelConfiguration setNotWriteable = new EmptyChannelConfiguration(){
+    	@Override
+    	public void before(final FakeChannel channel) {
+    		channel.setWritable(false);    		
+    	}
+    	@Override
+    	public void after(final FakeChannel channel) {
+    		assertEquals("WriteCount", 0, channel.anyWriteCount());
+    		assertEquals("WriteAndFlushCount", 0, channel.anyWriteAndFlushCount());
+    		assertEquals("isOpenCount", 4, channel.isOpenCount());
+    	}
+    }; 
+    final String response = NettyMocks.writeRequestReadResponse(setNotWriteable,
+    		tsdb, put, "put", METRIC_STRING, 
+            "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING);
+    assertNull(response);    
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0);
-    verify(chan, never()).write(any());
-    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
   
@@ -209,14 +217,20 @@ public final class TestPutRpc extends BaseTestPutRpc {
     setStorageExceptionHandler();
     
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    final ChannelHandlerContext ctx = NettyMocks.context(chan);
-    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
-        "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
-      .joinUninterruptibly();
+    final ChannelConfiguration verify = new EmptyChannelConfiguration(){
+    	@Override
+    	public void after(final FakeChannel channel) {
+    		assertEquals("WriteCount", 0, channel.anyWriteCount());
+    		assertEquals("WriteAndFlushCount", 1, channel.anyWriteAndFlushCount());
+    		assertEquals("isOpenCount", 4, channel.isOpenCount());
+    	}
+    }; 
+    final String response = NettyMocks.writeRequestReadResponse(verify,
+    		tsdb, put, "put", METRIC_STRING, 
+            "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING);
+    assertEquals("put: HBase error: null\n", response);
+    
     validateCounters(1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
 
@@ -225,14 +239,19 @@ public final class TestPutRpc extends BaseTestPutRpc {
     when(client.put(any(PutRequest.class)))
       .thenReturn(Deferred.fromError(mock(PleaseThrottleException.class)));
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    final ChannelHandlerContext ctx = NettyMocks.context(chan);
-    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
-        "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
-      .joinUninterruptibly();
+    final ChannelConfiguration verify = new EmptyChannelConfiguration(){
+    	@Override
+    	public void after(final FakeChannel channel) {
+    		assertEquals("WriteCount", 0, channel.anyWriteCount());
+    		assertEquals("WriteAndFlushCount", 1, channel.anyWriteAndFlushCount());
+    		assertEquals("isOpenCount", 4, channel.isOpenCount());
+    	}
+    }; 
+    final String response = NettyMocks.writeRequestReadResponse(verify,
+    		tsdb, put, "put", METRIC_STRING, 
+            "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING);
+    assertEquals("put: Please throttle writes: null\n", response);    
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
   
@@ -241,15 +260,23 @@ public final class TestPutRpc extends BaseTestPutRpc {
     when(client.put(any(PutRequest.class)))
       .thenReturn(Deferred.fromError(mock(PleaseThrottleException.class)));
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    final ChannelHandlerContext ctx = NettyMocks.context(chan);
-    when(chan.isWritable()).thenReturn(false);
-    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
-        "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
-      .joinUninterruptibly();
+    final ChannelConfiguration setNotWriteable = new EmptyChannelConfiguration(){
+    	@Override
+    	public void before(final FakeChannel channel) {
+    		channel.setWritable(false);    		
+    	}
+    	@Override
+    	public void after(final FakeChannel channel) {
+    		assertEquals("WriteCount", 0, channel.anyWriteCount());
+    		assertEquals("WriteAndFlushCount", 0, channel.anyWriteAndFlushCount());
+    		assertEquals("isOpenCount", 4, channel.isOpenCount());
+    	}
+    }; 
+    final String response = NettyMocks.writeRequestReadResponse(setNotWriteable,
+    		tsdb, put, "put", METRIC_STRING, 
+            "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING);        
+    assertNull(response);
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0);
-    verify(chan, never()).write(any());
-    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
   
@@ -259,14 +286,19 @@ public final class TestPutRpc extends BaseTestPutRpc {
     when(client.put(any(PutRequest.class)))
       .thenReturn(Deferred.fromError(mock(PleaseThrottleException.class)));
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    final ChannelHandlerContext ctx = NettyMocks.context(chan);
-    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
-        "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING })
-      .joinUninterruptibly();
+    final ChannelConfiguration verify = new EmptyChannelConfiguration(){
+    	@Override
+    	public void after(final FakeChannel channel) {
+    		assertEquals("WriteCount", 0, channel.anyWriteCount());
+    		assertEquals("WriteAndFlushCount", 1, channel.anyWriteAndFlushCount());
+    		assertEquals("isOpenCount", 4, channel.isOpenCount());
+    	}
+    }; 
+    final String response = NettyMocks.writeRequestReadResponse(verify,
+    		tsdb, put, "put", METRIC_STRING, 
+            "1365465600", "42", TAGK_STRING + "=" + TAGV_STRING);
+    assertEquals("put: Please throttle writes: null\n", response);    
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
     validateSEH(true);
   }
   
@@ -319,13 +351,19 @@ public final class TestPutRpc extends BaseTestPutRpc {
   @Test
   public void executeShortArray() throws Exception {
     final PutDataPointRpc put = new PutDataPointRpc(tsdb.getConfig());
-    final Channel chan = NettyMocks.fakeChannel();
-    final ChannelHandlerContext ctx = NettyMocks.context(chan);
-    put.execute(tsdb, ctx, new String[] { "put", METRIC_STRING, 
-        "1365465600", "42" }).joinUninterruptibly();
+    final ChannelConfiguration verify = new EmptyChannelConfiguration(){
+    	@Override
+    	public void after(final FakeChannel channel) {
+    		assertEquals("WriteCount", 0, channel.anyWriteCount());
+    		assertEquals("WriteAndFlushCount", 1, channel.anyWriteAndFlushCount());
+    		assertEquals("isOpenCount", 4, channel.isOpenCount());
+    	}
+    }; 
+    final String response = NettyMocks.writeRequestReadResponse(verify,
+    		tsdb, put,  "put", METRIC_STRING, 
+            "1365465600", "42");
+    assertEquals("put: illegal argument: not enough arguments (need least 4, got 3)\n", response);
     validateCounters(1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0);
-    verify(chan, times(1)).write(any());
-    verify(chan, times(1)).isOpen();
     validateSEH(false);
   }
   

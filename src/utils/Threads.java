@@ -12,9 +12,15 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.utils;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-
-import java.util.concurrent.Executors;
+import java.lang.ref.Reference;
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -65,6 +71,66 @@ public class Threads {
 //    }
 //  }
   
+  private static class HashedWheelTimerWrapper {
+	  final HashedWheelTimer timer;
+	  final int hash;
+	  
+	  private HashedWheelTimerWrapper(final HashedWheelTimer timer) {
+		  this.timer = timer;
+		  hash = System.identityHashCode(timer);
+	  }
+
+	@Override
+	public int hashCode() {
+		return hash;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		HashedWheelTimerWrapper other = (HashedWheelTimerWrapper) obj;
+		if (timer == null) {
+			if (other.timer != null)
+				return false;
+		} else if (!timer.equals(other.timer))
+			return false;
+		return true;
+	}
+  }
+  
+  private static final Map<Reference<HashedWheelTimerWrapper>, HashedWheelTimer> m = new ConcurrentHashMap<Reference<HashedWheelTimerWrapper>, HashedWheelTimer>(128);  
+  private static final ReferenceQueue<HashedWheelTimerWrapper> RQ = new ReferenceQueue<HashedWheelTimerWrapper>();
+  private static final Thread rqCleaner = new Thread("ThreadsReferenceQueueCleaner") {
+	  public void run() {
+		  while(true) {
+			  try {
+				  final Reference<? extends HashedWheelTimerWrapper> timerRef = RQ.poll();
+				  if(timerRef==null) {
+					  Thread.currentThread().join(1000);
+					  continue;
+				  }
+				  HashedWheelTimer timer = m.remove(timerRef);
+				  if(timer!=null) {
+					  try { timer.stop(); } catch (Exception x) {/* No Op */}
+					  System.err.println("Enqueued HashedWheelTimer Stopped");
+				  }
+			  } catch (Exception ex) {
+				  if(Thread.interrupted()) Thread.interrupted();
+			  }
+		  }
+	  }
+  };
+  
+  static {
+	  rqCleaner.setDaemon(true);
+	  rqCleaner.start();
+  }
+  
   
   /**
    * Returns a new HashedWheelTimer with a name and default ticks
@@ -94,9 +160,19 @@ public class Threads {
    */
   public static HashedWheelTimer newTimer(final int ticks, 
       final int ticks_per_wheel, final String name) {
-    return new HashedWheelTimer(new ThreadFactoryBuilder().setDaemon(true).setNameFormat("OpenTSDB Timer-%d " + name + " #" + TIMER_ID.incrementAndGet()).setPriority(Thread.NORM_PRIORITY).build(),
+    final  HashedWheelTimer timer = new HashedWheelTimer(new ThreadFactoryBuilder().setDaemon(true).setNameFormat("OpenTSDB Timer-%d " + name + " #" + TIMER_ID.incrementAndGet()).setPriority(Thread.NORM_PRIORITY).build(),
     		ticks, TimeUnit.MILLISECONDS, ticks_per_wheel, true);
-
+    final HashedWheelTimerWrapper wrapper = new HashedWheelTimerWrapper(timer);
+    final WeakReference<HashedWheelTimerWrapper> ref = new WeakReference<HashedWheelTimerWrapper>(wrapper, RQ); 
+    m.put(ref, timer);
+    return timer;
+  }
+  
+  public static HashedWheelTimer track(final HashedWheelTimer timer) {
+	    final HashedWheelTimerWrapper wrapper = new HashedWheelTimerWrapper(timer);
+	    final WeakReference<HashedWheelTimerWrapper> ref = new WeakReference<HashedWheelTimerWrapper>(wrapper, RQ); 
+	    m.put(ref, timer);
+	    return timer;	  
   }
   
 	/**

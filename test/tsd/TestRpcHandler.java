@@ -226,30 +226,31 @@ public final class TestRpcHandler {
   public void createQueryInstanceForBuiltin() throws Exception {
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
     final Channel mockChan = NettyMocks.fakeChannel();
+    final ChannelHandlerContext ctx = NettyMocks.context(mockChan);
     final Method meth = Whitebox.getMethod(RpcHandler.class, "createQueryInstance", 
-        TSDB.class, FullHttpRequest.class, Channel.class);
+        TSDB.class, FullHttpRequest.class, ChannelHandlerContext.class);
     AbstractHttpQuery query = (AbstractHttpQuery) meth.invoke(
         rpc, tsdb, 
         new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/api/v1/version"), 
-        mockChan);
+        ctx);
     assertTrue(query instanceof HttpQuery);
     
     query = (AbstractHttpQuery) meth.invoke(
         rpc, tsdb, 
         new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/api/version"), 
-        mockChan);
+        ctx);
     assertTrue(query instanceof HttpQuery);
     
     query = (AbstractHttpQuery) meth.invoke(
         rpc, tsdb, 
         new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/q"), 
-        mockChan);
+        ctx);
     assertTrue(query instanceof HttpQuery);
     
     query = (AbstractHttpQuery) meth.invoke(
         rpc, tsdb, 
         new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/"), 
-        mockChan);
+        ctx);
     assertTrue(query instanceof HttpQuery);
   }
   
@@ -259,12 +260,13 @@ public final class TestRpcHandler {
   public void createQueryInstanceEmptyRequestInvalid() throws Exception {
     final RpcHandler rpc = new RpcHandler(tsdb, rpc_manager);
     final Channel mockChan = NettyMocks.fakeChannel();
+    final ChannelHandlerContext ctx = NettyMocks.context(mockChan);
     final Method meth = Whitebox.getMethod(RpcHandler.class, "createQueryInstance", 
-        TSDB.class, FullHttpRequest.class, Channel.class);
+        TSDB.class, FullHttpRequest.class, ChannelHandlerContext.class);
     meth.invoke(
         rpc, tsdb, 
         new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, ""), 
-        mockChan);
+        ctx);
   }
   
   @Test

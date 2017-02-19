@@ -160,7 +160,7 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
           if (send_telnet_errors) {
             if (ctx.channel().isOpen()) {
               if(ctx.channel().isWritable()) {
-                ctx.writeAndFlush(errmsg);
+                ctx.channel().writeAndFlush(errmsg);
               } else {
                 writes_blocked.incrementAndGet();
               }

@@ -16,7 +16,9 @@ package net.opentsdb.tsd;
 import static org.powermock.api.mockito.PowerMockito.mock;
 import static org.powermock.api.mockito.PowerMockito.when;
 
+import java.lang.reflect.AccessibleObject;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -29,6 +31,7 @@ import org.powermock.api.mockito.PowerMockito;
 
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
+import com.google.gwt.http.client.RequestBuilder.Method;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
@@ -38,7 +41,6 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.handler.codec.LineBasedFrameDecoder;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -47,6 +49,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.string.StringEncoder;
+import net.opentsdb.FakeChannel;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.buffermgr.BufferManager;
@@ -209,7 +212,123 @@ public final class NettyMocks {
 	public static final Charset ISO8859 = Charset.forName("ISO-8859-1");
 	// Those are entirely stateless and thus a single instance is needed.
 	public static final StringEncoder ENCODER = new StringEncoder(ISO8859);
+	
+	/**
+	 * Callback to configure a channel during a <b><code>writeRequestReadResponse</code></b> test.
+	 */
+	public static interface ChannelConfiguration {		
+		public void before(FakeChannel channel);
+		public void after(FakeChannel channel);
+		public ChannelConfiguration attach(ChannelConfiguration additionalConfig);
+		public void runAdditionalBefores(FakeChannel channel);
+		public void runAdditionalAfters(FakeChannel channel);
+		public ChannelConfiguration reset();
+	}
+	
+	public static class EmptyChannelConfiguration implements ChannelConfiguration {
+		final List<ChannelConfiguration> additionals = new ArrayList<ChannelConfiguration>();
+		@Override
+		public void before(final FakeChannel channel) {
+			/* No Op */			
+		}
+
+		@Override
+		public void after(final FakeChannel channel) {
+			/* No Op */			
+		}
+		
+		@Override
+		public void runAdditionalBefores(final FakeChannel channel) {
+			for(ChannelConfiguration cfg : additionals) {
+				cfg.before(channel);
+			}
+		}
+		
+		@Override
+		public void runAdditionalAfters(final FakeChannel channel) {
+			for(ChannelConfiguration cfg : additionals) {
+				cfg.after(channel);
+			}			
+		}		
+		
+		@Override
+		public ChannelConfiguration reset() {
+			additionals.clear();
+			return this;
+		}
+		
+		@Override
+		public ChannelConfiguration attach(ChannelConfiguration additionalConfig) {			
+			if(additionalConfig!=null) {
+				additionals.add(additionalConfig);
+			}
+			return this;
+		}
+		
+	}
   
+  
+  /**
+   * Creates a new embedded channel contatining a channel handler wrapping the passed telnet rpc.
+   * The passed string array is written to the channel and a response is read back out and returned.
+   * @param channelCfg An option channel configuration applied to the channel before the write is issued
+   * @param tsdb The test TSDB instance
+   * @param telnetRpc The rpc to wrap in a channel handler
+   * @param args The telnet rpc arguments to write to the channel
+   * @return the telnet rpc response
+   */
+  public static <T> T writeRequestReadResponse(final ChannelConfiguration channelCfg, final TSDB tsdb, final TelnetRpc telnetRpc, final String...args) {
+	  try {
+		final ChannelDuplexHandler rpcWrapper = new ChannelDuplexHandler() {
+			@Override
+			public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+				final String[] command = (String[])msg;
+				telnetRpc.execute(tsdb, ctx, command).joinUninterruptibly(5000);
+			}
+		};
+		
+		final FakeChannel ec = new FakeChannel(rpcWrapper);
+//		if(channelCfg!=null) {			
+//			ec = PowerMockito.spy(new EmbeddedChannel(rpcWrapper));
+//			for(AccessibleObject ao: PowerMockito.everythingDeclaredIn(EmbeddedChannel.class)) {
+//				if(Method.class.isInstance(ao)) {
+//					try {
+//						PowerMockito.doCallRealMethod().when(ec, (java.lang.reflect.Method)ao);
+//					} catch (Exception ex) {
+//						ex.printStackTrace(System.err);
+//					}
+//				}
+//			}
+//			
+////			PowerMockito.when()
+////			PowerMockito.doCallRealMethod().when();
+////			
+//////			PowerMockito.when(ec.writeInbound(Mockito.any(Object[].class))).thenCallRealMethod();
+////			PowerMockito.when(ec.readOutbound()).thenCallRealMethod();
+//////			ChannelPipeline pipeline = ec.pipeline();
+//////			org.powermock.reflect.Whitebox.setInternalState(pipeline, "channel", ec);
+//		} else {
+//			ec = new EmbeddedChannel(rpcWrapper);
+//		}
+		if(channelCfg!=null) {
+			channelCfg.before(ec);
+			channelCfg.runAdditionalBefores(ec);
+		}
+		
+		ec.writeInbound(new Object[]{args});
+		ec.runPendingTasks();
+		final T t = ec.readOutbound();
+		if(channelCfg!=null) {
+			channelCfg.after(ec);
+			channelCfg.runAdditionalAfters(ec);
+		}		
+		return t;
+	  } finally {
+		  if(channelCfg!=null) {
+			  channelCfg.reset();
+		  }
+	  }
+  }
   
   /**
    * Creates a new embedded channel contatining a channel handler wrapping the passed telnet rpc.
@@ -218,19 +337,9 @@ public final class NettyMocks {
    * @param telnetRpc The rpc to wrap in a channel handler
    * @param args The telnet rpc arguments to write to the channel
    * @return the telnet rpc response
- */
+   */
   public static <T> T writeRequestReadResponse(final TSDB tsdb, final TelnetRpc telnetRpc, final String...args) {
-		final ChannelDuplexHandler rpcWrapper = new ChannelDuplexHandler() {
-			@Override
-			public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-				final String[] command = (String[])msg;
-				telnetRpc.execute(tsdb, ctx, command);
-			}
-		};
-		final EmbeddedChannel ec = new EmbeddedChannel(rpcWrapper);
-		ec.writeInbound(new Object[]{args});
-		ec.runPendingTasks();
-		return ec.readOutbound();		
+	  return writeRequestReadResponse(null, tsdb, telnetRpc, args);
   }
   
   public static FullHttpResponse writeReqestReadResponse(final TSDB tsdb, final HttpQuery request, final HttpRpc rpc) {
@@ -390,7 +499,7 @@ public final class NettyMocks {
    * [fake channel]
    * @return A Channel mock
    */
-  public static EmbeddedChannel fakeChannel() {
+  public static FakeChannel fakeChannel() {
 //    final EmbeddedChannel chan = mock(EmbeddedChannel.class);
 //    when(chan.toString()).thenReturn("[fake channel]");
 //    when(chan.isOpen()).thenReturn(true);
@@ -399,11 +508,19 @@ public final class NettyMocks {
 //    final SocketAddress socket = mock(SocketAddress.class);
 //    when(socket.toString()).thenReturn("192.168.1.1:4243");
 //    when(chan.remoteAddress()).thenReturn(socket);
-	  final EmbeddedChannel chan = new EmbeddedChannel();
-	  chan.pipeline().addLast("NOOP", new NoOpHandler());
+//	  final FakeChannel chan = new FakeChannel();
+	  final FakeChannel spiedChan = PowerMockito.spy(new FakeChannel());
+	  spiedChan.pipeline().addLast("NOOP", new NoOpHandler());
 	  //final ChannelHandlerContext ctx = chan.pipeline().context(NoOpHandler.class);
+      return spiedChan;
+  }
+  
+  public static FakeChannel fakeChannel(final boolean spied) {
+	  final FakeChannel chan = spied ? PowerMockito.spy(new FakeChannel()) : new FakeChannel();
+	  chan.pipeline().addLast("NOOP", new NoOpHandler());
       return chan;
   }
+  
   
   public static ChannelHandlerContext context(final Channel channel) {
 	  return channel.pipeline().context(NoOpHandler.class);
