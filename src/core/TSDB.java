@@ -115,7 +115,7 @@ public final class TSDB {
   final Config config;
 
   /** Timer used for various tasks such as idle timeouts or query timeouts */
-  private final HashedWheelTimer timer;
+  private final Timer timer;
   
   /**
    * Row keys that need to be compacted.

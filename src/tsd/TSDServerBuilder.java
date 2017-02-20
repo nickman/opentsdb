@@ -12,8 +12,15 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
+import java.net.SocketAddress;
+
+import io.netty.bootstrap.AbstractBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.EventLoopGroup;
+import io.netty.handler.logging.LogLevel;
 import net.opentsdb.core.TSDB;
-import net.opentsdb.tools.AbstractTSDServer;
+import net.opentsdb.servers.AbstractTSDServer;
+import net.opentsdb.utils.Config;
 
 /**
  * <p>Title: TSDServerBuilder</p>
@@ -28,5 +35,57 @@ public interface TSDServerBuilder {
 	 * @return an AbstractTSDServer instance
 	 */
 	public AbstractTSDServer buildServer(final TSDB tsdb);
+	
+	/**
+	 * Builds a bootstrap suitable for this protocol
+	 * @param level An optional logging level if the bootstrap should have a logging handler
+	 * @return a bootstrap
+	 */
+	@SuppressWarnings("rawtypes")
+	public AbstractBootstrap buildBootstrap(final LogLevel level);
+
+	/**
+	 * Builds the boss event loop group
+	 * @param async true if async, false otherwise
+	 * @param epoll true if epoll is enabled, false otherwise
+	 * @param config The TSDB configuration
+	 * @return an event loop group
+	 */
+	public EventLoopGroup buildBossGroup(final boolean async, final boolean epoll, final Config config);
+	
+	/**
+	 * Builds the worker event loop group
+	 * @param async true if async, false otherwise
+	 * @param epoll true if epoll is enabled, false otherwise
+	 * @param config The TSDB configuration
+	 * @return an event loop group
+	 */	
+	public EventLoopGroup buildWorkerGroup(final boolean async, final boolean epoll, final Config config);
+	
+	/**
+	 * Returns the appropriate channel class to bootstrap the TSD server
+	 * @param async true if async, false otherwise
+	 * @param epoll true if epoll is enabled, false otherwise
+	 * @param config The TSDB configuration
+	 * @return a channel class
+	 */	
+	public Class<? extends Channel> channelClass(final boolean async, final boolean epoll, final Config config);
+	
+	/**
+	 * Returns the binding socket address for this protocol
+	 * @param config The TSDB configuration
+	 * @return a SocketAddress
+	 */
+	public SocketAddress socketAddress(final Config config);
+	
+	
+//	bossExecutorThreadFactory = new ExecutorThreadFactory("EpollServerBoss#%d", true);
+//	bossGroup = new EpollEventLoopGroup(1, (ThreadFactory)bossExecutorThreadFactory);
+//	workerExecutorThreadFactory = new ExecutorThreadFactory("EpollServerWorker#%d", true);
+//	workerGroup = new EpollEventLoopGroup(workerThreads, (ThreadFactory)workerExecutorThreadFactory);
+//	channelType = EpollServerSocketChannel.class;
+//	uri.append("epoll");
+//	epollMonitor = new EPollMonitor("tcp", channelGroup);
+	
 
 }

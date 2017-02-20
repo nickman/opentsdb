@@ -10,30 +10,16 @@
 // General Public License for more details.  You should have received a copy
 // of the GNU Lesser General Public License along with this program.  If not,
 // see <http://www.gnu.org/licenses/>.
-package net.opentsdb.tools;
-
-import net.opentsdb.core.TSDB;
+package net.opentsdb.servers;
 
 /**
- * <p>Title: AbstractEpollSocketTSDServer</p>
- * <p>Description: Base TSD server implementation for epoll based socket TSD servers</p> 
+ * <p>Title: TCPTSDServerMBean</p>
+ * <p>Description: JMX MBean interface for {@link TCPTSDServer} instances</p> 
  * <p>Company: Helios Development Group LLC</p>
  * @author Whitehead (nwhitehead AT heliosdev DOT org)
- * <p><code>net.opentsdb.tools.AbstractEpollSocketTSDServer</code></p>
+ * <p><code>net.opentsdb.servers.TCPTSDServerMBean</code></p>
  */
 
-public class AbstractEpollSocketTSDServer extends AbstractSocketTSDServer {
-	/** The channel event monitor for handling max connections, idle connections and event counts */
-	protected final TSDServerEventMonitor eventMonitor;
-
-	/**
-	 * Creates a new AbstractEpollSocketTSDServer
-	 * @param tsdb The parent TSDB instance
-	 * @param protocol The protocol implemented by this server
-	 */
-	public AbstractEpollSocketTSDServer(final TSDB tsdb, final TSDProtocol protocol) {
-		super(tsdb, protocol);
-		eventMonitor = new TSDServerEventMonitor(channelGroup, maxConnections, maxIdleTime);
-	}
+public interface TCPTSDServerMBean extends ConnectionTSDServerMBean {
 
 }

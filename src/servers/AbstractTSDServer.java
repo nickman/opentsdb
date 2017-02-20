@@ -10,13 +10,15 @@
 // General Public License for more details.  You should have received a copy
 // of the GNU Lesser General Public License along with this program.  If not,
 // see <http://www.gnu.org/licenses/>.
-package net.opentsdb.tools;
+package net.opentsdb.servers;
 
 import java.lang.management.ManagementFactory;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import javax.management.ObjectName;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,10 +33,10 @@ import net.opentsdb.utils.buffermgr.BufferManager;
 /**
  * <p>Title: AbstractTSDServer</p>
  * <p>Description: The base TSD server</p> 
- * <p><code>net.opentsdb.tools.AbstractTSDServer</code></p>
+ * <p><code>net.opentsdb.servers.AbstractTSDServer</code></p>
  */
 
-public abstract class AbstractTSDServer {
+public abstract class AbstractTSDServer implements AbstractTSDServerMBean {
 	/** A map of TSD servers keyed by the protocol enum */
 	private static final Map<TSDProtocol, AbstractTSDServer> instances = Collections.synchronizedMap(new EnumMap<TSDProtocol, AbstractTSDServer>(TSDProtocol.class));
 	
@@ -43,19 +45,25 @@ public abstract class AbstractTSDServer {
 	/** The number of core available to this JVM */
 	public static final int CORES = ManagementFactory.getOperatingSystemMXBean().getAvailableProcessors();
 	
+	/** The template for TSD server JMX ObjectNames */
+	public static final String OBJECT_NAME = "net.opentsdb.servers:service=TSDServer,protocol=%s";
+	
 	/** The instance logger */
 	protected final Logger log = LoggerFactory.getLogger(getClass());
 	/** Atomic flag indicating if the TSDServer is started */
 	protected final AtomicBoolean started = new AtomicBoolean(false);
 	
+	/** The TSDB configuration */
+	protected final Config config;
+	
 	/** The channel initializer for this TSD server */
-	protected final ChannelInitializer<Channel> channelInitializer;
+	protected ChannelInitializer<Channel> channelInitializer = null;
 	/** The TSDB instance this TSD server is fronting */
 	protected final TSDB tsdb;
 	/** The TSDProtocol for this instance */
 	protected final TSDProtocol protocol;
 	/** The Netty ByteBuf manager */
-	final BufferManager bufferManager;
+	protected final BufferManager bufferManager;
 	
 	
 	/**
@@ -64,7 +72,7 @@ public abstract class AbstractTSDServer {
 	 * @param protocol The TSD server protocol
 	 * @return the initialized TSDServer
 	 */
-	static AbstractTSDServer getInstance(final TSDB tsdb, final TSDProtocol protocol) {
+	public static AbstractTSDServer getInstance(final TSDB tsdb, final TSDProtocol protocol) {
 		if(tsdb==null) throw new IllegalArgumentException("The passed TSDB was null");
 		if(protocol==null) throw new IllegalArgumentException("The passed TSDProtocol was null");		
 		AbstractTSDServer server = instances.get(protocol);
@@ -99,16 +107,69 @@ public abstract class AbstractTSDServer {
 	 * Creates a new AbstractTSDServer
 	 * @param tsdb The TSDB instance this TSD server is fronting
 	 * @param channelInitializer The channel initializer for this TSD server
-	 */
-	@SuppressWarnings("unchecked")
+	 */	
 	protected AbstractTSDServer(final TSDB tsdb, final TSDProtocol protocol) {
 		if(tsdb==null) throw new IllegalArgumentException("The passed TSDB was null");
 		if(protocol==null) throw new IllegalArgumentException("The passed TSDProtocol was null");
-		final Config config = tsdb.getConfig();
+		config = tsdb.getConfig();
 		bufferManager = BufferManager.getInstance(config);
 		this.protocol = protocol;
-		this.tsdb = tsdb;
-		channelInitializer = (ChannelInitializer<Channel>)protocol.initializer(tsdb);
+		this.tsdb = tsdb;		
+	}
+	
+	protected void registerMBean() {
+		try {
+			final ObjectName on = new ObjectName(String.format(OBJECT_NAME, protocol.name()));
+			ManagementFactory.getPlatformMBeanServer().registerMBean(this, on);
+		} catch (Exception ex) {
+			log.warn("Failed to register JMX MBean. Continuing without.", ex);
+		}
+	}
+	
+	protected void unregisterMBean() {
+		try {
+			final ObjectName on = new ObjectName(String.format(OBJECT_NAME, protocol.name()));
+			ManagementFactory.getPlatformMBeanServer().unregisterMBean(on);
+		} catch (Exception x) { /* No Op */}
+	}
+	
+
+	/**
+	 * Starts the tcp server
+	 * @throws Exception thrown if the server fails to bind to the requested port
+	 */
+	public abstract void start() throws Exception;
+	
+	/**
+	 * Stops this TSDServer
+	 */
+	public abstract void stop();
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.AbstractTSDServerMBean#isStarted()
+	 */
+	@Override
+	public boolean isStarted() {
+		return started.get();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.AbstractTSDServerMBean#getChannelInitializer()
+	 */
+	@Override
+	public String getChannelInitializer() {
+		return channelInitializer.getClass().getName();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.AbstractTSDServerMBean#getProtocol()
+	 */
+	@Override
+	public String getProtocol() {
+		return protocol.name();
 	}
 	
 	

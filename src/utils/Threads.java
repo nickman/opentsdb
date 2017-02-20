@@ -15,19 +15,21 @@ package net.opentsdb.utils;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.netty.util.HashedWheelTimer;
+import io.netty.util.Timeout;
+import io.netty.util.Timer;
+import io.netty.util.TimerTask;
 
 
 /**
@@ -71,65 +73,55 @@ public class Threads {
 //    }
 //  }
   
-  private static class HashedWheelTimerWrapper {
-	  final HashedWheelTimer timer;
-	  final int hash;
+  
+    
+  private static class WeakRefTimer extends WeakReference<Timer> implements Timer {
+	  private final Timer hwt;
+	  private final String name;
 	  
-	  private HashedWheelTimerWrapper(final HashedWheelTimer timer) {
-		  this.timer = timer;
-		  hash = System.identityHashCode(timer);
+	  WeakRefTimer(final Timer hwt, final String name) {
+		  super(hwt);
+		  this.hwt = hwt;
+		  this.name = name;
 	  }
 
 	@Override
-	public int hashCode() {
-		return hash;
+	public Timeout newTimeout(final TimerTask task, final long delay, final TimeUnit unit) {
+		return hwt.newTimeout(task, delay, unit);
 	}
 
 	@Override
-	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (obj == null)
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
-		HashedWheelTimerWrapper other = (HashedWheelTimerWrapper) obj;
-		if (timer == null) {
-			if (other.timer != null)
-				return false;
-		} else if (!timer.equals(other.timer))
-			return false;
-		return true;
+	public Set<Timeout> stop() {		
+		return hwt.stop();
+	}
+	
+	@Override
+	protected void finalize() throws Throwable {
+		stop();
+		System.err.println("Stopped Timer [" + name + "]");
+		super.finalize();
 	}
   }
   
-  private static final Map<Reference<HashedWheelTimerWrapper>, HashedWheelTimer> m = new ConcurrentHashMap<Reference<HashedWheelTimerWrapper>, HashedWheelTimer>(128);  
-  private static final ReferenceQueue<HashedWheelTimerWrapper> RQ = new ReferenceQueue<HashedWheelTimerWrapper>();
-  private static final Thread rqCleaner = new Thread("ThreadsReferenceQueueCleaner") {
-	  public void run() {
-		  while(true) {
-			  try {
-				  final Reference<? extends HashedWheelTimerWrapper> timerRef = RQ.poll();
-				  if(timerRef==null) {
-					  Thread.currentThread().join(1000);
-					  continue;
-				  }
-				  HashedWheelTimer timer = m.remove(timerRef);
-				  if(timer!=null) {
-					  try { timer.stop(); } catch (Exception x) {/* No Op */}
-					  System.err.println("Enqueued HashedWheelTimer Stopped");
-				  }
-			  } catch (Exception ex) {
-				  if(Thread.interrupted()) Thread.interrupted();
-			  }
-		  }
-	  }
-  };
   
-  static {
-	  rqCleaner.setDaemon(true);
-	  rqCleaner.start();
-  }
+  
+//  public static void main(String[] args) {
+//	  final int cnt = 10;
+//	  final List<Timer> timers = new ArrayList<Timer>(cnt);
+//	  for(int i = 0; i < cnt; i++) {
+//		  timers.add(newTimer("TestTimer#" + i));
+//	  }
+//	  try {
+//		timers.clear();
+//		System.gc();
+//		Thread.sleep(1000);
+//	  } catch (Exception ex) {
+//		  ex.printStackTrace(System.err);
+//		  System.exit(-1);
+//	  }	  
+//  }
+  
+  
   
   
   /**
@@ -137,7 +129,7 @@ public class Threads {
    * @param name The name to add to the thread name
    * @return A timer
    */
-  public static HashedWheelTimer newTimer(final String name) {
+  public static Timer newTimer(final String name) {
     return newTimer(100, name);
   }
   
@@ -147,7 +139,7 @@ public class Threads {
    * @param name The name to add to the thread name
    * @return A timer
    */
-  public static HashedWheelTimer newTimer(final int ticks, final String name) {
+  public static Timer newTimer(final int ticks, final String name) {
     return newTimer(ticks, 512, name);
   }
   
@@ -158,21 +150,17 @@ public class Threads {
    * @param name The name to add to the thread name
    * @return A timer
    */
-  public static HashedWheelTimer newTimer(final int ticks, 
+  public static Timer newTimer(final int ticks, 
       final int ticks_per_wheel, final String name) {
     final  HashedWheelTimer timer = new HashedWheelTimer(new ThreadFactoryBuilder().setDaemon(true).setNameFormat("OpenTSDB Timer-%d " + name + " #" + TIMER_ID.incrementAndGet()).setPriority(Thread.NORM_PRIORITY).build(),
     		ticks, TimeUnit.MILLISECONDS, ticks_per_wheel, true);
-    final HashedWheelTimerWrapper wrapper = new HashedWheelTimerWrapper(timer);
-    final WeakReference<HashedWheelTimerWrapper> ref = new WeakReference<HashedWheelTimerWrapper>(wrapper, RQ); 
-    m.put(ref, timer);
-    return timer;
+    final WeakRefTimer wrt = new WeakRefTimer(timer, name);
+    return wrt;
   }
   
-  public static HashedWheelTimer track(final HashedWheelTimer timer) {
-	    final HashedWheelTimerWrapper wrapper = new HashedWheelTimerWrapper(timer);
-	    final WeakReference<HashedWheelTimerWrapper> ref = new WeakReference<HashedWheelTimerWrapper>(wrapper, RQ); 
-	    m.put(ref, timer);
-	    return timer;	  
+  public static Timer track(final Timer timer) {
+	    final WeakRefTimer wrt = new WeakRefTimer(timer, "Tracked#" + System.identityHashCode(timer));
+	    return wrt;	    
   }
   
 	/**

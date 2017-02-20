@@ -10,20 +10,14 @@
 // General Public License for more details.  You should have received a copy
 // of the GNU Lesser General Public License along with this program.  If not,
 // see <http://www.gnu.org/licenses/>.
-package net.opentsdb.tools;
-
-import net.opentsdb.core.TSDB;
+package net.opentsdb.servers;
 
 /**
- * <p>Title: UNIXTSDServer</p>
- * <p>Description: Unix Domain Socket TSD server implementation</p> 
- * <p><code>net.opentsdb.tools.UNIXTSDServer</code></p>
+ * <p>Title: UDPTSDServerMBean</p>
+ * <p>Description: JMX MBean interface for {@link UDPTSDServer} instances</p> 
+ * <p><code>net.opentsdb.servers.UDPTSDServerMBean</code></p>
  */
 
-public class UNIXTSDServer extends AbstractSocketTSDServer {
-	
-	private UNIXTSDServer(TSDB tsdb) {
-		super(tsdb, TSDProtocol.UNIX);
-	}
+public interface UDPTSDServerMBean extends AbstractSocketTSDServerMBean {
 
 }

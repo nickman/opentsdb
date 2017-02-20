@@ -56,7 +56,7 @@ public final class PipelineFactory extends ChannelInitializer<Channel> {
   private final ConnectionManager connmgr = new ConnectionManager();
   private final DetectHttpOrRpc HTTP_OR_RPC = new DetectHttpOrRpc();
   private final Timer timer;
-  private final IdleStateHandler timeoutHandler;
+//  private final IdleStateHandler timeoutHandler;
 //  private final ChannelHandler timeoutHandlerX;
 
   /** Stateless handler for RPCs. */
@@ -93,7 +93,7 @@ public final class PipelineFactory extends ChannelInitializer<Channel> {
     this.tsdb = tsdb;
     this.socketTimeout = tsdb.getConfig().getInt("tsd.core.socket.timeout");
     timer = tsdb.getTimer();
-    this.timeoutHandler = new IdleStateHandler(0, 0, this.socketTimeout);
+    //this.timeoutHandler = new IdleStateHandler(0, 0, this.socketTimeout);
     this.rpchandler = new RpcHandler(tsdb, manager);
     try {
       HttpQuery.initializeSerializerMaps(tsdb);

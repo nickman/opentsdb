@@ -10,7 +10,7 @@
 // General Public License for more details.  You should have received a copy
 // of the GNU Lesser General Public License along with this program.  If not,
 // see <http://www.gnu.org/licenses/>.
-package net.opentsdb.tools;
+package net.opentsdb.servers;
 
 import java.io.IOException;
 import java.net.SocketAddress;
@@ -29,6 +29,8 @@ import io.netty.channel.group.ChannelGroup;
 import io.netty.handler.codec.CodecException;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
+import net.opentsdb.tools.ConnectionRefusedException;
 
 
 /**
@@ -111,7 +113,31 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler {
 		exceptions_reset.set(0L);
 		exceptions_timeout.set(0L);
 	}
-
+	
+	
+	@Override //yes
+	public void channelRegistered(ChannelHandlerContext ctx) throws Exception {		
+		if(allIdleTime > 0) {
+			ctx.pipeline().addFirst("IdleConnectionHandler", new IdleStateHandler(0, 0, (int)allIdleTime));
+		}
+		
+		final int connectionCount = channelGroup.size();
+		if(connectionCount == maxConnections) {
+			connections_rejected.incrementAndGet();
+			log.warn("Connection rejected due to max connection count at {}", connectionCount);
+			ctx.channel().close();
+			return;
+		}
+		connections_established.incrementAndGet();
+		channelGroup.add(ctx.channel());
+		super.channelRegistered(ctx);
+	}
+	
+	@Override
+	public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {		
+		connections_closed.incrementAndGet();
+		super.channelUnregistered(ctx);
+	}
 	
 	/**
 	 * {@inheritDoc}
@@ -131,43 +157,6 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler {
         }
         super.userEventTriggered(ctx, event);
 	}
-	
-	
-	
-	
-	/**
-	 * {@inheritDoc}
-	 * @see io.netty.channel.ChannelOutboundHandler#connect(io.netty.channel.ChannelHandlerContext, java.net.SocketAddress, java.net.SocketAddress, io.netty.channel.ChannelPromise)
-	 */
-	@Override
-	public void connect(final ChannelHandlerContext ctx, final SocketAddress remoteAddress, final SocketAddress localAddress,
-			final ChannelPromise promise) throws Exception {
-		connections_established.incrementAndGet();
-		super.connect(ctx, remoteAddress, localAddress, promise);
-	}
-	
-//	/**
-//	 * Limits number of connections
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelHandler#handlerAdded(io.netty.channel.ChannelHandlerContext)
-//	 */
-//	@Override
-//	public void handlerAdded(final ChannelHandlerContext ctx) throws Exception {
-//		if (maxConnections > 0) {		
-//			final int size = channelGroup.size(); 
-//	        if (size >= maxConnections) {
-//	            throw new ConnectionRefusedException("Channel size (" + size + ") exceeds total "
-//	                    + "connection limit (" + maxConnections + ")");
-//	        }
-//		}
-//		channelGroup.add(ctx.channel());
-//		if(allIdleTime > 0) {
-//			ctx.pipeline().addFirst("idle-state", new IdleStateHandler(0L, 0L, allIdleTime, TimeUnit.SECONDS));			
-//		}
-//		super.handlerAdded(ctx);
-//	}
-	
-	
 	
 	/**
 	 * {@inheritDoc}
@@ -215,20 +204,6 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler {
 
 	}
 	
-	public TSDServerEventMonitor incrementCloses() {
-		connections_closed.incrementAndGet();
-		return this;
-	}
-
-	public TSDServerEventMonitor incrementRejected() {
-		connections_rejected.incrementAndGet();
-		return this;
-	}
-
-	public TSDServerEventMonitor incrementConnects() {
-		connections_established.incrementAndGet();
-		return this;
-	}
 	
 	/**
 	 * Returns the total number of established connections
@@ -285,145 +260,5 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler {
 	public long getTimeoutExceptions() {
 		return exceptions_timeout.get();
 	}
-
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelInboundHandler#channelRegistered(io.netty.channel.ChannelHandlerContext)
-//	 */
-//	@Override
-//	public void channelRegistered(final ChannelHandlerContext ctx) throws Exception {
-//		/* No Op */
-//	}
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelInboundHandler#channelUnregistered(io.netty.channel.ChannelHandlerContext)
-//	 */
-//	@Override
-//	public void channelUnregistered(final ChannelHandlerContext ctx) throws Exception {
-//		/* No Op */
-//	}
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelInboundHandler#channelActive(io.netty.channel.ChannelHandlerContext)
-//	 */
-//	@Override
-//	public void channelActive(final ChannelHandlerContext ctx) throws Exception {
-//		/* No Op */
-//	}
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelInboundHandler#channelInactive(io.netty.channel.ChannelHandlerContext)
-//	 */
-//	@Override
-//	public void channelInactive(final ChannelHandlerContext ctx) throws Exception {
-//		/* No Op */
-//	}
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelInboundHandler#channelRead(io.netty.channel.ChannelHandlerContext, java.lang.Object)
-//	 */
-//	@Override
-//	public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-//		/* No Op */
-//	}
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelInboundHandler#channelReadComplete(io.netty.channel.ChannelHandlerContext)
-//	 */
-//	@Override
-//	public void channelReadComplete(final ChannelHandlerContext ctx) throws Exception {
-//		/* No Op */
-//	}
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelInboundHandler#userEventTriggered(io.netty.channel.ChannelHandlerContext, java.lang.Object)
-//	 */
-//	@Override
-//	public void userEventTriggered(final ChannelHandlerContext ctx, final Object evt) throws Exception {
-//		/* No Op */
-//	}
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelInboundHandler#channelWritabilityChanged(io.netty.channel.ChannelHandlerContext)
-//	 */
-//	@Override
-//	public void channelWritabilityChanged(final ChannelHandlerContext ctx) throws Exception {
-//		/* No Op */
-//	}
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelOutboundHandler#bind(io.netty.channel.ChannelHandlerContext, java.net.SocketAddress, io.netty.channel.ChannelPromise)
-//	 */
-//	@Override
-//	public void bind(final ChannelHandlerContext ctx, final SocketAddress localAddress, final ChannelPromise promise) throws Exception {
-//		/* No Op */
-//	}
-//
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelOutboundHandler#disconnect(io.netty.channel.ChannelHandlerContext, io.netty.channel.ChannelPromise)
-//	 */
-//	@Override
-//	public void disconnect(final ChannelHandlerContext ctx, final ChannelPromise promise) throws Exception {
-//		/* No Op */
-//	}
-//
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelOutboundHandler#deregister(io.netty.channel.ChannelHandlerContext, io.netty.channel.ChannelPromise)
-//	 */
-//	@Override
-//	public void deregister(final ChannelHandlerContext ctx, final ChannelPromise promise) throws Exception {
-//		/* No Op */
-//	}
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelOutboundHandler#read(io.netty.channel.ChannelHandlerContext)
-//	 */
-//	@Override
-//	public void read(final ChannelHandlerContext ctx) throws Exception {
-//		/* No Op */
-//	}
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelOutboundHandler#write(io.netty.channel.ChannelHandlerContext, java.lang.Object, io.netty.channel.ChannelPromise)
-//	 */
-//	@Override
-//	public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws Exception {
-//		/* No Op */
-//	}
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelOutboundHandler#flush(io.netty.channel.ChannelHandlerContext)
-//	 */
-//	@Override
-//	public void flush(final ChannelHandlerContext ctx) throws Exception {
-//		/* No Op */
-//	}
-//	
-//
-//	/**
-//	 * {@inheritDoc}
-//	 * @see io.netty.channel.ChannelHandler#handlerRemoved(io.netty.channel.ChannelHandlerContext)
-//	 */
-//	@Override
-//	public void handlerRemoved(final ChannelHandlerContext ctx) throws Exception {
-//		/* No Op */
-//	}
-
-	
 
 }

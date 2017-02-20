@@ -1,0 +1,284 @@
+// This file is part of OpenTSDB.
+// Copyright (C) 2010-2016  The OpenTSDB Authors.
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 2.1 of the License, or (at your
+// option) any later version.  This program is distributed in the hope that it
+// will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+// of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser
+// General Public License for more details.  You should have received a copy
+// of the GNU Lesser General Public License along with this program.  If not,
+// see <http://www.gnu.org/licenses/>.
+package net.opentsdb.servers;
+
+import java.lang.reflect.Constructor;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicReference;
+
+import io.netty.bootstrap.AbstractBootstrap;
+import io.netty.bootstrap.Bootstrap;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.epoll.EpollDatagramChannel;
+import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.epoll.EpollServerDomainSocketChannel;
+import io.netty.channel.epoll.EpollServerSocketChannel;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.oio.OioEventLoopGroup;
+import io.netty.channel.socket.nio.NioDatagramChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.channel.socket.oio.OioServerSocketChannel;
+import io.netty.channel.unix.DomainSocketAddress;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
+import net.opentsdb.core.TSDB;
+import net.opentsdb.tsd.PipelineFactory;
+import net.opentsdb.tsd.TSDServerBuilder;
+import net.opentsdb.tsd.UDPPacketHandler;
+import net.opentsdb.utils.Config;
+
+/**
+ * <p>Title: TSDProtocol</p>
+ * <p>Description: A functional enumeration of the supported protocols for TSD server implementations</p> 
+ * <p><code>net.opentsdb.tools.TSDProtocol</code></p>
+ */
+
+public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
+	/** The TCP TSD server protocol */
+	TCP(true, TCPTSDServer.class, new StandardChannelInitializerFactory()),
+	/** The Unix Domain Socket TSD server protocol */
+	UNIX(true, UNIXTSDServer.class, new StandardChannelInitializerFactory()),
+	/** The UDP TSD server protocol */
+	UDP(false, UDPTSDServer.class, new UDPChannelInitializerFactory());
+	
+	// UDPMULTICAST, MQTT, STOMP, REDIS, KAFKA, AERON, JMS
+	
+	private TSDProtocol(final boolean connectionServer, final Class<? extends AbstractTSDServer> tsdClass, final InitializerFactory factory) {
+		this.tsdClass = tsdClass;
+		this.factory = factory; 
+		this.connectionServer = connectionServer;
+	}
+	
+	/** The TSD server implementation class for this protocol */
+	public final Class<? extends AbstractTSDServer> tsdClass;
+	/** Indicates if the TSD server is connection based (true) or connectionless (false) */
+	public final boolean connectionServer;
+	/** The channel initializer factory */
+	private final InitializerFactory factory;
+	
+	
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.InitializerFactory#initializer(net.opentsdb.core.TSDB, io.netty.channel.ChannelHandler, io.netty.channel.ChannelHandler)
+	 */
+	@Override
+	public ChannelInitializer<Channel> initializer(TSDB tsdb, final ChannelHandler first, final ChannelHandler last) {
+		return factory.initializer(tsdb, first, last);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tsd.TSDServerBuilder#buildBossGroup(boolean, boolean, net.opentsdb.utils.Config)
+	 */
+	@Override
+	public EventLoopGroup buildBossGroup(final boolean async, final boolean epoll, final Config config) {
+		if(!async) return null;
+		final ExecutorThreadFactory executorThreadFactory;
+		final EventLoopGroup eventLoopGroup;
+		if(epoll) {
+			executorThreadFactory = new ExecutorThreadFactory(name() + "-EpollBoss#%d", true);
+			eventLoopGroup = new EpollEventLoopGroup(1, (ThreadFactory)executorThreadFactory);
+		} else {
+			executorThreadFactory = new ExecutorThreadFactory(name() + "-NioBoss#%d", true);
+			eventLoopGroup = new NioEventLoopGroup(1, (ThreadFactory)executorThreadFactory);
+		}
+		return eventLoopGroup;
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tsd.TSDServerBuilder#buildWorkerGroup(boolean, boolean, net.opentsdb.utils.Config)
+	 */
+	@Override
+	public EventLoopGroup buildWorkerGroup(final boolean async, final boolean epoll, final Config config) {
+		final ExecutorThreadFactory executorThreadFactory;
+		final EventLoopGroup eventLoopGroup;
+		final int threadCount = config.getInt("tsd.network.worker_threads", 
+				Runtime.getRuntime().availableProcessors() * 2);
+		if(async) {
+			if(epoll) {
+				executorThreadFactory = new ExecutorThreadFactory(name() + "-EpollWorker#%d", true);
+				eventLoopGroup = new EpollEventLoopGroup(threadCount, (ThreadFactory)executorThreadFactory);
+			} else {
+				executorThreadFactory = new ExecutorThreadFactory(name() + "-NioWorker#%d", true);
+				eventLoopGroup = new NioEventLoopGroup(threadCount, (ThreadFactory)executorThreadFactory);
+			}
+		} else {
+			executorThreadFactory = new ExecutorThreadFactory(name() + "-OioWorker#%d", true);
+			eventLoopGroup = new OioEventLoopGroup(threadCount, (ThreadFactory)executorThreadFactory);
+		}
+		return eventLoopGroup;
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tsd.TSDServerBuilder#channelClass(boolean, boolean, net.opentsdb.utils.Config)
+	 */
+	@Override
+	public Class<? extends Channel> channelClass(final boolean async, final boolean epoll, final Config config) {
+		if(this==UDP) return epoll ? EpollDatagramChannel.class : NioDatagramChannel.class;
+		if(this==UNIX) return EpollServerDomainSocketChannel.class;
+		if(async) {
+			return epoll ? EpollServerSocketChannel.class : NioServerSocketChannel.class;
+		} else {
+			return OioServerSocketChannel.class;
+		}
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tsd.TSDServerBuilder#buildBootstrap()
+	 */
+	@SuppressWarnings("rawtypes")
+	@Override
+	public AbstractBootstrap buildBootstrap(final LogLevel level) {		
+		if(connectionServer) {
+			final ServerBootstrap b = new ServerBootstrap();
+			if(level!=null) {
+				b.handler(new LoggingHandler(tsdClass, level));
+			}
+			return b;
+		} else {
+			final Bootstrap b = new Bootstrap();
+			b.option(ChannelOption.SO_BROADCAST, true);
+			return b;
+		}
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tsd.TSDServerBuilder#socketAddress(net.opentsdb.utils.Config)
+	 */
+	@Override
+	public SocketAddress socketAddress(final Config config) {
+		switch(this) {
+			case TCP:
+			case UDP:
+				final int port = config.getInt("tsd.network.port", 4242);
+				final String bindInterface = config.getString("tsd.network.bind", "0.0.0.0");
+				return new InetSocketAddress(bindInterface, port);
+			case UNIX:
+				final String path = config.getString("tsd.network.unixsocket.path");
+				return new DomainSocketAddress(path);
+			default:
+				throw new UnsupportedOperationException("No socket address factory for [" + name() + "]. Programmer Error.");		
+		}
+		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tsd.TSDServerBuilder#buildServer(net.opentsdb.core.TSDB)
+	 */
+	@Override
+	public AbstractTSDServer buildServer(final TSDB tsdb) {
+		if(tsdb==null) throw new IllegalArgumentException("The passed TSDB was null");
+		try {
+			final Constructor<? extends AbstractTSDServer> ctor = tsdClass.getDeclaredConstructor(TSDB.class);
+			ctor.setAccessible(true);
+			return ctor.newInstance(tsdb);
+		} catch (Exception ex) {
+			throw new RuntimeException("Failed to create an instance of [" + tsdClass.getName() + "]", ex);
+		}
+	}
+	
+	/**
+	 * <p>Title: UDPChannelInitializerFactory</p>
+	 * <p>Description: Initializer for UDP TSD servers</p> 
+	 * <p><code>net.opentsdb.tools.TSDProtocol.UDPChannelInitializerFactory</code></p>
+	 */
+	static class UDPChannelInitializerFactory implements InitializerFactory {
+		private static final AtomicReference<ChannelInitializer<Channel>> instance = new AtomicReference<ChannelInitializer<Channel>>(null);
+		@Override
+		public ChannelInitializer<Channel> initializer(final TSDB tsdb, final ChannelHandler first, final ChannelHandler last) {
+			if(tsdb==null) throw new IllegalArgumentException("The passed TSDB was null");
+			if(instance.get()==null) {
+				synchronized(instance) {
+					if(instance.get()==null) {
+						final UDPPacketHandler handler = new UDPPacketHandler(tsdb);
+						final ChannelInitializer<Channel> initializer = new ChannelInitializer<Channel>() {
+							@Override
+							protected void initChannel(final Channel channel) throws Exception {
+								final ChannelPipeline p = channel.pipeline();								
+								final LogLevel level = tsdb.getConfig().getLogLevel("tsd.network.loglevel");
+								if(level!=null) {
+									p.addLast(new LoggingHandler(UDP.tsdClass, level));
+								}								
+								p.addLast(UDPPacketHandler.class.getSimpleName(), handler);
+								if(first!=null) {
+									p.addFirst(first.getClass().getSimpleName() + "First", first);
+								}
+								if(last!=null) {
+									p.addLast(last.getClass().getSimpleName() + "Last", last);
+								}
+							}
+						};
+						instance.set(initializer);
+					}
+				}
+			}
+			return instance.get();
+		}
+	}
+	
+	/**
+	 * <p>Title: StandardChannelInitializerFactory</p>
+	 * <p>Description: ChannelInitializerFactory to create the standard {@link PipelineFactory}</p> 
+	 * <p><code>net.opentsdb.tools.TSDProtocol.StandardChannelInitializerFactory</code></p>
+	 */
+	static class StandardChannelInitializerFactory implements InitializerFactory {
+		private static final AtomicReference<ChannelInitializer<Channel>> instance = new AtomicReference<ChannelInitializer<Channel>>(null);		
+		private static final AtomicReference<PipelineFactory> pFactory = new AtomicReference<PipelineFactory>(null);
+		@Override
+		public ChannelInitializer<Channel> initializer(final TSDB tsdb, final ChannelHandler first, final ChannelHandler last) {
+			if(tsdb==null) throw new IllegalArgumentException("The passed TSDB was null");
+			if(pFactory.get()==null) {
+				synchronized(pFactory) {
+					if(pFactory.get()==null) {
+						pFactory.set(new PipelineFactory(tsdb));
+					}
+				}
+			}			
+			if(instance.get()==null) {
+				synchronized(instance) {
+					if(instance.get()==null) {
+						final ChannelInitializer<Channel> initializer = new ChannelInitializer<Channel>() {
+							@Override
+							protected void initChannel(final Channel channel) throws Exception {
+								final ChannelPipeline p = channel.pipeline();
+								p.addLast("pipelineFactory", pFactory.get());
+								if(first!=null) {
+									p.addFirst(first.getClass().getSimpleName() + "First", first);
+								}
+								if(last!=null) {
+									p.addLast(last.getClass().getSimpleName() + "Last", last);
+								}								
+							}
+						};
+						instance.set(initializer);
+					}
+				}
+			}
+			return instance.get();
+		}
+	}
+}

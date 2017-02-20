@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import net.opentsdb.tools.BuildData;
 import net.opentsdb.core.TSDB;
+import net.opentsdb.servers.TSDServer;
 import net.opentsdb.core.Const;
 import net.opentsdb.tsd.PipelineFactory;
 import net.opentsdb.tsd.RpcManager;

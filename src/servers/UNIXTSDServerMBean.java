@@ -10,23 +10,14 @@
 // General Public License for more details.  You should have received a copy
 // of the GNU Lesser General Public License along with this program.  If not,
 // see <http://www.gnu.org/licenses/>.
-package net.opentsdb.tsd;
-
-import net.opentsdb.core.TSDB;
+package net.opentsdb.servers;
 
 /**
- * <p>Title: ChannelInitializerFactory</p>
- * <p>Description: Provides channel initializers specific to each TSD server type</p> 
- * <p><code>net.opentsdb.tsd.ChannelInitializerFactory</code></p>
+ * <p>Title: UNIXTSDServerMBean</p>
+ * <p>Description: JMX MBean interface for {@link UNIXTSDServer} instances</p> 
+ * <p><code>net.opentsdb.servers.UNIXTSDServerMBean</code></p>
  */
 
-public interface InitializerFactory<T> {
-	
-	/**
-	 * Creates and returns a ChannelInitializer 
-	 * @param tsdb The parent TSDB instance
-	 * @return the initialized ChannelInitializer
-	 */
-	public T initializer(final TSDB tsdb);
-	
+public interface UNIXTSDServerMBean extends ConnectionTSDServerMBean {
+
 }

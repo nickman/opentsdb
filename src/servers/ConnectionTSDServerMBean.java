@@ -10,19 +10,33 @@
 // General Public License for more details.  You should have received a copy
 // of the GNU Lesser General Public License along with this program.  If not,
 // see <http://www.gnu.org/licenses/>.
-package net.opentsdb.tsd;
+package net.opentsdb.servers;
 
 /**
- * <p>Title: UnixDomainSocketServerMBean</p>
- * <p>Description: JMX MBean interface for {@link UnixDomainSocketServer}</p> 
- * <p><code>net.opentsdb.tsd.UnixDomainSocketServerMBean</code></p>
+ * <p>Title: ConnectionTSDServerMBean</p>
+ * <p>Description: Base JMX MBean interface for connection based TSD servers</p> 
+ * <p><code>net.opentsdb.servers.ConnectionTSDServerMBean</code></p>
  */
 
-public interface UnixDomainSocketServerMBean {
+public interface ConnectionTSDServerMBean extends AbstractSocketTSDServerMBean {
+//	/**
+//	 * Sets the maximum number of connections, enforced as of the next connection attempt.
+//	 * @param maxConnections the new maximum number of connections
+//	 */
+//	public void setMaxConnections(final int maxConnections);
+//
+//	/**
+//	 * Sets the maximum connection idle time in seconds enforced on future connections
+//	 * @param maxIdleTime the new maxIdleTime to set
+//	 */
+//	public void setMaxIdleTime(final long maxIdleTime);
 
-	/** The JMX ObjectName of the UnixDomainSocketServer */
-	public static final String OBJECT_NAME = "net.opentsdb:service=UnixDomainSocketServer";
-
+	/**
+	 * Returns the number of clients connected through TSDServer
+	 * @return the number of client connections
+	 */
+	public int getActiveConnections();
+	
 	/**
 	 * Returns the maximum number of connections; Zero means unlimited
 	 * @return the maximum number of connections
@@ -84,5 +98,4 @@ public interface UnixDomainSocketServerMBean {
 	 */
 	public long getTimeoutExceptions();
 	
-
 }

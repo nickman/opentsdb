@@ -26,9 +26,9 @@ import java.util.Set;
 
 import net.opentsdb.core.IncomingDataPoint;
 import net.opentsdb.core.TSDB;
+import net.opentsdb.servers.TSDServer;
 import net.opentsdb.stats.QueryStats;
 import net.opentsdb.stats.StatsCollector;
-import net.opentsdb.tools.TSDServer;
 import net.opentsdb.utils.JSON;
 import net.opentsdb.utils.buffermgr.BufferManager;
 

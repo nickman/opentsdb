@@ -10,20 +10,37 @@
 // General Public License for more details.  You should have received a copy
 // of the GNU Lesser General Public License along with this program.  If not,
 // see <http://www.gnu.org/licenses/>.
-package net.opentsdb.tools;
-
-import net.opentsdb.core.TSDB;
+package net.opentsdb.servers;
 
 /**
- * <p>Title: TCPTSDServer</p>
- * <p>Description: The TCP TSD server implementation</p> 
- * <p><code>net.opentsdb.tools.TCPTSDServer</code></p>
+ * <p>Title: AbstractTSDServerMBean</p>
+ * <p>Description: Base JMX MBean interface for {@link AbstractTSDServer} instances</p> 
+ * <p><code>net.opentsdb.servers.AbstractTSDServerMBean</code></p>
  */
 
-public class TCPTSDServer extends AbstractSocketTSDServer {
+public interface AbstractTSDServerMBean {
+	
+	/**
+	 * Indicates if this TSD server is started
+	 * @return true if started, false otherwise
+	 */
+	public boolean isStarted();
 
-	private TCPTSDServer(TSDB tsdb) {
-		super(tsdb, TSDProtocol.TCP);
-	}
+	/**
+	 * Returns the name of the channel initializer for this TSDD server
+	 * @return the name of the channel initializer
+	 */
+	public String getChannelInitializer();
+
+	/**
+	 * Returns the protocol name for this TSD server
+	 * @return the protocol name
+	 */
+	public String getProtocol();
+	
+	/**
+	 * Stops this TSDServer
+	 */
+	public void stop();
 
 }

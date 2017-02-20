@@ -46,6 +46,9 @@ import ch.qos.logback.core.status.StatusListener;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ResourceLeakDetector;
 import net.opentsdb.core.TSDB;
+import net.opentsdb.servers.AbstractTSDServer;
+import net.opentsdb.servers.TSDProtocol;
+import net.opentsdb.servers.TSDServer;
 import net.opentsdb.tools.ConfigArgP.ConfigurationItem;
 import net.opentsdb.tsd.PipelineFactory;
 import net.opentsdb.tsd.RpcManager;
@@ -399,15 +402,21 @@ public class OpenTSDBMain {
       
       // This manager is capable of lazy init, but we force an init
       // here to fail fast.
-      final RpcManager manager = RpcManager.instance(tsdb);
-      final PipelineFactory pipelineFactory = new PipelineFactory(tsdb, manager);
-      server = TSDServer.getInstance(tsdb, pipelineFactory); 
-      server.start();
+//      final RpcManager manager = RpcManager.instance(tsdb);
+//      final PipelineFactory pipelineFactory = new PipelineFactory(tsdb, manager);
+      final AbstractTSDServer tcpServer = AbstractTSDServer.getInstance(tsdb, TSDProtocol.TCP);
+      final AbstractTSDServer unixServer = AbstractTSDServer.getInstance(tsdb, TSDProtocol.UNIX);
+      final AbstractTSDServer udpServer = AbstractTSDServer.getInstance(tsdb, TSDProtocol.UDP);
+      tcpServer.start();
+      unixServer.start();
+      udpServer.start();
+      //server = TSDServer.getInstance(tsdb, pipelineFactory); 
+      //server.start();
 
     } catch (Throwable e) {
-      if(server!=null) {
-    	  server.stop();
-      }
+//      if(server!=null) {
+//    	  server.stop();
+//      }
       try {
         if (tsdb != null)
           tsdb.shutdown().joinUninterruptibly();
