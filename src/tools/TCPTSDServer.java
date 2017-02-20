@@ -20,7 +20,7 @@ import net.opentsdb.core.TSDB;
  * <p><code>net.opentsdb.tools.TCPTSDServer</code></p>
  */
 
-public class TCPTSDServer extends AbstractTSDServer {
+public class TCPTSDServer extends AbstractSocketTSDServer {
 
 	private TCPTSDServer(TSDB tsdb) {
 		super(tsdb, TSDProtocol.TCP);

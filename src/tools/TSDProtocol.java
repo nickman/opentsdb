@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import net.opentsdb.core.TSDB;
-import net.opentsdb.tsd.ChannelInitializerFactory;
+import net.opentsdb.tsd.InitializerFactory;
 import net.opentsdb.tsd.PipelineFactory;
 import net.opentsdb.tsd.TSDServerBuilder;
 
@@ -28,7 +28,7 @@ import net.opentsdb.tsd.TSDServerBuilder;
  * <p><code>net.opentsdb.tools.TSDProtocol</code></p>
  */
 
-public enum TSDProtocol implements ChannelInitializerFactory, TSDServerBuilder {
+public enum TSDProtocol implements InitializerFactory<Object>, TSDServerBuilder {
 	/** The TCP TSD server protocol */
 	TCP(TCPTSDServer.class, new StandardChannelInitializerFactory()),
 	/** The Unix Domain Socket TSD server protocol */
@@ -36,21 +36,22 @@ public enum TSDProtocol implements ChannelInitializerFactory, TSDServerBuilder {
 	
 	// UDP, UDPMULTICAST, MQTT, STOMP, REDIS, KAFKA, AERON, JMS
 	
-	private TSDProtocol(final Class<? extends AbstractTSDServer> tsdClass, final ChannelInitializerFactory factory) {
+	private TSDProtocol(final Class<? extends AbstractTSDServer> tsdClass, final InitializerFactory<Object> factory) {
 		this.tsdClass = tsdClass;
 		this.factory = factory; 
 	}
 	
 	/** The TSD server implementation class for this protocol */
 	public final Class<? extends AbstractTSDServer> tsdClass;
-	private final ChannelInitializerFactory factory;
+	private final InitializerFactory<Object> factory;
+	
 	
 	/**
 	 * {@inheritDoc}
-	 * @see net.opentsdb.tsd.ChannelInitializerFactory#initializer(net.opentsdb.core.TSDB)
+	 * @see net.opentsdb.tsd.InitializerFactory#initializer(net.opentsdb.core.TSDB)
 	 */
 	@Override
-	public ChannelInitializer<Channel> initializer(final TSDB tsdb) {
+	public Object initializer(TSDB tsdb) {
 		return factory.initializer(tsdb);
 	}
 	
@@ -75,7 +76,7 @@ public enum TSDProtocol implements ChannelInitializerFactory, TSDServerBuilder {
 	 * <p>Description: ChannelInitializerFactory to create the standard {@link PipelineFactory}</p> 
 	 * <p><code>net.opentsdb.tools.TSDProtocol.StandardChannelInitializerFactory</code></p>
 	 */
-	static class StandardChannelInitializerFactory implements ChannelInitializerFactory {
+	static class StandardChannelInitializerFactory implements InitializerFactory<Object> {
 		private static final AtomicReference<ChannelInitializer<Channel>> instance = new AtomicReference<ChannelInitializer<Channel>>(null); 
 		@Override
 		public ChannelInitializer<Channel> initializer(final TSDB tsdb) {

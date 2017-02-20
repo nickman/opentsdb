@@ -12,8 +12,6 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelInitializer;
 import net.opentsdb.core.TSDB;
 
 /**
@@ -22,13 +20,13 @@ import net.opentsdb.core.TSDB;
  * <p><code>net.opentsdb.tsd.ChannelInitializerFactory</code></p>
  */
 
-public interface ChannelInitializerFactory {
+public interface InitializerFactory<T> {
 	
 	/**
 	 * Creates and returns a ChannelInitializer 
 	 * @param tsdb The parent TSDB instance
 	 * @return the initialized ChannelInitializer
 	 */
-	public ChannelInitializer<Channel> initializer(final TSDB tsdb);
+	public T initializer(final TSDB tsdb);
 	
 }

@@ -25,7 +25,8 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.epoll.Epoll;
 import net.opentsdb.core.TSDB;
-import net.opentsdb.tsd.PipelineFactory;
+import net.opentsdb.utils.Config;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
  * <p>Title: AbstractTSDServer</p>
@@ -53,6 +54,9 @@ public abstract class AbstractTSDServer {
 	protected final TSDB tsdb;
 	/** The TSDProtocol for this instance */
 	protected final TSDProtocol protocol;
+	/** The Netty ByteBuf manager */
+	final BufferManager bufferManager;
+	
 	
 	/**
 	 * Creates and initializes the TSDServer
@@ -96,12 +100,15 @@ public abstract class AbstractTSDServer {
 	 * @param tsdb The TSDB instance this TSD server is fronting
 	 * @param channelInitializer The channel initializer for this TSD server
 	 */
+	@SuppressWarnings("unchecked")
 	protected AbstractTSDServer(final TSDB tsdb, final TSDProtocol protocol) {
 		if(tsdb==null) throw new IllegalArgumentException("The passed TSDB was null");
 		if(protocol==null) throw new IllegalArgumentException("The passed TSDProtocol was null");
+		final Config config = tsdb.getConfig();
+		bufferManager = BufferManager.getInstance(config);
 		this.protocol = protocol;
 		this.tsdb = tsdb;
-		channelInitializer = protocol.initializer(tsdb);
+		channelInitializer = (ChannelInitializer<Channel>)protocol.initializer(tsdb);
 	}
 	
 	

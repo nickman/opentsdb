@@ -20,7 +20,7 @@ import net.opentsdb.core.TSDB;
  * <p><code>net.opentsdb.tools.UNIXTSDServer</code></p>
  */
 
-public class UNIXTSDServer extends AbstractTSDServer {
+public class UNIXTSDServer extends AbstractSocketTSDServer {
 	
 	private UNIXTSDServer(TSDB tsdb) {
 		super(tsdb, TSDProtocol.UNIX);
