@@ -17,7 +17,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.util.ResourceLeakDetector;
 
 /**
@@ -86,9 +85,5 @@ public class TSDBResourceLeakDetector<T> extends ResourceLeakDetector<T> {
 		leakManager.reportUntracedLeak(resourceTypeName, resourceType);
 		//super.reportUntracedLeak(resourceType);
 	}
-	
-	
-	
-	
 
 }

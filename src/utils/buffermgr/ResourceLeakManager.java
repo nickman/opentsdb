@@ -52,6 +52,11 @@ public class ResourceLeakManager implements ResourceLeakManagerMBean {
 	/** Pattern for extracting leak hints from the records */
 	private static final Pattern HINT_PATTERN = Pattern.compile("Hint:\\s(.*?)\\s+");
 	
+	/** The system property setting the maximum number of leak records to retain */
+	public static final String MAX_RECORDS_PROP = "io.netty.leakDetection.maxRecords";
+	/** The default maximum number of leak records to retain */
+	public static final String DEFAULT_MAX_RECORDS = "1000";
+	
 	/**
 	 * Acquires the ResourceLeakManager singleton
 	 * @return the ResourceLeakManager singleton
@@ -68,6 +73,7 @@ public class ResourceLeakManager implements ResourceLeakManagerMBean {
 	}
 	
 	private ResourceLeakManager() {
+		System.setProperty(MAX_RECORDS_PROP, DEFAULT_MAX_RECORDS);
 		try {
 			final ObjectName objectName = new ObjectName(OBJECT_NAME);
 			ManagementFactory.getPlatformMBeanServer().registerMBean(this, objectName);
@@ -97,7 +103,7 @@ public class ResourceLeakManager implements ResourceLeakManagerMBean {
 	void reportInstancesLeak(final String className, final String resourceType) {
 		totalLeaks.increment();
 		trackedClasses.get(className).increment();
-		log.warn("---INSTANCES LEAK: [{}]", resourceType);		
+		log.warn("---INSTANCES LEAK: [{}]/[{}]", className, resourceType);		
 	}
 	
 	/**
@@ -118,7 +124,7 @@ public class ResourceLeakManager implements ResourceLeakManagerMBean {
 				leakerHints.replace(hint, la);
 			}
 		}
-		log.warn("---TRACED LEAK: [{}/{}]", resourceType, records);
+		log.warn("---TRACED LEAK: [{}]/[{}/{}]", className, resourceType, records);
 	}
 	
 	/**
@@ -128,7 +134,7 @@ public class ResourceLeakManager implements ResourceLeakManagerMBean {
 	void reportUntracedLeak(final String className, final String resourceType) {	
 		totalLeaks.increment();
 		trackedClasses.get(className).increment();
-		log.warn("---UNTRACED LEAK: [{}/{}]", resourceType);
+		log.warn("---UNTRACED LEAK: [{}/{}]", className, resourceType);
 	}
 	
 	/**
@@ -162,5 +168,24 @@ public class ResourceLeakManager implements ResourceLeakManagerMBean {
 	 */
 	public long getTotalLeaks() {
 		return totalLeaks.longValue();
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.utils.buffermgr.ResourceLeakManagerMBean#getMaxLeakRecords()
+	 */
+	@Override
+	public int getMaxLeakRecords() {
+		return Integer.parseInt(System.getProperty(MAX_RECORDS_PROP, DEFAULT_MAX_RECORDS));
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.utils.buffermgr.ResourceLeakManagerMBean#setMaxLeakRecords(int)
+	 */
+	@Override
+	public void setMaxLeakRecords(final int max) {
+		if(max < 1) throw new IllegalArgumentException("Invalid MaxLeakRecords:" + max);
+		System.setProperty(MAX_RECORDS_PROP, "" + max);
 	}
 }

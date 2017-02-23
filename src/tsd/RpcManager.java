@@ -45,7 +45,7 @@ import net.opentsdb.tools.BuildData;
 import net.opentsdb.core.Aggregators;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.query.filter.TagVFilter;
-import net.opentsdb.servers.TSDServer;
+import net.opentsdb.servers.AbstractTSDServer;
 import net.opentsdb.stats.StatsCollector;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.JSON;
@@ -530,7 +530,7 @@ public final class RpcManager {
           super("ShutdownNetty");
         }
         public void run() {
-        	TSDServer.getInstance().stop();
+        	AbstractTSDServer.stopTSDServers();
         }
       }
       new ShutdownNetty().start();  // Stop accepting new connections.

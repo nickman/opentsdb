@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import net.opentsdb.tools.BuildData;
 import net.opentsdb.core.TSDB;
-import net.opentsdb.servers.TSDServer;
+import net.opentsdb.servers.AbstractTSDServer;
 import net.opentsdb.core.Const;
 import net.opentsdb.tsd.PipelineFactory;
 import net.opentsdb.tsd.RpcManager;
@@ -151,7 +151,7 @@ final class TSDMain {
     } catch (Exception e) {
       throw new RuntimeException("Initialization failed", e);
     }
-    TSDServer server = null;
+    
     try {
       tsdb = new TSDB(config);
       if (startup != null) {
@@ -166,19 +166,8 @@ final class TSDMain {
       tsdb.checkNecessaryTablesExist().joinUninterruptibly();
       
       registerShutdownHook();
-      
-      
-      // This manager is capable of lazy init, but we force an init
-      // here to fail fast.
-      final RpcManager manager = RpcManager.instance(tsdb);
-      final PipelineFactory pipelineFactory = new PipelineFactory(tsdb, manager);
-      server = TSDServer.getInstance(tsdb, pipelineFactory); 
-      server.start();
-
+      AbstractTSDServer.startTSDServers(tsdb);
     } catch (Throwable e) {
-      if(server!=null) {
-    	  server.stop();
-      }
       try {
         if (tsdb != null)
           tsdb.shutdown().joinUninterruptibly();
@@ -235,6 +224,7 @@ final class TSDMain {
         super("TSDBShutdown");
       }
       public void run() {
+    	AbstractTSDServer.stopTSDServers();
         try {
           if (RpcManager.isInitialized()) {
             // Check that its actually been initialized.  We don't want to

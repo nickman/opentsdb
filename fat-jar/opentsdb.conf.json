@@ -1,6 +1,14 @@
 {
   "config-items": [
     {
+      "key": "tsd.network.protocols",
+      "cl-option": "--tsd-protocols",
+      "defaultValue": "ALL",
+      "description": "A comma separated list of TSDProtocols for which supported TSD servers should be run. e.g. 'TCP,UDP'",
+      "help": "default",
+      "meta": "TSDSERVERS"
+    },  
+    {
       "key": "tsd.core.auto_create_metrics",
       "cl-option": "--auto-metric",
       "defaultValue": "false",

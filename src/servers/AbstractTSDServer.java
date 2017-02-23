@@ -23,10 +23,13 @@ import javax.management.ObjectName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.stumbleupon.async.Deferred;
+
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.epoll.Epoll;
 import net.opentsdb.core.TSDB;
+import net.opentsdb.stats.StatsCollector;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.buffermgr.BufferManager;
 
@@ -48,6 +51,9 @@ public abstract class AbstractTSDServer implements AbstractTSDServerMBean {
 	/** The template for TSD server JMX ObjectNames */
 	public static final String OBJECT_NAME = "net.opentsdb.servers:service=TSDServer,protocol=%s";
 	
+	/** The config key for the protocols to enable */
+	public static final String PROTOCOL_CONFIG = "tsd.network.protocols";
+	
 	/** The instance logger */
 	protected final Logger log = LoggerFactory.getLogger(getClass());
 	/** Atomic flag indicating if the TSDServer is started */
@@ -65,6 +71,61 @@ public abstract class AbstractTSDServer implements AbstractTSDServerMBean {
 	/** The Netty ByteBuf manager */
 	protected final BufferManager bufferManager;
 	
+	
+	/**
+	 * Starts all configured TSD servers
+	 * @param tsdb The parent TSDB instance
+	 */
+	public static void startTSDServers(final TSDB tsdb) {
+		if(tsdb==null) throw new IllegalArgumentException("The passed TSDB was null");
+		String protocols = null;
+		final Config config = tsdb.getConfig();
+		if(config.hasProperty(PROTOCOL_CONFIG)) {
+			protocols = config.getString(PROTOCOL_CONFIG);
+		}
+		final boolean disableEpoll = config.getBoolean("tsd.network.epoll.disable", true);
+		final boolean epollAvailable = !disableEpoll && EPOLL;
+		final TSDProtocol[] tps = TSDProtocol.enabledServers(protocols);
+		for(TSDProtocol tp: tps) {
+			if(tp.isSupported(epollAvailable)) {
+				try {
+					getInstance(tsdb, tp).start();
+				} catch (Exception ex) {
+					stopTSDServers();
+					throw new IllegalArgumentException(ex);
+				}
+			}
+		}
+	}
+	
+	/**
+	 * Stops all running TSD servers
+	 */
+	public static Deferred<Object> stopTSDServers() {
+		final Deferred<Object> def = new Deferred<Object>();
+		final Thread stopThread = new Thread("TSDServerStopThread") {
+			public void run() {
+				for(AbstractTSDServer server: instances.values()) {
+					server.stop();
+				}
+				instances.clear();
+				def.callback(null);
+			}
+		};
+		stopThread.setDaemon(true);
+		stopThread.start();
+		return def;
+	}
+	
+	/**
+	 * Collects stats on all TSD servers
+	 * @param collector The stats collector
+	 */
+	public static void collectTSDServerStats(final StatsCollector collector) {
+		for(AbstractTSDServer server: instances.values()) {
+			server.collectStats(collector);
+		}
+	}
 	
 	/**
 	 * Creates and initializes the TSDServer
@@ -134,6 +195,14 @@ public abstract class AbstractTSDServer implements AbstractTSDServerMBean {
 	}
 	
 
+	  /**
+	   * Collects the stats and metrics tracked by this instance.
+	   * @param collector The collector to use.
+	   */
+	  public void collectStats(final StatsCollector collector) {
+		  /* Empty */
+	  }
+	
 	/**
 	 * Starts the tcp server
 	 * @throws Exception thrown if the server fails to bind to the requested port

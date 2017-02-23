@@ -1,10 +1,17 @@
 package net.opentsdb.servers;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import net.opentsdb.stats.ThreadPoolMonitor;
 import net.opentsdb.utils.Threads;
 
 /**
@@ -13,17 +20,46 @@ import net.opentsdb.utils.Threads;
  * <p><code>net.opentsdb.tools.TSDTCPServer.ExecutorThreadFactory</code></p>
  */
 public class ExecutorThreadFactory implements Executor, ThreadFactory {
-	final Executor executor;
+	final ExecutorService executor;
 	final ThreadFactory threadFactory;
 	final String name;
 	final AtomicInteger serial = new AtomicInteger();
+	final Map<Long, Thread> threads = new ConcurrentHashMap<Long, Thread>();
 	
 	ExecutorThreadFactory(final String name, final boolean daemon) {
 		this.name = name;
 		threadFactory = Threads.newThreadFactory(name, daemon, Thread.NORM_PRIORITY);
 		executor = Executors.newCachedThreadPool(threadFactory);
+		if(executor instanceof ThreadPoolExecutor) {
+			ThreadPoolMonitor.installMonitor((ThreadPoolExecutor)executor, name);
+		}
 	}
-
+	
+	public ExecutorThreadFactory(final int threadCount, final String name, final boolean daemon) {
+		this.name = name;
+		threadFactory = Threads.newThreadFactory(name, daemon, Thread.NORM_PRIORITY);
+		executor = Executors.newFixedThreadPool(threadCount, threadFactory);
+		if(executor instanceof ThreadPoolExecutor) {
+			ThreadPoolMonitor.installMonitor((ThreadPoolExecutor)executor, name);
+		}		
+	}
+	
+	/**
+	 * Stops ths thread pool gently
+	 */
+	public void shutdown() {
+		executor.shutdown();
+	}
+	
+	
+	/**
+	 * Returns a collection of the thread ids currently operating in this thread pool
+	 * @return a collection of thread ids
+	 */
+	public Set<Long> getThreads() {
+		return Collections.unmodifiableSet(threads.keySet());
+	}
+	
 	/**
 	 * Executes the passed runnable in the executor
 	 * @param command The runnable to execute
@@ -41,7 +77,18 @@ public class ExecutorThreadFactory implements Executor, ThreadFactory {
 	 */
 	@Override
 	public Thread newThread(final Runnable r) {
-		return threadFactory.newThread(r);
+		final Runnable wrapper = new Runnable() {
+			@Override
+			public void run() {
+				try {
+					r.run();
+				} finally {
+					threads.remove(Thread.currentThread().getId());
+				}
+				
+			}
+		};
+		return threadFactory.newThread(wrapper);
 	}
 	
 	/**

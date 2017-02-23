@@ -67,6 +67,7 @@ import net.opentsdb.rollup.RollupInterval;
 import net.opentsdb.rollup.RollupUtils;
 import net.opentsdb.search.SearchPlugin;
 import net.opentsdb.search.SearchQuery;
+import net.opentsdb.servers.AbstractTSDServer;
 import net.opentsdb.tools.StartupPlugin;
 import net.opentsdb.stats.Histogram;
 import net.opentsdb.stats.QueryStats;
@@ -891,6 +892,15 @@ public final class TSDB {
   }
 
   /**
+   * Allows external components that load data points independently of the TSDB
+   * to register the number of points added
+   * @param points The number of data points added 
+   */
+  public void incrementDataPointsAdded(final long points) {
+	  datapoints_added.addAndGet(points);
+  }
+  
+  /**
    * Returns a new {@link WritableDataPoints} instance suitable for this TSDB.
    * <p>
    * If you want to add a single data-point, consider using {@link #addPoint}
@@ -1483,6 +1493,8 @@ public final class TSDB {
   public Deferred<Object> shutdown() {
     final ArrayList<Deferred<Object>> deferreds = 
       new ArrayList<Deferred<Object>>();
+    
+    deferreds.add(AbstractTSDServer.stopTSDServers());
     
     final class FinalShutdown implements Callback<Object, Object> {
       @Override

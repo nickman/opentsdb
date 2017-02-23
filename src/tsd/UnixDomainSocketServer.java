@@ -51,7 +51,6 @@ import io.netty.util.CharsetUtil;
 import io.netty.util.concurrent.DefaultEventExecutor;
 import io.netty.util.concurrent.EventExecutor;
 import net.opentsdb.core.TSDB;
-import net.opentsdb.servers.TSDServer;
 import net.opentsdb.servers.TSDServerEventMonitor;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.Threads;
@@ -238,7 +237,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 		if(msg!=null && msg.readableBytes()>=STOP_CODE_SIZE) {
 			if(msg.slice(0, STOP_CODE_SIZE).equals(STOP_CODE)) {
 				try {
-					TSDServer.getInstance().stop();
+//					TSDServer.getInstance().stop();
 				} catch (Exception ex) {
 					log.error("Failed to call for TSDServer Stop", ex);
 					stop();

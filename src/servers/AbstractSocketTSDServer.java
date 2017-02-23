@@ -13,14 +13,20 @@
 package net.opentsdb.servers;
 
 import java.net.SocketAddress;
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import io.netty.bootstrap.AbstractBootstrap;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelConfig;
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.group.ChannelGroup;
@@ -28,7 +34,7 @@ import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.util.concurrent.DefaultEventExecutor;
 import io.netty.util.concurrent.EventExecutor;
 import net.opentsdb.core.TSDB;
-import net.opentsdb.utils.Threads;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
  * <p>Title: AbstractSocketTSDServer</p>
@@ -95,14 +101,44 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 	protected final EventLoopGroup workerGroup;
 	
 	/** The channel event monitor for handling max connections, idle connections and event counts */
-	protected final TSDServerEventMonitor eventMonitor;
-	
-	
-	
+	protected final TSDServerEventMonitor eventMonitor;	
+	/** An epoll tcp monitor, instantiated if protocol is TCP and epoll is true */
+	protected final EPollMonitor epollMonitor;
 	/** The server channel created on socket bind */
 	protected Channel serverChannel = null;
 	
+	/** If we get this on the unixsocket server, we shutdown */
+	public final ByteBuf STOP_CODE;
+	/** The number of bytes in the stop code */
+	public final int STOP_CODE_SIZE;
 	
+	/** The charset for telnet decoding */
+	public static final Charset ISO8859 = Charset.forName("ISO-8859-1");
+	
+	@ChannelHandler.Sharable
+	class StopCodeListener extends ChannelDuplexHandler {
+		
+		@Override
+		public void channelRead(ChannelHandlerContext ctx, Object payload) throws Exception {
+			if(payload!=null && (payload instanceof ByteBuf)) {
+				final ByteBuf msg = (ByteBuf)payload;
+				if(msg.readableBytes()>=STOP_CODE_SIZE) {
+					if(msg.slice(0, STOP_CODE_SIZE).equals(STOP_CODE)) {
+						try {
+							log.info("\n\t==========================\n\tReceived StopCode. Stopping OpenTSDB...\n\t==========================\n");
+							tsdb.shutdown();
+							return;
+						} catch (Exception ex) {
+							log.error("Failed to call for TSDServer Stop", ex);
+							return;
+						}
+					}
+				}
+				
+			}
+			super.channelRead(ctx, payload);
+		}
+	}
 
 	/**
 	 * Creates a new AbstractSocketTSDServer
@@ -127,6 +163,14 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 		connectTimeout = config.getInt("tsd.network.sotimeout", 0);
 		backlog = config.getInt("tsd.network.backlog", 3072);
 		reuseAddress = config.getBoolean("tsd.network.reuse_address", true);
+		if(config.hasProperty("tsd.network.unixsocket.stopcode")) {			
+			STOP_CODE = BufferManager.getInstance().wrap(config.getString("tsd.network.unixsocket.stopcode").trim(), ISO8859).asReadOnly();
+			STOP_CODE_SIZE = STOP_CODE.readableBytes();			
+		} else {
+			STOP_CODE = null;
+			STOP_CODE_SIZE = -1;
+		}
+		
 		
 		final boolean epoll = !disableEpoll && EPOLL;
 		
@@ -150,22 +194,30 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 			serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, keepAlive);
 			serverBootstrap.childOption(ChannelOption.SO_RCVBUF, recvBuffer);
 			serverBootstrap.childOption(ChannelOption.SO_SNDBUF, sendBuffer);
-			serverBootstrap.childOption(ChannelOption.WRITE_SPIN_COUNT, writeSpins);
-			channelGroupExecutor = new DefaultEventExecutor(Threads.newThreadFactory(protocol.name() + "-TSDServerChannelGroup-%d", true, Thread.NORM_PRIORITY));
+			serverBootstrap.childOption(ChannelOption.WRITE_SPIN_COUNT, writeSpins);			
+			channelGroupExecutor = new DefaultEventExecutor((Executor)new ExecutorThreadFactory(protocol.name() + "-TSDServerChannelGroup-%d", true));
 			channelGroup = new DefaultChannelGroup("TSDServerSocketConnections", channelGroupExecutor);
-			eventMonitor = new TSDServerEventMonitor(channelGroup, maxConnections, maxIdleTime);			
-			if(async) {
+			eventMonitor = new TSDServerEventMonitor(channelGroup, maxConnections, maxIdleTime);
+			if(async && bossGroup!=null) {
 				serverBootstrap.group(bossGroup, workerGroup);
 			} else {
 				serverBootstrap.group(workerGroup);
 			}
-			serverBootstrap.childHandler(protocol.initializer(tsdb, eventMonitor, null));
+			final ChannelHandler[] handlers = new ChannelHandler[]{eventMonitor, null};
+			if(STOP_CODE!=null) handlers[1] = new StopCodeListener();
+			serverBootstrap.childHandler(protocol.initializer(tsdb, handlers, null));
+			//serverBootstrap.handler(eventMonitor);
 		} else {
 			channelGroupExecutor = null;
 			channelGroup = null;
 			eventMonitor = null;
 			bootstrap.group(workerGroup);
 			bootstrap.handler(protocol.initializer(tsdb, null, null));
+		}
+		if(epoll && protocol==TSDProtocol.TCP) {
+			epollMonitor = new EPollMonitor(channelGroup);
+		} else {
+			epollMonitor = null;
 		}
 	}
 	

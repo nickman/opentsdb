@@ -12,7 +12,6 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.servers;
 
-import java.net.SocketAddress;
 import java.util.Map;
 
 /**

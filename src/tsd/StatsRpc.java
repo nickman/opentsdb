@@ -26,7 +26,7 @@ import java.util.Set;
 
 import net.opentsdb.core.IncomingDataPoint;
 import net.opentsdb.core.TSDB;
-import net.opentsdb.servers.TSDServer;
+import net.opentsdb.servers.AbstractTSDServer;
 import net.opentsdb.stats.QueryStats;
 import net.opentsdb.stats.StatsCollector;
 import net.opentsdb.utils.JSON;
@@ -147,7 +147,7 @@ public final class StatsRpc implements TelnetRpc, HttpRpc {
     collectThreadStats(collector);
     tsdb.collectStats(collector);
     BufferManager.getInstance().collectStats(collector);
-    TSDServer.getInstance().collectStats(collector);
+    AbstractTSDServer.collectTSDServerStats(collector);
   }
   
   /**

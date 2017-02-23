@@ -42,5 +42,18 @@ public interface ResourceLeakManagerMBean {
 	 * @return the hint leak counts
 	 */
 	public Map<String, Long> getHints();	
+	
+	/**
+	 * Returns the maximum number of leak records to retain
+	 * @return the maximum number of leak records to retain
+	 */
+	public int getMaxLeakRecords();
+	
+	/**
+	 * Sets the maximum number of leak records to retain
+	 * @param max the max
+	 */
+	public void setMaxLeakRecords(final int max);
+
 
 }

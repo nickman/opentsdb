@@ -13,6 +13,8 @@
 package net.opentsdb.servers;
 
 import net.opentsdb.core.TSDB;
+import net.opentsdb.stats.StatsCollector;
+import net.opentsdb.tsd.UDPPacketHandler;
 
 /**
  * <p>Title: UDPTSDServer</p>
@@ -31,7 +33,17 @@ public class UDPTSDServer extends AbstractSocketTSDServer {
 	private UDPTSDServer(final TSDB tsdb) {
 		super(tsdb, TSDProtocol.UDP);
 	}
+	
+	@Override
+	public void collectStats(final StatsCollector collector) {		
+		super.collectStats(collector);
+		UDPPacketHandler.collectStats(collector);
+	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.AbstractTSDServer#start()
+	 */
 	@Override
 	public void start() throws Exception {
 		if(started.compareAndSet(false, true)) {
@@ -49,6 +61,10 @@ public class UDPTSDServer extends AbstractSocketTSDServer {
 		}
 	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.AbstractTSDServer#stop()
+	 */
 	@Override
 	public void stop() {
 		if(started.compareAndSet(true, false)) {

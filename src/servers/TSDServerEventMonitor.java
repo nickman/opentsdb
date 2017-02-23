@@ -22,6 +22,8 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
@@ -63,7 +65,7 @@ Outbound event propagation methods:
  */
 
 @ChannelHandler.Sharable
-public class TSDServerEventMonitor extends ChannelDuplexHandler {
+public class TSDServerEventMonitor extends ChannelDuplexHandler implements ChannelFutureListener {
 	/** The maximum number of connections allowed, or zero for unlimited */
 	protected final int maxConnections;
 	/** The max idle time in seconds */
@@ -115,8 +117,40 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler {
 	}
 	
 	
-	@Override //yes
-	public void channelRegistered(ChannelHandlerContext ctx) throws Exception {		
+	
+	@Override
+	public void operationComplete(final ChannelFuture future) throws Exception {
+		connections_closed.incrementAndGet();	
+//		new Exception().printStackTrace(System.err);
+	}
+	
+	@Override
+	public void channelActive(final ChannelHandlerContext ctx) throws Exception {
+		if(channelGroup.add(ctx.channel())) {
+			if(allIdleTime > 0) {
+				ctx.pipeline().addFirst("IdleConnectionHandler", new IdleStateHandler(0, 0, (int)allIdleTime));
+			}
+			
+			final int connectionCount = channelGroup.size();
+			if(connectionCount == maxConnections) {
+				connections_rejected.incrementAndGet();
+				log.warn("Connection rejected due to max connection count at {}", connectionCount);
+				ctx.channel().close();
+				return;
+			}
+			connections_established.incrementAndGet();
+			ctx.channel().closeFuture().addListener(this);
+		}
+		super.channelActive(ctx);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see io.netty.channel.ChannelDuplexHandler#connect(io.netty.channel.ChannelHandlerContext, java.net.SocketAddress, java.net.SocketAddress, io.netty.channel.ChannelPromise)
+	 */
+	@Override
+	public void connect(final ChannelHandlerContext ctx, final SocketAddress remoteAddress, final SocketAddress localAddress,
+			final ChannelPromise promise) throws Exception {
 		if(allIdleTime > 0) {
 			ctx.pipeline().addFirst("IdleConnectionHandler", new IdleStateHandler(0, 0, (int)allIdleTime));
 		}
@@ -130,14 +164,21 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler {
 		}
 		connections_established.incrementAndGet();
 		channelGroup.add(ctx.channel());
-		super.channelRegistered(ctx);
+		super.connect(ctx, remoteAddress, localAddress, promise);
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see io.netty.channel.ChannelDuplexHandler#close(io.netty.channel.ChannelHandlerContext, io.netty.channel.ChannelPromise)
+	 */
 	@Override
-	public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {		
+	public void close(final ChannelHandlerContext ctx, final ChannelPromise promise) throws Exception {
 		connections_closed.incrementAndGet();
-		super.channelUnregistered(ctx);
+		super.close(ctx, promise);
 	}
+	
+
+	
 	
 	/**
 	 * {@inheritDoc}

@@ -10,7 +10,7 @@
 // General Public License for more details.  You should have received a copy
 // of the GNU Lesser General Public License along with this program.  If not,
 // see <http://www.gnu.org/licenses/>.
-package net.opentsdb.tsd;
+package net.opentsdb.servers;
 
 import java.net.SocketAddress;
 
@@ -19,13 +19,12 @@ import io.netty.channel.Channel;
 import io.netty.channel.EventLoopGroup;
 import io.netty.handler.logging.LogLevel;
 import net.opentsdb.core.TSDB;
-import net.opentsdb.servers.AbstractTSDServer;
 import net.opentsdb.utils.Config;
 
 /**
  * <p>Title: TSDServerBuilder</p>
  * <p>Description: A builder of TSD server instances</p> 
- * <p><code>net.opentsdb.tsd.TSDServerBuilder</code></p>
+ * <p><code>net.opentsdb.servers.TSDServerBuilder</code></p>
  */
 
 public interface TSDServerBuilder {
@@ -78,14 +77,13 @@ public interface TSDServerBuilder {
 	 */
 	public SocketAddress socketAddress(final Config config);
 	
+	/**
+	 * Indicates if this protocol is supported on this platform
+	 * @param epoll true if epoll is enabled, false otherwise
+	 * @return true if supported, false otherwise
+	 */
+	public boolean isSupported(final boolean epoll);
 	
-//	bossExecutorThreadFactory = new ExecutorThreadFactory("EpollServerBoss#%d", true);
-//	bossGroup = new EpollEventLoopGroup(1, (ThreadFactory)bossExecutorThreadFactory);
-//	workerExecutorThreadFactory = new ExecutorThreadFactory("EpollServerWorker#%d", true);
-//	workerGroup = new EpollEventLoopGroup(workerThreads, (ThreadFactory)workerExecutorThreadFactory);
-//	channelType = EpollServerSocketChannel.class;
-//	uri.append("epoll");
-//	epollMonitor = new EPollMonitor("tcp", channelGroup);
 	
 
 }

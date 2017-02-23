@@ -15,8 +15,13 @@ package net.opentsdb.servers;
 import java.lang.reflect.Constructor;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.EnumSet;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.AbstractBootstrap;
 import io.netty.bootstrap.Bootstrap;
@@ -26,6 +31,7 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollDatagramChannel;
 import io.netty.channel.epoll.EpollEventLoopGroup;
@@ -39,9 +45,10 @@ import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.channel.unix.DomainSocketAddress;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import io.netty.util.concurrent.EventExecutorGroup;
 import net.opentsdb.core.TSDB;
+import net.opentsdb.core.Tags;
 import net.opentsdb.tsd.PipelineFactory;
-import net.opentsdb.tsd.TSDServerBuilder;
 import net.opentsdb.tsd.UDPPacketHandler;
 import net.opentsdb.utils.Config;
 
@@ -73,40 +80,80 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 	public final boolean connectionServer;
 	/** The channel initializer factory */
 	private final InitializerFactory factory;
+	/** The enum values */
+	private static final TSDProtocol[] values = values();
+	/** Legacy boot default */
+	private static final TSDProtocol[] legacyDefault = new TSDProtocol[]{TCP};
 	
+	/** The instance logger */
+	protected static final Logger log = LoggerFactory.getLogger(TSDProtocol.class);
+
 	
+	/**
+	 * Accepts the passed configuration string as comma separated TSDProtocol names
+	 * and returns an array of the TSDProtocols therein. If the value <code>ALL</code>
+	 * is passed in, all  TSDProtocols are returned. If the value is null, only TCP
+	 * is returned.
+	 * @param config The configuration string to parse
+	 * @return an array of protocols
+	 */
+	public static TSDProtocol[] enabledServers(final String config) {
+		if(config==null || config.trim().isEmpty()) return legacyDefault;
+		final String uconfig = config.replace(" ", "").toUpperCase();
+		if("ALL".equals(uconfig)) return values;
+		final String[] names = Tags.splitString(uconfig, ',');
+		final EnumSet<TSDProtocol> set = EnumSet.noneOf(TSDProtocol.class);
+		for(String name: names) {
+			try {
+				set.add(valueOf(name));
+			} catch (Exception ex) {
+				throw new IllegalArgumentException("Invalid TSDProtocol: [" + name + "]");
+			}
+		}
+		return set.toArray(new TSDProtocol[set.size()]);
+	}
 	
 	/**
 	 * {@inheritDoc}
 	 * @see net.opentsdb.servers.InitializerFactory#initializer(net.opentsdb.core.TSDB, io.netty.channel.ChannelHandler, io.netty.channel.ChannelHandler)
 	 */
 	@Override
-	public ChannelInitializer<Channel> initializer(TSDB tsdb, final ChannelHandler first, final ChannelHandler last) {
+	public ChannelInitializer<Channel> initializer(TSDB tsdb, final ChannelHandler[] first, final ChannelHandler[] last) {
 		return factory.initializer(tsdb, first, last);
 	}
 	
 	/**
 	 * {@inheritDoc}
-	 * @see net.opentsdb.tsd.TSDServerBuilder#buildBossGroup(boolean, boolean, net.opentsdb.utils.Config)
+	 * @see net.opentsdb.servers.TSDServerBuilder#isSupported(boolean)
+	 */
+	@Override
+	public boolean isSupported(final boolean epoll) {
+		if(this==UNIX && !epoll) return false;
+		return true;
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.TSDServerBuilder#buildBossGroup(boolean, boolean, net.opentsdb.utils.Config)
 	 */
 	@Override
 	public EventLoopGroup buildBossGroup(final boolean async, final boolean epoll, final Config config) {
-		if(!async) return null;
+		if(!async || this==UDP) return null;
 		final ExecutorThreadFactory executorThreadFactory;
 		final EventLoopGroup eventLoopGroup;
 		if(epoll) {
 			executorThreadFactory = new ExecutorThreadFactory(name() + "-EpollBoss#%d", true);
-			eventLoopGroup = new EpollEventLoopGroup(1, (ThreadFactory)executorThreadFactory);
+			eventLoopGroup = new EpollEventLoopGroup(1, (Executor)executorThreadFactory);
 		} else {
 			executorThreadFactory = new ExecutorThreadFactory(name() + "-NioBoss#%d", true);
-			eventLoopGroup = new NioEventLoopGroup(1, (ThreadFactory)executorThreadFactory);
+			eventLoopGroup = new NioEventLoopGroup(1, (Executor)executorThreadFactory);
 		}
 		return eventLoopGroup;
 	}
 	
 	/**
 	 * {@inheritDoc}
-	 * @see net.opentsdb.tsd.TSDServerBuilder#buildWorkerGroup(boolean, boolean, net.opentsdb.utils.Config)
+	 * @see net.opentsdb.servers.TSDServerBuilder#buildWorkerGroup(boolean, boolean, net.opentsdb.utils.Config)
 	 */
 	@Override
 	public EventLoopGroup buildWorkerGroup(final boolean async, final boolean epoll, final Config config) {
@@ -117,21 +164,21 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 		if(async) {
 			if(epoll) {
 				executorThreadFactory = new ExecutorThreadFactory(name() + "-EpollWorker#%d", true);
-				eventLoopGroup = new EpollEventLoopGroup(threadCount, (ThreadFactory)executorThreadFactory);
+				eventLoopGroup = new EpollEventLoopGroup(threadCount, (Executor)executorThreadFactory);
 			} else {
 				executorThreadFactory = new ExecutorThreadFactory(name() + "-NioWorker#%d", true);
-				eventLoopGroup = new NioEventLoopGroup(threadCount, (ThreadFactory)executorThreadFactory);
+				eventLoopGroup = new NioEventLoopGroup(threadCount, (Executor)executorThreadFactory);
 			}
 		} else {
 			executorThreadFactory = new ExecutorThreadFactory(name() + "-OioWorker#%d", true);
-			eventLoopGroup = new OioEventLoopGroup(threadCount, (ThreadFactory)executorThreadFactory);
+			eventLoopGroup = new OioEventLoopGroup(threadCount, (Executor)executorThreadFactory);
 		}
 		return eventLoopGroup;
 	}
 	
 	/**
 	 * {@inheritDoc}
-	 * @see net.opentsdb.tsd.TSDServerBuilder#channelClass(boolean, boolean, net.opentsdb.utils.Config)
+	 * @see net.opentsdb.servers.TSDServerBuilder#channelClass(boolean, boolean, net.opentsdb.utils.Config)
 	 */
 	@Override
 	public Class<? extends Channel> channelClass(final boolean async, final boolean epoll, final Config config) {
@@ -146,7 +193,7 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see net.opentsdb.tsd.TSDServerBuilder#buildBootstrap()
+	 * @see net.opentsdb.servers.TSDServerBuilder#buildBootstrap()
 	 */
 	@SuppressWarnings("rawtypes")
 	@Override
@@ -166,7 +213,7 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see net.opentsdb.tsd.TSDServerBuilder#socketAddress(net.opentsdb.utils.Config)
+	 * @see net.opentsdb.servers.TSDServerBuilder#socketAddress(net.opentsdb.utils.Config)
 	 */
 	@Override
 	public SocketAddress socketAddress(final Config config) {
@@ -187,7 +234,7 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 	
 	/**
 	 * {@inheritDoc}
-	 * @see net.opentsdb.tsd.TSDServerBuilder#buildServer(net.opentsdb.core.TSDB)
+	 * @see net.opentsdb.servers.TSDServerBuilder#buildServer(net.opentsdb.core.TSDB)
 	 */
 	@Override
 	public AbstractTSDServer buildServer(final TSDB tsdb) {
@@ -209,7 +256,7 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 	static class UDPChannelInitializerFactory implements InitializerFactory {
 		private static final AtomicReference<ChannelInitializer<Channel>> instance = new AtomicReference<ChannelInitializer<Channel>>(null);
 		@Override
-		public ChannelInitializer<Channel> initializer(final TSDB tsdb, final ChannelHandler first, final ChannelHandler last) {
+		public ChannelInitializer<Channel> initializer(final TSDB tsdb, final ChannelHandler[] first, final ChannelHandler[] last) {
 			if(tsdb==null) throw new IllegalArgumentException("The passed TSDB was null");
 			if(instance.get()==null) {
 				synchronized(instance) {
@@ -225,10 +272,17 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 								}								
 								p.addLast(UDPPacketHandler.class.getSimpleName(), handler);
 								if(first!=null) {
-									p.addFirst(first.getClass().getSimpleName() + "First", first);
+									for(ChannelHandler ch: first) {
+										if(ch==null) continue;
+										p.addFirst(ch.getClass().getSimpleName() + "First", ch);
+									}
+									
 								}
 								if(last!=null) {
-									p.addLast(last.getClass().getSimpleName() + "Last", last);
+									for(ChannelHandler ch: last) {
+										if(ch==null) continue;
+										p.addLast(ch.getClass().getSimpleName() + "Last", ch);
+									}
 								}
 							}
 						};
@@ -249,7 +303,7 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 		private static final AtomicReference<ChannelInitializer<Channel>> instance = new AtomicReference<ChannelInitializer<Channel>>(null);		
 		private static final AtomicReference<PipelineFactory> pFactory = new AtomicReference<PipelineFactory>(null);
 		@Override
-		public ChannelInitializer<Channel> initializer(final TSDB tsdb, final ChannelHandler first, final ChannelHandler last) {
+		public ChannelInitializer<Channel> initializer(final TSDB tsdb, final ChannelHandler[] first, final ChannelHandler[] last) {
 			if(tsdb==null) throw new IllegalArgumentException("The passed TSDB was null");
 			if(pFactory.get()==null) {
 				synchronized(pFactory) {
@@ -267,11 +321,19 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 								final ChannelPipeline p = channel.pipeline();
 								p.addLast("pipelineFactory", pFactory.get());
 								if(first!=null) {
-									p.addFirst(first.getClass().getSimpleName() + "First", first);
+									for(ChannelHandler ch: first) {
+										if(ch==null) continue;
+										p.addFirst(ch.getClass().getSimpleName() + "First", ch);
+									}
+									
 								}
 								if(last!=null) {
-									p.addLast(last.getClass().getSimpleName() + "Last", last);
-								}								
+									for(ChannelHandler ch: last) {
+										if(ch==null) continue;
+										p.addLast(ch.getClass().getSimpleName() + "Last", ch);
+									}
+								}
+								log.info("Channel {} initialized. Pipeline: {}", channel, p.toMap().keySet());
 							}
 						};
 						instance.set(initializer);

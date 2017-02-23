@@ -22,9 +22,8 @@ import java.util.Date;
 
 public interface EPollMonitorMBean {
 	/** The JMX ObjectName format for the 
-	 * EPollMonitor management interface. 
-	 * Single token is channel type */
-	public static final String OBJECT_NAME = "net.opentsdb.epoll:type=%s,service=EPollMonitor";
+	 * TCP EPollMonitor management interface. */
+	public static final String OBJECT_NAME = "net.opentsdb.servers:service=TSDServer,protocol=TCP,monitor=epoll";
 
 	/**
 	 * Returns the number of channels being tracked
@@ -254,10 +253,5 @@ public interface EPollMonitorMBean {
 	 */
 	public long getLastUpdateElapsedMs();
 	
-	/**
-	 * Returns the channel type being monitored
-	 * @return the channel type being monitored
-	 */
-	public String getChannelType();	
 
 }

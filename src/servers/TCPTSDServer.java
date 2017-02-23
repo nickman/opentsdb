@@ -23,7 +23,7 @@ import net.opentsdb.core.TSDB;
 public class TCPTSDServer extends AbstractSocketTSDServer implements TCPTSDServerMBean {
 
 	private TCPTSDServer(TSDB tsdb) {
-		super(tsdb, TSDProtocol.TCP);
+		super(tsdb, TSDProtocol.TCP);		
 	}
 
 	@Override

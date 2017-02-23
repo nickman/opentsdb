@@ -174,7 +174,7 @@ public class Threads {
 		return new ThreadFactoryBuilder()
 				.setDaemon(daemon)
 				.setNameFormat(nameFormat)
-				.setPriority(priority)
+				.setPriority(priority)				
 				.build();
 	  }
   

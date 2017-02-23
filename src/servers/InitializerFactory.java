@@ -28,10 +28,10 @@ public interface InitializerFactory {
 	/**
 	 * Creates and returns a ChannelInitializer
 	 * @param tsdb The parent TSDB instance
-	 * @param first An optional channel handler to put as the first handler in the pipeline
-	 * @param last An optional channel handler to put as the last handler in the pipeline
+	 * @param first An optional array of channel handlers to put as the first handlers in the pipeline
+	 * @param last An optional array of channel handlers to put as the last handlers in the pipeline
 	 * @return the initialized ChannelInitializer
 	 */
-	public ChannelInitializer<Channel> initializer(final TSDB tsdb, final ChannelHandler first, final ChannelHandler last);
+	public ChannelInitializer<Channel> initializer(final TSDB tsdb, final ChannelHandler[] first, final ChannelHandler[] last);
 	
 }

@@ -22,8 +22,8 @@ import net.opentsdb.core.TSDB;
  */
 
 public class UNIXTSDServer extends AbstractSocketTSDServer implements UNIXTSDServerMBean {
+	/** The unix socket file path */
 	final String path;
-	
 	
 	private UNIXTSDServer(TSDB tsdb) {
 		super(tsdb, TSDProtocol.UNIX);

@@ -31,6 +31,8 @@ import javax.management.loading.MLet;
 
 import io.netty.handler.logging.LogLevel;
 import io.netty.util.ResourceLeakDetector;
+import net.opentsdb.core.Tags;
+import net.opentsdb.servers.TSDProtocol;
 import net.opentsdb.tools.ConfigArgP.ConfigurationItem;
 import net.opentsdb.tsd.TSDMode;
 
@@ -91,7 +93,10 @@ public enum ConfigMetaType implements ArgValueValidator {
   /** A list of comma separated class names that should be loadable with (or without) the assistance of a {@link #CLASSPATH} configured classloader */
   BCLASSLIST("A comma separated list of loadable classes", new ClasspathConfiguredClassList()),
   /** A non-zero length string */
-  STRING("A non-zero length string", new SimpleStringValidator());
+  STRING("A non-zero length string", new SimpleStringValidator()),
+  /** A list of comma separated TSDProtocols to run TSD servers for, where <code>ALL</code> means all supported servers */
+  TSDSERVERS("A comma separated list of TSDProtocols", new EnumArrValidator<TSDProtocol>(TSDProtocol.class, true, "ALL"));
+  
   
   
   /** The platform MBeanServer */
@@ -281,6 +286,36 @@ public enum ConfigMetaType implements ArgValueValidator {
 		}
 	}
   }
+ 
+ /**
+  * <p>Title: EnumArrValidator</p>
+  * <p>Description: Configurable array of enum members validator</p> 
+  */
+public static class EnumArrValidator<E extends Enum<E>> extends EnumValidator<E> {
+
+	public EnumArrValidator(final Class<E> enumClass, final boolean forceUpper, final String...additionals) {
+		super(enumClass, forceUpper, additionals);
+	}
+	
+	public void validate(final ConfigurationItem citem) {
+		final String s = citem.getValue();
+		if(s==null||s.trim().isEmpty()) {
+			throw new IllegalArgumentException("Null or empty String value for " + citem.getName() + ". Valid values are: " + names);
+		}
+		String value = s.replace(" ", "");
+		if(forceUpper){
+			value = value.toUpperCase();
+		}
+		final String[] enumNames = Tags.splitString(value, ',');
+		for(String name: enumNames) {
+			if(!names.contains(name)) {
+				throw new IllegalArgumentException("Invalid value [" + name + "] for enum [" + enumName + "] in config property [" + citem.getKey() + "]. Valid values are: " + names);
+			}
+		}
+	}
+	
+}
+
   
   /**
    * <p>Title: URLOrFileValidator</p>

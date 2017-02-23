@@ -48,9 +48,7 @@ import io.netty.util.ResourceLeakDetector;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.servers.AbstractTSDServer;
 import net.opentsdb.servers.TSDProtocol;
-import net.opentsdb.servers.TSDServer;
 import net.opentsdb.tools.ConfigArgP.ConfigurationItem;
-import net.opentsdb.tsd.PipelineFactory;
 import net.opentsdb.tsd.RpcManager;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.PluginLoader;
@@ -382,7 +380,6 @@ public class OpenTSDBMain {
     // =====================================================================     
      
     log.info("Configuration complete. Starting TSDB");
-    TSDServer server = null;
     TSDB tsdb = null;
     try {
       tsdb = new TSDB(config);
@@ -404,12 +401,7 @@ public class OpenTSDBMain {
       // here to fail fast.
 //      final RpcManager manager = RpcManager.instance(tsdb);
 //      final PipelineFactory pipelineFactory = new PipelineFactory(tsdb, manager);
-      final AbstractTSDServer tcpServer = AbstractTSDServer.getInstance(tsdb, TSDProtocol.TCP);
-      final AbstractTSDServer unixServer = AbstractTSDServer.getInstance(tsdb, TSDProtocol.UNIX);
-      final AbstractTSDServer udpServer = AbstractTSDServer.getInstance(tsdb, TSDProtocol.UDP);
-      tcpServer.start();
-      unixServer.start();
-      udpServer.start();
+      AbstractTSDServer.startTSDServers(tsdb);
       //server = TSDServer.getInstance(tsdb, pipelineFactory); 
       //server.start();
 
@@ -436,6 +428,7 @@ public class OpenTSDBMain {
 	      }
 	      public void run() {
 	        try {
+	          AbstractTSDServer.stopTSDServers();
 	          if (RpcManager.isInitialized()) {
 	            // Check that its actually been initialized.  We don't want to
 	            // create a new instance only to shutdown!

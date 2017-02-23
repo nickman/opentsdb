@@ -126,8 +126,6 @@ public class EPollMonitor implements EPollMonitorMBean {
 	private int stateTotal = 0;
 	/** The tcp info to read epoll stats into for update */
 	private final EpollTcpInfo tinfo = new EpollTcpInfo();
-	/** The channel type being monitored */
-	private final String type;
 	
 	static {
 		scheduler = Executors.newScheduledThreadPool(1, new ThreadFactory() {
@@ -155,18 +153,27 @@ public class EPollMonitor implements EPollMonitorMBean {
 	 * @param channelGroup The channel group containing epoll channels
 	 * 
 	 */
-	public EPollMonitor(final String type, final ChannelGroup channelGroup) {
-		this.type = type;
+	public EPollMonitor(final ChannelGroup channelGroup) {		
 		this.channelGroup = channelGroup;
-		ObjectName tmp = null;		
 		try {
-			tmp = new ObjectName(String.format(OBJECT_NAME, type));
-			ManagementFactory.getPlatformMBeanServer().registerMBean(this, tmp);
+			ObjectName on = new ObjectName(OBJECT_NAME);
+			ManagementFactory.getPlatformMBeanServer().registerMBean(this, on);
 		} catch (Exception ex) {
-			tmp = null;
-			LOG.warn("Failed to register EPollMonitor for channel type [{}]. Continuing without", type, ex);
+			LOG.warn("Failed to register TCP EPollMonitor. Continuing without", ex);
 		}
 		monitors.add(this);
+	}
+	
+	/**
+	 * Stops this instance and unregisters the management interface
+	 */
+	public void shutdown() {
+		monitors.remove(this);
+		try {
+			ObjectName on = new ObjectName(OBJECT_NAME);
+			ManagementFactory.getPlatformMBeanServer().unregisterMBean(on);
+		} catch (Exception x) { /* No Op */ }
+		
 	}
 	
 	private void update() {
@@ -560,13 +567,6 @@ public class EPollMonitor implements EPollMonitorMBean {
 		return TimeUnit.NANOSECONDS.toMillis(updateElapsedNs);
 	}
 
-	/**
-	 * Returns the channel type being monitored
-	 * @return the channel type being monitored
-	 */
-	public String getChannelType() {
-		return type;
-	}
 	
 	
 	
