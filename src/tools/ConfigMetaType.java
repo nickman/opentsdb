@@ -196,7 +196,7 @@ public enum ConfigMetaType implements ArgValueValidator {
     @Override
     public void validate(final ConfigurationItem citem) {     
       try {
-        int i = Integer.parseInt(citem.getValue());
+        int i = new Double(citem.getValue()).intValue();
         if(i < min) throw EX; 
       } catch (Exception ex) {
         throw new IllegalArgumentException("Invalid Integer value [" + citem.getValue() + "] for " + citem.getName());

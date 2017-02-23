@@ -56,6 +56,7 @@ import net.opentsdb.servers.AbstractTSDServer;
 import net.opentsdb.servers.ExecutorThreadFactory;
 import net.opentsdb.stats.Histogram;
 import net.opentsdb.stats.StatsCollector;
+import net.opentsdb.stats.ThreadPoolMonitor;
 import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
@@ -761,6 +762,7 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 	    tsdb.collectStats(collector);
 	    BufferManager.getInstance().collectStats(collector);
 	    AbstractTSDServer.collectTSDServerStats(collector);
+	    ThreadPoolMonitor.collectStats(collector);
 	    return collector.buffer;
 	  }
 

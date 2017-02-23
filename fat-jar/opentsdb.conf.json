@@ -80,6 +80,14 @@
       "meta": "CLASSPATH"
     },
     {
+      "key": "tsd.http.rpc.plugins",
+      "cl-option": "--httprpc-plugins",
+      "description": "A comma separated list of HTTP RPC plugin class names",
+      "help": "extended",
+      "meta": "LIST"
+    },
+    
+    {
       "key": "tsd.core.preload_uid_cache",
       "cl-option": "--tsd-preloaduids",
       "defaultValue": "false",
@@ -453,7 +461,7 @@
     {
       "key": "tsd.storage.compaction.flush_interval",
       "cl-option": "--tsd-comp-flush-interval",
-      "defaultValue": "10",
+      "defaultValue": 10,
       "description": "How long, in seconds, to wait in between compaction queue flush calls",
       "help": "extended",
       "meta": "POSINT"
@@ -461,7 +469,7 @@
     {
       "key": "tsd.storage.compaction.flush_speed",
       "cl-option": "--tsd-comp-flush-speed",
-      "defaultValue": "2",
+      "defaultValue": 2,
       "description": "A multiplier used to determine how quickly to attempt flushing the compaction queue. E.g. a value of 2 means it will try to flush the entire queue within 30 minutes. A value of 1 would take an hour",
       "help": "extended",
       "meta": "POSINT"
@@ -698,7 +706,175 @@
       "description": "An additional config overlay useful when the --config file is fairly static",
       "help": "extended",
       "meta": "URLORFILE"
-    }
+    },
+    {
+      "key": "tsd.buffers.pooled",
+      "cl-option": "--buffers-pooled",
+      "defaultValue": "true",
+      "description": "If true, the TSD will use pooled Netty buffers, otherwise uses unpooled buffers",
+      "help": "extended",
+      "meta": "BOOL"
+    },
+    {
+      "key": "tsd.buffers.direct",
+      "cl-option": "--buffers-direct",
+      "defaultValue": "true",
+      "description": "If true, the TSD will use direct Netty buffers, otherwise uses heap buffers",
+      "help": "extended",
+      "meta": "BOOL"
+    },
+    {
+      "key": "tsd.buffers.heaparenas",
+      "cl-option": "--buffers-heaparenas",
+      "defaultValue": "$[processors * 2]",
+      "description": "The number of allocated heap arenas",
+      "help": "extended",
+      "meta": "GTZEROINT"
+    },
+    {
+      "key": "tsd.buffers.directarenas",
+      "cl-option": "--buffers-directarenas",
+      "defaultValue": "$[processors * 2]",
+      "description": "The number of allocated direct arenas",
+      "help": "extended",
+      "meta": "GTZEROINT"
+    },
+    {
+      "key": "tsd.buffers.pagesize",
+      "cl-option": "--buffers-pagesize",
+      "defaultValue": 8192,
+      "description": "The arena page size in bytes",
+      "help": "extended",
+      "meta": "GTZEROINT"
+    },
+    {
+      "key": "tsd.buffers.maxorder",
+      "cl-option": "--buffers-maxorder",
+      "defaultValue": 11,
+      "description": "The maximum order",
+      "help": "extended",
+      "meta": "GTZEROINT"
+    },
+    {
+      "key": "tsd.buffers.cachesize.tiny",
+      "cl-option": "--buffers-tinycache",
+      "defaultValue": 512,
+      "description": "The cache size for tiny allocations",
+      "help": "extended",
+      "meta": "GTZEROINT"
+    },
+    {
+      "key": "tsd.buffers.cachesize.small",
+      "cl-option": "--buffers-smallcache",
+      "defaultValue": 256,
+      "description": "The cache size for small allocations",
+      "help": "extended",
+      "meta": "GTZEROINT"
+    },
+    {
+      "key": "tsd.buffers.cachesize.normal",
+      "cl-option": "--buffers-normalcache",
+      "defaultValue": 64,
+      "description": "The cache size for normal allocations",
+      "help": "extended",
+      "meta": "GTZEROINT"
+    },
+    {
+      "key": "tsd.query.enable_fuzzy_filter",
+      "cl-option": "--enable-fuzzy",
+      "defaultValue": true,
+      "description": "Whether or not to enable the FuzzyRowFilter for HBase when making queries using the explicitTags flag",
+      "help": "extended",
+      "meta": "BOOL"
+    },
+    {
+      "key": "tsd.rollups.enable",
+      "cl-option": "--enable-rollups",
+      "defaultValue": false,
+      "description": "Whether or not to enable rollup and pre-aggregation storage and writing.",
+      "help": "extended",
+      "meta": "BOOL"
+    },
+    {
+      "key": "tsd.core.uid.random_metrics",
+      "cl-option": "--random-metrics",
+      "defaultValue": false,
+      "description": "Whether or not to randomly assign UIDs to new metrics as they are created",
+      "help": "extended",
+      "meta": "BOOL"
+    },
+    {
+      "key": "tsd.core.bulk.allow_out_of_order_timestamps",
+      "cl-option": "--allow-ooot",
+      "defaultValue": false,
+      "description": "Whether or not to allow out-of-order values when bulk importing data from a text file",
+      "help": "extended",
+      "meta": "BOOL"
+    },
+    {
+      "key": "tsd.rollups.block_derived",
+      "cl-option": "--block-derived",
+      "defaultValue": true,
+      "description": "Whether or not to block storing derived aggregations such as AVG and DEV",
+      "help": "extended",
+      "meta": "BOOL"
+    },
+    {
+      "key": "tsd.core.enable_ui",
+      "cl-option": "--enable-ui",
+      "defaultValue": true,
+      "description": "Whether or not to allow the built-in GUI and legacy HTTP API to function. When disabled, calls to the root endpoint or other such as /logs or /suggest will return a 404",
+      "help": "extended",
+      "meta": "BOOL"
+    },
+    {
+      "key": "tsd.core.enable_api",
+      "cl-option": "--enable-api",
+      "defaultValue": true,
+      "description": "Whether or not to allow the 2.x HTTP API to function. When disabled, calls to endpoints such as /api/query or /api/suggest will return a 404",
+      "help": "extended",
+      "meta": "BOOL"
+    },
+    {
+      "key": "tsd.rpc.telnet.return_errors",
+      "cl-option": "--telnet-returnerrors",
+      "defaultValue": "Whether or not to return errors to the Telnet style socket when writing data via put or rollup",
+      "description": true,
+      "help": "extended",
+      "meta": "BOOL"
+    },
+    {
+      "key": "tsd.http.query.allow_delete",
+      "cl-option": "--allow-delete",
+      "defaultValue": false,
+      "description": "Whether or not to allow deleting data points from storage during query time",
+      "help": "extended",
+      "meta": "BOOL"
+    },
+    {
+      "key": "tsd.rollups.agg_tag_key",
+      "cl-option": "--agg-tagkey",
+      "defaultValue": false,
+      "description": "Whether or not to tag non-rolled-up and non-pre-aggregated values with the tag key configured in tsd.rollups.agg_tag_key and value configured in tsd.rollups.raw_agg_tag_value",
+      "help": "extended",
+      "meta": "BOOL"
+    },    
+    {
+      "key": "tsd.rollups.raw_agg_tag_value",
+      "cl-option": "--agg-tag-value",
+      "defaultValue": "RAW",
+      "description": "A special tag value to non-rolled-up and non-pre-aggregated data with when writing to storage. tsd.rollups.tag_raw must be set to true",
+      "help": "extended",
+      "meta": "STRING"
+    },
+    {
+      "key": "tsd.rollups.tag_raw",
+      "cl-option": "--agg-raw",
+      "defaultValue": false,
+      "description": "Whether or not to tag non-rolled-up and non-pre-aggregated values with the tag key configured in tsd.rollups.agg_tag_key and value configured in tsd.rollups.raw_agg_tag_value",
+      "help": "extended",
+      "meta": "BOOLEAN"
+    }    
   ],
   "bindings": [
     "//importPackage(Packages.java.lang);",

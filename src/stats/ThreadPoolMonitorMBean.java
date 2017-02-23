@@ -126,5 +126,24 @@ public interface ThreadPoolMonitorMBean {
 	 * @return the total number of tasks that have completed execution
 	 */
 	public long getCompletedTaskCount();
+	
+	/**
+	 * Indicates if thread memory allocation monitoring is enabled
+	 * @return true if enabled, false otherwise
+	 */
+	public boolean isAllocationMonitored();
+	
+	/**
+	 * Indicates if thread contention monitoring is enabled
+	 * @return true if enabled, false otherwise
+	 */
+	public boolean isContentionMonitored();
+
+	/**
+	 * Indicates if thread cpu time monitoring is enabled
+	 * @return true if enabled, false otherwise
+	 */
+	public boolean isCpuMonitored();
+	
 
 }

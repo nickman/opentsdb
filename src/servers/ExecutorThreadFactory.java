@@ -29,7 +29,7 @@ public class ExecutorThreadFactory implements Executor, ThreadFactory {
 	ExecutorThreadFactory(final String name, final boolean daemon) {
 		this.name = name;
 		threadFactory = Threads.newThreadFactory(name, daemon, Thread.NORM_PRIORITY);
-		executor = Executors.newCachedThreadPool(threadFactory);
+		executor = Executors.newCachedThreadPool(this);
 		if(executor instanceof ThreadPoolExecutor) {
 			ThreadPoolMonitor.installMonitor((ThreadPoolExecutor)executor, name);
 		}
@@ -38,7 +38,7 @@ public class ExecutorThreadFactory implements Executor, ThreadFactory {
 	public ExecutorThreadFactory(final int threadCount, final String name, final boolean daemon) {
 		this.name = name;
 		threadFactory = Threads.newThreadFactory(name, daemon, Thread.NORM_PRIORITY);
-		executor = Executors.newFixedThreadPool(threadCount, threadFactory);
+		executor = Executors.newFixedThreadPool(threadCount, this);
 		if(executor instanceof ThreadPoolExecutor) {
 			ThreadPoolMonitor.installMonitor((ThreadPoolExecutor)executor, name);
 		}		
@@ -88,7 +88,9 @@ public class ExecutorThreadFactory implements Executor, ThreadFactory {
 				
 			}
 		};
-		return threadFactory.newThread(wrapper);
+		final Thread thread = threadFactory.newThread(wrapper);
+		threads.put(thread.getId(), thread);
+		return thread;
 	}
 	
 	/**

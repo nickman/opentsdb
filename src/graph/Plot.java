@@ -386,7 +386,7 @@ public final class Plot {
       }
     } finally {
       gp.close();
-      LOG.info("Wrote Gnuplot script to " + script_path);
+      LOG.debug("Wrote Gnuplot script to " + script_path);
     }
   }
 

@@ -161,15 +161,15 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 	 * @param The TSD configuration
 	 */
 	private BufferManager(final Config config) {
-		pooledBuffers = config.getBoolean("tsd.network.buffers.pooled", true);
-		directBuffers = config.getBoolean("tsd.network.buffers.direct", true);
-		nHeapArena = config.getInt("tsd.network.buffers.heaparenas", DEFAULT_NUM_HEAP_ARENA);
-		nDirectArena = config.getInt("tsd.network.buffers.directarenas", DEFAULT_NUM_DIRECT_ARENA);
-		pageSize = config.getInt("tsd.network.buffers.pagesize", DEFAULT_PAGE_SIZE);
-		maxOrder = config.getInt("tsd.network.buffers.maxorder", DEFAULT_MAX_ORDER);
-		tinyCacheSize = config.getInt("tsd.network.buffers.tcachesize", DEFAULT_TINY_CACHE_SIZE);
-		smallCacheSize = config.getInt("tsd.network.buffers.scachesize", DEFAULT_SMALL_CACHE_SIZE);
-		normalCacheSize = config.getInt("tsd.network.buffers.ncachesize", DEFAULT_NORMAL_CACHE_SIZE);			
+		pooledBuffers = config.getBoolean("tsd.buffers.pooled", true);
+		directBuffers = config.getBoolean("tsd.buffers.direct", true);
+		nHeapArena = config.getInt("tsd.buffers.heaparenas", DEFAULT_NUM_HEAP_ARENA);
+		nDirectArena = config.getInt("tsd.buffers.directarenas", DEFAULT_NUM_DIRECT_ARENA);
+		pageSize = config.getInt("tsd.buffers.pagesize", DEFAULT_PAGE_SIZE);
+		maxOrder = config.getInt("tsd.buffers.maxorder", DEFAULT_MAX_ORDER);
+		tinyCacheSize = config.getInt("tsd.buffers.tcachesize", DEFAULT_TINY_CACHE_SIZE);
+		smallCacheSize = config.getInt("tsd.buffers.scachesize", DEFAULT_SMALL_CACHE_SIZE);
+		normalCacheSize = config.getInt("tsd.buffers.ncachesize", DEFAULT_NORMAL_CACHE_SIZE);			
 		pooledBufferAllocator = new PooledByteBufAllocator(directBuffers, nHeapArena, nDirectArena, pageSize, maxOrder, tinyCacheSize, smallCacheSize, normalCacheSize);
 		unpooledBufferAllocator = new UnpooledByteBufAllocator(directBuffers);
 		defaultBufferAllocator = pooledBuffers ? pooledBufferAllocator : unpooledBufferAllocator;
