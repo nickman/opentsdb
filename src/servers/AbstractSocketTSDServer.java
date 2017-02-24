@@ -15,6 +15,7 @@ package net.opentsdb.servers;
 import java.net.SocketAddress;
 import java.nio.charset.Charset;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -29,8 +30,11 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.epoll.EpollChannelOption;
+import io.netty.channel.epoll.EpollMode;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.channel.unix.DomainSocketReadMode;
 import io.netty.util.concurrent.DefaultEventExecutor;
 import io.netty.util.concurrent.EventExecutor;
 import net.opentsdb.core.TSDB;
@@ -189,11 +193,17 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 		if(protocol.connectionServer) {			
 			final ServerBootstrap serverBootstrap = (ServerBootstrap)bootstrap;
 			// Set the child options
-			serverBootstrap.childOption(ChannelOption.ALLOCATOR, bufferManager);
-			serverBootstrap.childOption(ChannelOption.TCP_NODELAY, tcpNoDelay);
-			serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, keepAlive);
-			serverBootstrap.childOption(ChannelOption.SO_RCVBUF, recvBuffer);
-			serverBootstrap.childOption(ChannelOption.SO_SNDBUF, sendBuffer);
+			if(protocol!=TSDProtocol.UNIX) {
+				serverBootstrap.childOption(ChannelOption.TCP_NODELAY, tcpNoDelay);
+				serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, keepAlive);
+				serverBootstrap.childOption(ChannelOption.SO_RCVBUF, recvBuffer);
+				serverBootstrap.childOption(ChannelOption.SO_SNDBUF, sendBuffer);				
+			} else {
+				// TODO: configurable
+				serverBootstrap.childOption(EpollChannelOption.DOMAIN_SOCKET_READ_MODE, DomainSocketReadMode.BYTES);
+				serverBootstrap.childOption(EpollChannelOption.EPOLL_MODE, EpollMode.EDGE_TRIGGERED);
+			}
+			serverBootstrap.childOption(ChannelOption.ALLOCATOR, bufferManager);			
 			serverBootstrap.childOption(ChannelOption.WRITE_SPIN_COUNT, writeSpins);			
 			channelGroupExecutor = new DefaultEventExecutor((Executor)new ExecutorThreadFactory(protocol.name() + "-TSDServerChannelGroup-%d", true));
 			channelGroup = new DefaultChannelGroup("TSDServerSocketConnections", channelGroupExecutor);
@@ -234,6 +244,7 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 	}
 	
 	private static final Map<String, String> EMPTY_MAP = Collections.emptyMap();
+	
 	
 	/**
 	 * {@inheritDoc}
@@ -410,7 +421,7 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 	 * @return the established connections count
 	 * @see net.opentsdb.servers.TSDServerEventMonitor#getConnectionsEstablished()
 	 */
-	public long getConnectionsEstablished() {
+	public long getConnectionsEstablished() {		
 		return eventMonitor==null ? -1 : eventMonitor.getConnectionsEstablished();
 	}
 
@@ -420,6 +431,7 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 	 * @see net.opentsdb.servers.TSDServerEventMonitor#getClosedConnections()
 	 */
 	public long getClosedConnections() {
+		log.info("Read EM: {}", System.identityHashCode(eventMonitor));
 		return eventMonitor==null ? -1 : eventMonitor.getClosedConnections();
 	}
 

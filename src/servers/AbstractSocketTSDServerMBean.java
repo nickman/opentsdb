@@ -21,7 +21,6 @@ import java.util.Map;
  */
 
 public interface AbstractSocketTSDServerMBean {
-	
 	/**
 	 * Returns a map of the server channel's configuiration options
 	 * @return a map of the server channel's configuiration options

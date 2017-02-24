@@ -119,7 +119,7 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler implements Chann
 	
 	
 	@Override
-	public void operationComplete(final ChannelFuture future) throws Exception {
+	public void operationComplete(final ChannelFuture future) throws Exception {		
 		connections_closed.incrementAndGet();	
 //		new Exception().printStackTrace(System.err);
 	}
@@ -173,7 +173,8 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler implements Chann
 	 */
 	@Override
 	public void close(final ChannelHandlerContext ctx, final ChannelPromise promise) throws Exception {
-		connections_closed.incrementAndGet();
+//		log.info("Read EM Close: {}", System.identityHashCode(this));
+//		connections_closed.incrementAndGet();
 		super.close(ctx, promise);
 	}
 	

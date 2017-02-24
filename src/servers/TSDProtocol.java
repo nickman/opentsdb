@@ -62,7 +62,7 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 	/** The TCP TSD server protocol */
 	TCP(true, TCPTSDServer.class, new StandardChannelInitializerFactory()),
 	/** The Unix Domain Socket TSD server protocol */
-	UNIX(true, UNIXTSDServer.class, new StandardChannelInitializerFactory()),
+	UNIX(true, UNIXTSDServer.class, new UnixChannelInitializerFactory()),
 	/** The UDP TSD server protocol */
 	UDP(false, UDPTSDServer.class, new UDPChannelInitializerFactory());
 	
@@ -300,8 +300,8 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 	 * <p><code>net.opentsdb.tools.TSDProtocol.StandardChannelInitializerFactory</code></p>
 	 */
 	static class StandardChannelInitializerFactory implements InitializerFactory {
-		private static final AtomicReference<ChannelInitializer<Channel>> instance = new AtomicReference<ChannelInitializer<Channel>>(null);		
-		private static final AtomicReference<PipelineFactory> pFactory = new AtomicReference<PipelineFactory>(null);
+		private final AtomicReference<ChannelInitializer<Channel>> instance = new AtomicReference<ChannelInitializer<Channel>>(null);		
+		private final AtomicReference<PipelineFactory> pFactory = new AtomicReference<PipelineFactory>(null);
 		@Override
 		public ChannelInitializer<Channel> initializer(final TSDB tsdb, final ChannelHandler[] first, final ChannelHandler[] last) {
 			if(tsdb==null) throw new IllegalArgumentException("The passed TSDB was null");
@@ -333,7 +333,7 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 										p.addLast(ch.getClass().getSimpleName() + "Last", ch);
 									}
 								}
-								log.info("Channel {} initialized. Pipeline: {}", channel, p.toMap().keySet());
+								log.info("Channel {}/{} initialized. Pipeline: {}", channel, channel.getClass().getSimpleName(), p.toMap().keySet());
 							}
 						};
 						instance.set(initializer);
@@ -342,5 +342,14 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 			}
 			return instance.get();
 		}
+	}
+	
+	/**
+	 * <p>Title: StandardChannelInitializerFactory</p>
+	 * <p>Description: ChannelInitializerFactory to create the standard {@link PipelineFactory}</p> 
+	 * <p><code>net.opentsdb.tools.TSDProtocol.StandardChannelInitializerFactory</code></p>
+	 */
+	static class UnixChannelInitializerFactory extends StandardChannelInitializerFactory {
+		
 	}
 }

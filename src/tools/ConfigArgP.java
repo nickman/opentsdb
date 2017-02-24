@@ -543,6 +543,9 @@ public class ConfigArgP {
     /** The meta symbol representing the type of value expected for a parameterized command line arg */
     @JsonProperty("meta")
     protected String meta;
+    /** The asOf version of this property */
+    @JsonProperty("asOf")
+    protected Double asOf;
     
     /** The decoded or overriden value */   
     protected String value;

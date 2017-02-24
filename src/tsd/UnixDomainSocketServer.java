@@ -112,6 +112,13 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	/** The maximum idle time in seconds; Zero means unlimited */
 	protected final long maxIdleTime;
 	
+	public static void log(Object msg) {
+		System.out.println(msg);
+	}
+	
+	public static void main(String[] args) {
+		
+	}
 	
 	/**
 	 * Creates a new UnixDomainSocketServer
@@ -127,7 +134,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 			STOP_CODE = null;
 			STOP_CODE_SIZE = -1;
 		}
-		path = config.getString("tsd.network.unixsocket.path");
+		path = "/tmp/unix.sock";//config.getString("tsd.network.unixsocket.path");
 		final int workerThreads = config.getInt("tsd.network.unixsocket.worker_threads", CORES*2);
 		bossGroup = new EpollEventLoopGroup(1, Threads.newThreadFactory("UnixSocketBoss"));
 		workerGroup = new EpollEventLoopGroup(workerThreads, Threads.newThreadFactory("UnixSocketWorker#%d"));
