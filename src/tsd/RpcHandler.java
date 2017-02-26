@@ -14,7 +14,6 @@ package net.opentsdb.tsd;
 
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
@@ -39,11 +38,11 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
-import io.netty.handler.timeout.IdleState;
-import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.util.ReferenceCountUtil;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.stats.StatsCollector;
+import net.opentsdb.stats.ThreadPoolMonitor;
+import net.opentsdb.utils.Config;
 
 /**
  * Stateless handler for all RPCs: telnet-style, built-in or plugin
@@ -72,6 +71,8 @@ final class RpcHandler extends ChannelDuplexHandler {
 
   /** The TSDB to use. */
   private final TSDB tsdb;
+  /** Indicates if rpc thread monitoring is enabled */
+  private final boolean threadMonitorEnabled;
   
   /**
    * Constructor that loads the CORS domain list and prepares for
@@ -96,13 +97,13 @@ final class RpcHandler extends ChannelDuplexHandler {
    */
   
   public RpcHandler(final TSDB tsdb, final RpcManager manager) {
-	//super(0,0,tsdb.getConfig().getInt("tsd.core.socket.timeout"), TimeUnit.SECONDS);  // tsd.core.connections.limit ?
-	
+	//super(0,0,tsdb.getConfig().getInt("tsd.core.socket.timeout"), TimeUnit.SECONDS);  // tsd.core.connections.limit ?	 
     this.tsdb = tsdb;
     this.rpc_manager = manager;
-
-    final String cors = tsdb.getConfig().getString("tsd.http.request.cors_domains");
-    final TSDMode mode = tsdb.getConfig().getTSDMode("tsd.mode");
+    final Config config = tsdb.getConfig();
+    final String cors = config.getString("tsd.http.request.cors_domains");
+    final TSDMode mode = config.getTSDMode("tsd.mode");
+    threadMonitorEnabled = config.getBoolean("tsd.rpc.threadmonitoring", false);
 
     LOG.info("TSD is in [{}] mode", mode);
 
@@ -286,7 +287,8 @@ final class RpcHandler extends ChannelDuplexHandler {
 		  return;
 	  }
 	  AbstractHttpQuery abstractQuery = null;
-	  try {
+	  final long[] threadStats;
+	  try {		  
 		  abstractQuery = createQueryInstance(tsdb, fullRequest, ctx);
 		  if (!tsdb.getConfig().enable_chunked_requests() && HttpUtil.isTransferEncodingChunked(fullRequest)) {
 			  logError(abstractQuery, "Received an unsupported chunked request: "
@@ -305,7 +307,11 @@ final class RpcHandler extends ChannelDuplexHandler {
 			  final HttpRpcPluginQuery pluginQuery = (HttpRpcPluginQuery) abstractQuery;
 			  final HttpRpcPlugin rpc = rpc_manager.lookupHttpRpcPlugin(route);
 			  if (rpc != null) {
+				  threadStats = threadMonitorEnabled ? ThreadPoolMonitor.enter() : null;
 				  rpc.execute(tsdb, pluginQuery);
+				  if(threadMonitorEnabled) {
+					  ThreadPoolMonitor.exit(threadStats);
+				  }
 			  } else {
 				  pluginQuery.notFound();
 			  }
@@ -317,7 +323,11 @@ final class RpcHandler extends ChannelDuplexHandler {
 			  }
 			  final HttpRpc rpc = rpc_manager.lookupHttpRpc(route);
 			  if (rpc != null) {
+				  threadStats = threadMonitorEnabled ? ThreadPoolMonitor.enter() : null;
 				  rpc.execute(tsdb, builtinQuery);
+				  if(threadMonitorEnabled) {
+					  ThreadPoolMonitor.exit(threadStats);
+				  }				  
 			  } else {
 				  builtinQuery.notFound();
 			  }

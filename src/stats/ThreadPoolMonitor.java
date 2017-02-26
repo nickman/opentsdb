@@ -144,6 +144,46 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 		threadCpuTimeEnabled = cpu;		
 	}
 	
+	public static long[] enter() {
+		final Thread t = Thread.currentThread();
+		final long id = t.getId();
+		final long[] values = new long[6];
+		final ThreadInfo ti = tmx.getThreadInfo(id);
+		values[THREAD_WAITS] = ti.getWaitedCount();
+		values[THREAD_BLOCKS] = ti.getBlockedCount();
+		if(threadContentionMonitoringEnabled) {
+			values[THREAD_WAIT_TIME] = ti.getWaitedTime();
+			values[THREAD_BLOCK_TIME] = ti.getBlockedTime();
+		}
+		if(threadCpuTimeEnabled) {
+			values[THREAD_CPU] = tmx.getCurrentThreadCpuTime() + tmx.getCurrentThreadUserTime();
+		}
+		if(threadAllocatedMemoryEnabled) {
+			values[THREAD_ALLOCATION] = threadAllocationReader.getAllocatedBytes(id);
+		}
+		return values;
+	}
+	
+	public static void exit(final long[] values) {
+		if(values==null) return;
+		final Thread t = Thread.currentThread();
+		final long id = t.getId();
+		final ThreadInfo ti = tmx.getThreadInfo(id);
+		values[THREAD_WAITS] = ti.getWaitedCount() - values[THREAD_WAITS];
+		values[THREAD_BLOCKS] = ti.getBlockedCount() - values[THREAD_BLOCKS];
+		if(threadContentionMonitoringEnabled) {
+			values[THREAD_WAIT_TIME] = ti.getWaitedTime() - values[THREAD_WAIT_TIME];
+			values[THREAD_BLOCK_TIME] = ti.getBlockedTime() - values[THREAD_BLOCK_TIME];
+		}
+		if(threadCpuTimeEnabled) {
+			values[THREAD_CPU] = (tmx.getCurrentThreadCpuTime() + tmx.getCurrentThreadUserTime()) - values[THREAD_CPU];
+		}
+		if(threadAllocatedMemoryEnabled) {
+			values[THREAD_ALLOCATION] = threadAllocationReader.getAllocatedBytes(id) - values[THREAD_ALLOCATION];
+		}
+
+	}
+	
 	/**
 	 * Collects the stats and metrics for all thread pools
 	 * @param collector The collector to use.

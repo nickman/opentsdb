@@ -40,6 +40,15 @@
 	 "help": "default",
 	 "meta": "POSINT",
 	 "asOf": 2.3
+	},	
+	{
+	 "key": "tsd.rpc.threadmonitoring",
+	 "cl-option": "--rpc-tmonitor",
+	 "defaultValue": false,
+	 "description": "Enabled thread monitoring for RPC invocations",
+	 "help": "extended",
+	 "meta": "BOOL",
+	 "asOf": 2.4
 	},
 	{
 	 "key": "tsd.core.meta.enable_realtime_ts",
