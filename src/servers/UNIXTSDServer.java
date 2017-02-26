@@ -12,8 +12,15 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.servers;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.unix.DomainSocketAddress;
 import net.opentsdb.core.TSDB;
+import net.opentsdb.utils.Config;
+import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
  * <p>Title: UNIXTSDServer</p>
@@ -24,6 +31,8 @@ import net.opentsdb.core.TSDB;
 public class UNIXTSDServer extends AbstractSocketTSDServer implements UNIXTSDServerMBean {
 	/** The unix socket file path */
 	final String path;
+	/** The modified access mask on the socket file */
+	String socketAccessMask = null;
 	
 	private UNIXTSDServer(TSDB tsdb) {
 		super(tsdb, TSDProtocol.UNIX);
@@ -38,8 +47,9 @@ public class UNIXTSDServer extends AbstractSocketTSDServer implements UNIXTSDSer
 	public void start() throws Exception {
 		if(started.compareAndSet(false, true)) {
 			log.info("Starting Unix Domain Socket TSD server....");
-			try {
+			try {				
 				serverChannel = bootstrap.bind(bindSocket).sync().channel();
+				setAccessMask();
 				registerMBean();
 				log.info("Started Unix Domain Socket TSD server on [{}]", path);
 				afterStart();
@@ -74,6 +84,44 @@ public class UNIXTSDServer extends AbstractSocketTSDServer implements UNIXTSDSer
 			try { channelGroupExecutor.shutdownGracefully(); } catch (Exception x) {/* No Op */}
 			log.info("UnixDomainSocketServer shut down");
 		}
+	}
+	
+	/**
+	 * Sets the configured access mask on the unix socket file
+	 */
+	protected void setAccessMask() {
+		final Config config = tsdb.getConfig();
+		String setMask = null;
+		if(config.hasProperty("tsd.network.unixsocket.openaccess")) {
+			final String accessMask = config.getString("tsd.network.unixsocket.openaccess");
+			if(!accessMask.isEmpty()) {
+				Process p = null;
+				final int rv;
+				try {
+					p = new ProcessBuilder("chmod", accessMask, path).start();
+					rv = p.waitFor();
+					if (rv != 0) {
+						log.error("Failed to set access [{}] on Unix Server Socket [{}]. RV:[{}]", accessMask, path, rv);
+					} else {
+						setMask = accessMask;
+						log.info("Set access [{}] on Unix Server Socket [{}]", accessMask, path);
+					}
+				} catch (Exception ex) {
+					log.error("Failed to set access on Unix Server Socket [{}]", path, ex);
+				} finally {
+					if(p!=null) try { p.destroy(); } catch (Exception x) {/* No Op */}
+				}
+			}
+		}
+		socketAccessMask = setMask;
+	}
+	
+	/**
+	 * Returns the successfully set access mask on the unix socket file
+	 * @return the unix socket file access mask 
+	 */
+	public String getAccessMask() {
+		return socketAccessMask;
 	}
 	
 	

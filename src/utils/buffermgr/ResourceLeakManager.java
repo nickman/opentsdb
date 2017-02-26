@@ -106,6 +106,19 @@ public class ResourceLeakManager implements ResourceLeakManagerMBean {
 		log.warn("---INSTANCES LEAK: [{}]/[{}]", className, resourceType);		
 	}
 	
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.utils.buffermgr.ResourceLeakManagerMBean#resetLeakCounts()
+	 */
+	@Override
+	public void resetLeakCounts() {
+		totalLeaks.reset();
+		for(LongAdder adder: trackedClasses.values()) {
+			adder.reset();
+		}
+	}
+	
 	/**
 	 * 
 	 * @see io.netty.util.ResourceLeakDetector#reportTracedLeak(java.lang.String, java.lang.String)

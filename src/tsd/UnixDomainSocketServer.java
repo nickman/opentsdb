@@ -51,7 +51,7 @@ import io.netty.util.CharsetUtil;
 import io.netty.util.concurrent.DefaultEventExecutor;
 import io.netty.util.concurrent.EventExecutor;
 import net.opentsdb.core.TSDB;
-import net.opentsdb.servers.TSDServerEventMonitor;
+import net.opentsdb.servers.TSDServerConnectionMonitor;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.Threads;
 import net.opentsdb.utils.buffermgr.BufferManager;
@@ -60,7 +60,7 @@ import net.opentsdb.utils.buffermgr.BufferManager;
  * <p>Title: UnixDomainSocketServer</p>
  * <p>Description: A unix socket put listener</p> 
  * <p><code>net.opentsdb.tsd.UnixDomainSocketServer</code></p>
- * Trace like this:  echo "put foo.bar 1460070776 5 dc=dc5 host=host5" | netcat -U /tmp/tsdb.sock
+ * Trace like this:  echo "put foo.bar 1460070776 5 dc=dc5 host=host5" | netcat -U /tmp/opentsdb.sock
  * TODO: fine socket config
  */
 @Sharable
@@ -94,7 +94,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	/** The logging handler to add to the server pipeline */
 	volatile LoggingHandler loggingHandler = null;
 	/** The channel event monitor for handling max connections, idle connections and event counts */
-	protected final TSDServerEventMonitor eventMonitor;
+	protected final TSDServerConnectionMonitor eventMonitor;
 	
 	/** The number of core available to this JVM */
 	public static final int CORES = ManagementFactory.getOperatingSystemMXBean().getAvailableProcessors();
@@ -144,7 +144,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 		maxConnections = config.getInt("tsd.network.unixsocket.connections.limit", 0);
 		maxIdleTime = config.getLong("tsd.network.unixsocket.timeout", 0L);
 		// Initialize the channel event monitor
-		eventMonitor = new TSDServerEventMonitor(remoteConnections, maxConnections, maxIdleTime);
+		eventMonitor = new TSDServerConnectionMonitor(remoteConnections, maxConnections, maxIdleTime);
 		
 		this.pipelineFactory = pipelineFactory; 
 		b.group(bossGroup, workerGroup)
@@ -320,7 +320,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	/**
 	 * Returns the total monotonic count of established connections
 	 * @return the established connections count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getConnectionsEstablished()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getConnectionsEstablished()
 	 */
 	public long getConnectionsEstablished() {
 		return eventMonitor.getConnectionsEstablished();
@@ -329,7 +329,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	/**
 	 * Returns the total monotonic  count of closed connections
 	 * @return the closed connections count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getClosedConnections()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getClosedConnections()
 	 */
 	public long getClosedConnections() {
 		return eventMonitor.getClosedConnections();
@@ -338,7 +338,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	/**
 	 * Returns the total monotonic  count of rejected connections
 	 * @return the rejected connections count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getRejectedConnections()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getRejectedConnections()
 	 */
 	public long getRejectedConnections() {
 		return eventMonitor.getRejectedConnections();
@@ -347,7 +347,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	/**
 	 * Returns the total monotonic  count of unknown connection exceptions
 	 * @return the unknown connection exceptions count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getUnknownExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getUnknownExceptions()
 	 */
 	public long getUnknownExceptions() {
 		return eventMonitor.getUnknownExceptions();
@@ -356,7 +356,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	/**
 	 * Returns the total monotonic  count of connection close exceptions
 	 * @return the connection close exceptions count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getCloseExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getCloseExceptions()
 	 */
 	public long getCloseExceptions() {
 		return eventMonitor.getCloseExceptions();
@@ -365,7 +365,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	/**
 	 * Returns the total monotonic  count of connection reset exceptions
 	 * @return the connection reset exceptions count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getResetExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getResetExceptions()
 	 */
 	public long getResetExceptions() {
 		return eventMonitor.getResetExceptions();
@@ -374,7 +374,7 @@ public class UnixDomainSocketServer extends SimpleChannelInboundHandler<ByteBuf>
 	/**
 	 * Returns the total monotonic  count of idle connection closes
 	 * @return the idle connection closes count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getTimeoutExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getTimeoutExceptions()
 	 */
 	public long getTimeoutExceptions() {
 		return eventMonitor.getTimeoutExceptions();

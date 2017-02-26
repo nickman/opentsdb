@@ -12,6 +12,8 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.stats;
 
+
+
 /**
  * <p>Title: ThreadPoolMonitorMBean</p>
  * <p>Description: JMX MBean interface for {@link ThreadPoolMonitor} instances</p> 
@@ -144,6 +146,42 @@ public interface ThreadPoolMonitorMBean {
 	 * @return true if enabled, false otherwise
 	 */
 	public boolean isCpuMonitored();
+	
+	/**
+	 * Returns the number of thread waits in the last interval
+	 * @return the number of thread waits
+	 */
+	public long getThreadWaits();
+
+	/**
+	 * Returns the number of thread blocks in the last interval
+	 * @return the number of thread blocks
+	 */
+	public long getThreadBlocks();
+
+	/**
+	 * Returns the thread wait time in the last interval in ms
+	 * @return the thread wait time in ms
+	 */
+	public long getThreadWaitTime();
+
+	/**
+	 * Returns the thread blocked time in the last interval in ms
+	 * @return the thread blocked time in ms
+	 */
+	public long getThreadBlockTime();
+
+	/**
+	 * Returns the cpu time consumed in the last interval in ms
+	 * @return the cpu time in ms
+	 */
+	public long getCpuTime();
+
+	/**
+	 * Returns the memory allocated in the last interval in Kb
+	 * @return the memory allocated in Kb
+	 */
+	public long getMemoryAllocated();
 	
 
 }

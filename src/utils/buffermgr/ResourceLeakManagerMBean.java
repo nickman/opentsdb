@@ -54,6 +54,11 @@ public interface ResourceLeakManagerMBean {
 	 * @param max the max
 	 */
 	public void setMaxLeakRecords(final int max);
+	
+	/**
+	 * Resets all leak counts
+	 */
+	public void resetLeakCounts();
 
 
 }

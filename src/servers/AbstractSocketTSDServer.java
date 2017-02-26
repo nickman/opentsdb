@@ -12,6 +12,7 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.servers;
 
+import java.lang.reflect.Method;
 import java.net.SocketAddress;
 import java.nio.charset.Charset;
 import java.util.Collections;
@@ -35,9 +36,12 @@ import io.netty.channel.epoll.EpollMode;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.unix.DomainSocketReadMode;
+import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.DefaultEventExecutor;
 import io.netty.util.concurrent.EventExecutor;
 import net.opentsdb.core.TSDB;
+import net.opentsdb.stats.StatsCollector;
+import net.opentsdb.tsd.UDPPacketHandler;
 import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
@@ -105,7 +109,7 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 	protected final EventLoopGroup workerGroup;
 	
 	/** The channel event monitor for handling max connections, idle connections and event counts */
-	protected final TSDServerEventMonitor eventMonitor;	
+	protected final TSDServerConnectionMonitor eventMonitor;	
 	/** An epoll tcp monitor, instantiated if protocol is TCP and epoll is true */
 	protected final EPollMonitor epollMonitor;
 	/** The server channel created on socket bind */
@@ -184,7 +188,7 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 		bootstrap.channel(channelType);
 		
 		
-		bootstrap.option(ChannelOption.ALLOCATOR, bufferManager);		
+		bootstrap.option(ChannelOption.ALLOCATOR, bufferManager);			
 		bootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
 		if(protocol.connectionServer) {
 			bootstrap.option(ChannelOption.SO_BACKLOG, backlog);
@@ -202,12 +206,19 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 				// TODO: configurable
 				serverBootstrap.childOption(EpollChannelOption.DOMAIN_SOCKET_READ_MODE, DomainSocketReadMode.BYTES);
 				serverBootstrap.childOption(EpollChannelOption.EPOLL_MODE, EpollMode.EDGE_TRIGGERED);
+				/*
+				 * Not sure why, but this causes
+				 * [UNIX-EpollBoss#0] ServerBootstrap: Unknown channel option: SO_RCVBUF=43690
+				 * [UNIX-EpollBoss#0] ServerBootstrap: Unknown channel option: SO_SNDBUF=8192
+				 */
+//				serverBootstrap.childOption(EpollChannelOption.SO_RCVBUF, recvBuffer);
+//				serverBootstrap.childOption(EpollChannelOption.SO_SNDBUF, sendBuffer);
 			}
 			serverBootstrap.childOption(ChannelOption.ALLOCATOR, bufferManager);			
 			serverBootstrap.childOption(ChannelOption.WRITE_SPIN_COUNT, writeSpins);			
 			channelGroupExecutor = new DefaultEventExecutor((Executor)new ExecutorThreadFactory(protocol.name() + "-TSDServerChannelGroup-%d", true));
 			channelGroup = new DefaultChannelGroup("TSDServerSocketConnections", channelGroupExecutor);
-			eventMonitor = new TSDServerEventMonitor(channelGroup, maxConnections, maxIdleTime);
+			eventMonitor = new TSDServerConnectionMonitor(channelGroup, maxConnections, maxIdleTime);
 			if(async && bossGroup!=null) {
 				serverBootstrap.group(bossGroup, workerGroup);
 			} else {
@@ -215,14 +226,16 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 			}
 			final ChannelHandler[] handlers = new ChannelHandler[]{eventMonitor, null};
 			if(STOP_CODE!=null) handlers[1] = new StopCodeListener();
-			serverBootstrap.childHandler(protocol.initializer(tsdb, handlers, null));
+			channelInitializer = protocol.initializer(tsdb, handlers, new ChannelHandler[]{exceptionMonitor});
+			serverBootstrap.childHandler(channelInitializer);
 			//serverBootstrap.handler(eventMonitor);
 		} else {
 			channelGroupExecutor = null;
 			channelGroup = null;
 			eventMonitor = null;
 			bootstrap.group(workerGroup);
-			bootstrap.handler(protocol.initializer(tsdb, null, null));
+			channelInitializer = protocol.initializer(tsdb, null, new ChannelHandler[]{exceptionMonitor});
+			bootstrap.handler(channelInitializer);
 		}
 		if(epoll && protocol==TSDProtocol.TCP) {
 			epollMonitor = new EPollMonitor(channelGroup);
@@ -231,6 +244,9 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 		}
 	}
 	
+	/**
+	 * Callback after the server has started
+	 */
 	protected void afterStart() {
 		cfg = serverChannel.config();
 		if(log.isDebugEnabled()) {			
@@ -243,15 +259,96 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 		}
 	}
 	
-	private static final Map<String, String> EMPTY_MAP = Collections.emptyMap();
 	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.AbstractTSDServer#collectStats(net.opentsdb.stats.StatsCollector)
+	 */
+	@Override
+	public void collectStats(final StatsCollector collector) {		
+		super.collectStats(collector);	
+		try {
+			collector.addExtraTag("protocol", protocol.name().toLowerCase());
+			if(protocol.connectionServer) {
+				collector.record("server.connections.active", getActiveConnections(), null);
+				collector.record("server.connections.closed", getIdleConnectionsClosed(), "cause=idle");
+				collector.record("server.connections.closed", getCloseExceptions(), "cause=exception");
+				collector.record("server.connections.closed", getRejectedConnections(), "cause=rejected");				
+				collector.record("server.connections.established", getConnectionsEstablished(), null);
+			}
+		} finally {
+			collector.clearExtraTag("protocol");
+		}
+	}
+	
+	
+	private static final Map<String, String> EMPTY_MAP = Collections.emptyMap();
+	private static volatile Method childOptionsMethod = null;
+	private static volatile Method childAttrsMethod = null;
+	
+	private static void initChildMethods() {
+		try {
+			childOptionsMethod = ServerBootstrap.class.getDeclaredMethod("childOptions");
+			childOptionsMethod.setAccessible(true);
+			childAttrsMethod = ServerBootstrap.class.getDeclaredMethod("childAttrs");
+			childAttrsMethod.setAccessible(true);			
+		} catch (Exception ex) {
+			childOptionsMethod = null;
+			childAttrsMethod = null;
+		}
+	}
+	
+	/**
+	 * Returns a map of the server child channel's configuiration options
+	 * @return a map of the server child  channel's configuiration options
+	 */
+	@SuppressWarnings("unchecked")
+	public Map<String, String> childChannelOptions() {
+		final Map<ChannelOption<?>,Object> options;
+		final Map<AttributeKey<?>, Object> attrs;
+		if(protocol.connectionServer) {
+			final ServerBootstrap sb = (ServerBootstrap)bootstrap;
+			// Annoyingly, the ServerBootstrap child options and attrs
+			// are protected so we have to use reflection.
+			if(childOptionsMethod==null) {
+				initChildMethods();
+			}
+			if(childOptionsMethod==null) return EMPTY_MAP;
+			try {
+				options = (Map<ChannelOption<?>,Object>)childOptionsMethod.invoke(sb);
+				attrs = (Map<AttributeKey<?>,Object>)childAttrsMethod.invoke(sb);
+			} catch (Exception ex) {
+				return EMPTY_MAP;
+			}
+		} else {
+			options = bootstrap.config().options();
+			attrs = bootstrap.config().attrs();
+		}
+		final int size = (options==null||options.isEmpty() ? 0 : options.size()) + (attrs==null||attrs.isEmpty() ? 0 : attrs.size());
+		if(size==0) return EMPTY_MAP;
+		final Map<String, String> map = new LinkedHashMap<String, String>(size);
+		if(attrs!=null) {
+			for(Map.Entry<AttributeKey<?>,Object> entry: attrs.entrySet()) {
+				final Object value = entry.getValue();			
+				map.put(entry.getKey().toString(), value == null ? "<null>" : value.toString());
+			}
+		}
+		if(options!=null) {
+			for(Map.Entry<ChannelOption<?>,Object> entry: options.entrySet()) {
+				final Object value = entry.getValue();			
+				map.put(entry.getKey().toString(), value == null ? "<null>" : value.toString());
+			}
+		}
+		
+		return map;
+	}
 	
 	/**
 	 * {@inheritDoc}
 	 * @see net.opentsdb.servers.AbstractSocketTSDServerMBean#serverChannelOptions()
 	 */
 	@Override
-	public Map<String, String> serverChannelOptions() {
+	public Map<String, String> serverChannelOptions() {		
 		if(cfg==null) return EMPTY_MAP;
 		final Map<ChannelOption<?>,Object> options = cfg.getOptions();
 		final Map<String, String> map = new LinkedHashMap<String, String>(options.size());
@@ -419,26 +516,33 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 	/**
 	 * Returns the total monotonic count of established connections
 	 * @return the established connections count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getConnectionsEstablished()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getConnectionsEstablished()
 	 */
 	public long getConnectionsEstablished() {		
 		return eventMonitor==null ? -1 : eventMonitor.getConnectionsEstablished();
+	}
+	
+	/**
+	 * Returns the total number of closed idle connections
+	 * @return the total number of closed idle connections
+	 */
+	public long getIdleConnectionsClosed() {
+		return eventMonitor==null ? -1 : eventMonitor.getIdleConnectionsClosed();
 	}
 
 	/**
 	 * Returns the total monotonic count of closed connections
 	 * @return the closed connections count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getClosedConnections()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getClosedConnections()
 	 */
 	public long getClosedConnections() {
-		log.info("Read EM: {}", System.identityHashCode(eventMonitor));
 		return eventMonitor==null ? -1 : eventMonitor.getClosedConnections();
 	}
 
 	/**
 	 * Returns the total monotonic count of rejected connections
 	 * @return the rejected connections count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getRejectedConnections()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getRejectedConnections()
 	 */
 	public long getRejectedConnections() {
 		return eventMonitor==null ? -1 : eventMonitor.getRejectedConnections();
@@ -447,7 +551,7 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 	/**
 	 * Returns the total monotonic count of unknown cause connection exceptions
 	 * @return the unknown connection exceptions count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getUnknownExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getUnknownExceptions()
 	 */
 	public long getUnknownExceptions() {
 		return eventMonitor==null ? -1 : eventMonitor.getUnknownExceptions();
@@ -456,7 +560,7 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 	/**
 	 * Returns the total monotonic count of connection close exceptions
 	 * @return the connection close exceptions count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getCloseExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getCloseExceptions()
 	 */
 	public long getCloseExceptions() {
 		return eventMonitor==null ? -1 : eventMonitor.getCloseExceptions();
@@ -465,7 +569,7 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 	/**
 	 * Returns the total monotonic count of connection reset exceptions
 	 * @return the connection reset exceptions count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getResetExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getResetExceptions()
 	 */
 	public long getResetExceptions() {
 		return eventMonitor==null ? -1 : eventMonitor.getResetExceptions();
@@ -474,7 +578,7 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 	/**
 	 * Returns the total monotonic count of idle connection closes
 	 * @return the idle connection closes count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getTimeoutExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getTimeoutExceptions()
 	 */
 	public long getTimeoutExceptions() {
 		return eventMonitor==null ? -1 : eventMonitor.getTimeoutExceptions();

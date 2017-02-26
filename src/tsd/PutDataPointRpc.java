@@ -31,6 +31,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.util.ReferenceCountUtil;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
 import org.slf4j.Logger;
@@ -254,13 +255,20 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
     }
     final List<IncomingDataPoint> dps;
     try {
+//      final int refs = query.hasContent() ?  query.request().content().refCnt() : 0;
       dps = query.serializer()
           .parsePutV1(IncomingDataPoint.class, HttpJsonSerializer.TR_INCOMING);
+      processDataPoint(tsdb, query, dps);
+//      if(refs>0) {
+//    	  final int refs2 = query.hasContent() ?  query.request().content().refCnt() : 0;
+//    	  LOG.info("--------------------Released:[{}]/[{}]", refs, refs2);
+//      }
     } catch (BadRequestException e) {
       illegal_arguments.incrementAndGet();
       throw e;
-    }
-    processDataPoint(tsdb, query, dps);
+    } catch (Exception ex) {
+    	LOG.error("Error parsing Put", ex);
+    }    
   }
   
   /**

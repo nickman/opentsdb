@@ -12,6 +12,8 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.servers;
 
+import java.util.Map;
+
 /**
  * <p>Title: AbstractTSDServerMBean</p>
  * <p>Description: Base JMX MBean interface for {@link AbstractTSDServer} instances</p> 
@@ -42,5 +44,23 @@ public interface AbstractTSDServerMBean {
 	 * Stops this TSDServer
 	 */
 	public void stop();
+	
+	/**
+	 * Returns the total exception count
+	 * @return the total exception count
+	 */
+	public long getTotalExceptionCount();
+
+	/**
+	 * Returns a map of exception counts keyed by cause type
+	 * @return a map of exception counts keyed by cause type
+	 */
+	public Map<String, Long> exceptionsByType();
+
+	/**
+	 * Resets the exception counts for this server
+	 */
+	public void resetExceptionCounts();
+	
 
 }

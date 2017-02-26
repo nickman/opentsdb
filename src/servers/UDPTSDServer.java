@@ -34,6 +34,10 @@ public class UDPTSDServer extends AbstractSocketTSDServer {
 		super(tsdb, TSDProtocol.UDP);
 	}
 	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.AbstractTSDServer#collectStats(net.opentsdb.stats.StatsCollector)
+	 */
 	@Override
 	public void collectStats(final StatsCollector collector) {		
 		super.collectStats(collector);

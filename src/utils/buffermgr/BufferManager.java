@@ -14,7 +14,6 @@ package net.opentsdb.utils.buffermgr;
 
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -29,6 +28,7 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.PoolArenaMetric;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
+import io.netty.channel.RecvByteBufAllocator;
 import io.netty.util.ResourceLeakDetector;
 import net.opentsdb.stats.StatsCollector;
 import net.opentsdb.utils.Config;
@@ -592,6 +592,6 @@ public class BufferManager implements BufferManagerMBean, ByteBufAllocator {
 		if(level==null || level.trim().isEmpty()) throw new IllegalArgumentException("The passed level was null or empty");
 		ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.valueOf(level.trim().toUpperCase()));
 	}
-	
+
 	
 }

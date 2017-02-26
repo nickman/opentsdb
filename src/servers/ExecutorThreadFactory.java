@@ -56,8 +56,8 @@ public class ExecutorThreadFactory implements Executor, ThreadFactory {
 	 * Returns a collection of the thread ids currently operating in this thread pool
 	 * @return a collection of thread ids
 	 */
-	public Set<Long> getThreads() {
-		return Collections.unmodifiableSet(threads.keySet());
+	public Map<Long, Thread> getThreads() {
+		return Collections.unmodifiableMap(threads);
 	}
 	
 	/**

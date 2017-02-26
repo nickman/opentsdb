@@ -334,7 +334,15 @@
 	 "description": "The path of the unix socket server's socket file. The unix socket server is diabled if not specified",
 	 "help": "extended",
 	 "meta": "NFILE"
-	},
+	},	
+	{
+	 "key": "tsd.network.unixsocket.openaccess",
+	 "cl-option": "--unix-openaccess",
+	 "defaultValue": "",
+	 "description": "An access mask to set on the Unix Socket file (e.g. 777). An empty string will not change the access mask",
+	 "help": "extended",
+	 "meta": "STRING"
+	},	
 	{
 	 "key": "tsd.network.unixsocket.worker_threads",
 	 "cl-option": "--unix-worker-threads",

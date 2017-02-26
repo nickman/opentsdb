@@ -36,6 +36,8 @@
   <logger name="net.opentsdb.tsd.HttpQuery" level="WARN"/>
   <logger name="net.opentsdb.tsd.GraphHandler" level="WARN"/>
   <logger name="net.opentsdb.core.TsdbQuery" level="WARN"/>
+  <logger name="net.opentsdb.stats.QueryStats" level="WARN"/>
+  <logger name="QueryLog" level="WARN"/>
   
   
 <!-- 

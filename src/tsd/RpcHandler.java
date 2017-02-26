@@ -41,6 +41,7 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.util.ReferenceCountUtil;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.stats.StatsCollector;
 
@@ -142,10 +143,15 @@ final class RpcHandler extends ChannelDuplexHandler {
         handleTelnetRpc(ctx, (String[]) message);
         ctx.flush();
         super.channelRead(ctx, message);
-      } else if (message instanceof HttpObject) {
-        handleHttpQuery(tsdb, ctx, (HttpObject) message);
+      } else if (message instanceof FullHttpRequest) {
+    	final FullHttpRequest request = (FullHttpRequest)message;
+//    	ReferenceCountUtil.retain(request);
+        handleHttpQuery(tsdb, ctx, request);
         ctx.flush();
-        super.channelRead(ctx, message);
+//        super.channelRead(ctx, message);
+      } else if (message instanceof HttpRequest) {
+    	  ReferenceCountUtil.retain(message);
+    	  super.channelRead(ctx, message);
       } else {
         logError(channel, "Unexpected message type "
                  + message.getClass() + ": " + message);
@@ -337,9 +343,13 @@ final class RpcHandler extends ChannelDuplexHandler {
 	  } finally {
 	  	if(fullRequest!=null) {
 	  		fullRequest.touch("RpcHandler");
-//	  		if(fullRequest.refCnt()==1) {
-//	  			fullRequest.release();
-//	  		}
+	  		final int refs = fullRequest.refCnt();
+	  		if(refs > 0) {
+	  			ReferenceCountUtil.release(fullRequest, refs);
+	  			LOG.debug("--------------------Released:[{}]", refs);
+	  		} else {
+	  			LOG.debug("--------------------Nothing to release:[{}]", refs);
+	  		}
 	  	}
 	  }
   }

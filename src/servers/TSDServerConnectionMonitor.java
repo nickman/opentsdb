@@ -38,7 +38,7 @@ import net.opentsdb.tools.ConnectionRefusedException;
 /**
  * <p>Title: TSDServerEventMonitor</p>
  * <p>Description: Inbound and outbound handler to monitor and control events in client channel pipelines</p> 
- * <p><code>net.opentsdb.tools.TSDServerEventMonitor</code></p>
+ * <p><code>net.opentsdb.tools.TSDServerConnectionMonitor</code></p>
  */
 
 
@@ -65,7 +65,7 @@ Outbound event propagation methods:
  */
 
 @ChannelHandler.Sharable
-public class TSDServerEventMonitor extends ChannelDuplexHandler implements ChannelFutureListener {
+public class TSDServerConnectionMonitor extends ChannelDuplexHandler implements ChannelFutureListener {
 	/** The maximum number of connections allowed, or zero for unlimited */
 	protected final int maxConnections;
 	/** The max idle time in seconds */
@@ -75,20 +75,25 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler implements Chann
 	/** Instance logger */
 	protected final Logger log = LoggerFactory.getLogger(getClass());	
 	
-	/** The monotinic counter of the total number of successful connection events */
+	/** The monotonic counter of the total number of successful connection events */
 	protected final AtomicLong connections_established = new AtomicLong();
-	/** The monotinic counter of the total number of connection closed events */
+	/** The monotonic counter of the total number of connection closed events */
 	protected final AtomicLong connections_closed = new AtomicLong();	
-	/** The monotinic counter of the total number of rejected connection events */
+	/** The monotonic counter of the total number of rejected connection events */
 	protected final AtomicLong connections_rejected = new AtomicLong();
-	/** The monotinic counter of the total number of unknown connection (channel) exceptions */
+	/** The monotonic counter of the total number of unknown connection (channel) exceptions */
 	protected final AtomicLong exceptions_unknown = new AtomicLong();
-	/** The monotinic counter of the total number of connection closed events */
+	/** The monotonic counter of the total number of connection closed events */
 	protected final AtomicLong exceptions_closed = new AtomicLong();
-	/** The monotinic counter of the total number of successful reset events */
+	/** The monotonic counter of the total number of successful reset events */
 	protected final AtomicLong exceptions_reset = new AtomicLong();
-	/** The monotinic counter of the total number of connection timeout events */
+	/** The monotonic counter of the total number of connection timeout events */
 	protected final AtomicLong exceptions_timeout = new AtomicLong();
+	/** The monotonic counter of the total number of closed idle connection events */
+	protected final AtomicLong idle_connections_closed = new AtomicLong();
+	
+	
+	
 	
 	
 	/**
@@ -97,7 +102,7 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler implements Chann
 	 * @param maxConnections The maximum number of active connections
 	 * @param allIdleTime The idle time after which a channel is closed
 	 */
-	public TSDServerEventMonitor(final ChannelGroup channelGroup, final int maxConnections, final long allIdleTime) {
+	public TSDServerConnectionMonitor(final ChannelGroup channelGroup, final int maxConnections, final long allIdleTime) {
 		this.maxConnections = maxConnections;
 		this.channelGroup = channelGroup;
 		this.allIdleTime = allIdleTime;
@@ -193,7 +198,7 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler implements Chann
     			final String channel_info = ctx.channel().toString();
     			log.debug("Closing idle socket: [{}]", channel_info);
     			ctx.channel().close();
-    			exceptions_timeout.incrementAndGet();
+    			idle_connections_closed.incrementAndGet();
     			log.info("Closed idle socket: [{}]", channel_info);			
     		}
         }
@@ -301,6 +306,14 @@ public class TSDServerEventMonitor extends ChannelDuplexHandler implements Chann
 	 */
 	public long getTimeoutExceptions() {
 		return exceptions_timeout.get();
+	}
+	
+	/**
+	 * Returns the total number of closed idle connections
+	 * @return the total number of closed idle connections
+	 */
+	public long getIdleConnectionsClosed() {
+		return idle_connections_closed.get();
 	}
 
 }

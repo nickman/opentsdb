@@ -12,6 +12,7 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.tsd;
 
+import java.net.SocketAddress;
 import java.nio.charset.Charset;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.HashMap;
@@ -31,7 +32,6 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
@@ -141,9 +141,13 @@ public abstract class AbstractHttpQuery {
   }
   
 
-  /** @return The remote address and port in the format <ip>:<port> */
+  /** @return The remote address and port in the format <ip>:<port>, 
+   * or, if unix, the path of the socket.
+   *  */
   public String getRemoteAddress() {
-    return chan.remoteAddress().toString();
+	SocketAddress sa = chan.remoteAddress();
+	if(sa==null) sa = chan.localAddress();
+    return sa==null ? "<none>" : sa.toString();
   }
   
   /**

@@ -58,6 +58,8 @@ public abstract class AbstractTSDServer implements AbstractTSDServerMBean {
 	protected final Logger log = LoggerFactory.getLogger(getClass());
 	/** Atomic flag indicating if the TSDServer is started */
 	protected final AtomicBoolean started = new AtomicBoolean(false);
+	/** The server exception monitor */
+	protected final TSDServerExceptionMonitor exceptionMonitor = new TSDServerExceptionMonitor(getClass());
 	
 	/** The TSDB configuration */
 	protected final Config config;
@@ -239,6 +241,33 @@ public abstract class AbstractTSDServer implements AbstractTSDServerMBean {
 	@Override
 	public String getProtocol() {
 		return protocol.name();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.AbstractTSDServerMBean#getTotalExceptionCount()
+	 */
+	@Override
+	public long getTotalExceptionCount() {
+		return exceptionMonitor.getTotalExceptionCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.AbstractTSDServerMBean#exceptionsByType()
+	 */
+	@Override
+	public Map<String, Long> exceptionsByType() {
+		return exceptionMonitor.getExceptionsByType();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.servers.AbstractTSDServerMBean#resetExceptionCounts()
+	 */
+	@Override
+	public void resetExceptionCounts() {
+		exceptionMonitor.resetCounts();
 	}
 	
 	

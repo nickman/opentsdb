@@ -20,12 +20,13 @@ import java.util.Map;
  * <p><code>net.opentsdb.servers.AbstractSocketTSDServerMBean</code></p>
  */
 
-public interface AbstractSocketTSDServerMBean {
+public interface AbstractSocketTSDServerMBean extends AbstractTSDServerMBean {
 	/**
 	 * Returns a map of the server channel's configuiration options
 	 * @return a map of the server channel's configuiration options
 	 */
 	public Map<String, String> serverChannelOptions();
+	
 
 	/**
 	 * The socket address the server is bound to

@@ -19,5 +19,9 @@ package net.opentsdb.servers;
  */
 
 public interface UNIXTSDServerMBean extends ConnectionTSDServerMBean {
-
+	/**
+	 * Returns the successfully set access mask on the unix socket file
+	 * @return the unix socket file access mask 
+	 */
+	public String getAccessMask();
 }

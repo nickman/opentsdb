@@ -12,6 +12,8 @@
 // see <http://www.gnu.org/licenses/>.
 package net.opentsdb.servers;
 
+import java.util.Map;
+
 /**
  * <p>Title: ConnectionTSDServerMBean</p>
  * <p>Description: Base JMX MBean interface for connection based TSD servers</p> 
@@ -30,6 +32,19 @@ public interface ConnectionTSDServerMBean extends AbstractSocketTSDServerMBean {
 //	 * @param maxIdleTime the new maxIdleTime to set
 //	 */
 //	public void setMaxIdleTime(final long maxIdleTime);
+	
+	/**
+	 * Returns a map of the server child channel's configuiration options
+	 * @return a map of the server child  channel's configuiration options
+	 */
+	public Map<String, String> childChannelOptions();
+	
+	
+	/**
+	 * Returns the total number of closed idle connections
+	 * @return the total number of closed idle connections
+	 */
+	public long getIdleConnectionsClosed();	
 
 	/**
 	 * Returns the number of clients connected through TSDServer
@@ -52,49 +67,49 @@ public interface ConnectionTSDServerMBean extends AbstractSocketTSDServerMBean {
 	/**
 	 * Returns the total monotonic count of established connections
 	 * @return the established connections count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getConnectionsEstablished()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getConnectionsEstablished()
 	 */
 	public long getConnectionsEstablished();
 
 	/**
 	 * Returns the total monotonic  count of closed connections
 	 * @return the closed connections count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getClosedConnections()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getClosedConnections()
 	 */
 	public long getClosedConnections();
 
 	/**
 	 * Returns the total monotonic  count of rejected connections
 	 * @return the rejected connections count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getRejectedConnections()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getRejectedConnections()
 	 */
 	public long getRejectedConnections();
 
 	/**
 	 * Returns the total monotonic  count of unknown connection exceptions
 	 * @return the unknown connection exceptions count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getUnknownExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getUnknownExceptions()
 	 */
 	public long getUnknownExceptions();
 
 	/**
 	 * Returns the total monotonic  count of connection close exceptions
 	 * @return the connection close exceptions count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getCloseExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getCloseExceptions()
 	 */
 	public long getCloseExceptions();
 
 	/**
 	 * Returns the total monotonic  count of connection reset exceptions
 	 * @return the connection reset exceptions count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getResetExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getResetExceptions()
 	 */
 	public long getResetExceptions();
 
 	/**
 	 * Returns the total monotonic  count of idle connection closes
 	 * @return the idle connection closes count
-	 * @see net.opentsdb.servers.TSDServerEventMonitor#getTimeoutExceptions()
+	 * @see net.opentsdb.servers.TSDServerConnectionMonitor#getTimeoutExceptions()
 	 */
 	public long getTimeoutExceptions();
 	

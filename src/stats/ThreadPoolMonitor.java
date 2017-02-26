@@ -24,6 +24,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.management.Attribute;
 import javax.management.MBeanServer;
@@ -89,6 +90,13 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 	protected final LongAdder priorAllocation;
 	protected final AtomicBoolean initialized = new AtomicBoolean(false);
 	
+	protected final AtomicLong currentWaits = new AtomicLong(-1);
+	protected final AtomicLong currentBlocks = new AtomicLong(-1);
+	protected final AtomicLong currentWaitTime = new AtomicLong(-1);
+	protected final AtomicLong currentBlockTime = new AtomicLong(-1);
+	protected final AtomicLong currentCpuTime = new AtomicLong(-1);
+	protected final AtomicLong currentAllocation = new AtomicLong(-1);
+	
 	
 	static {
 		final MBeanServer server = ManagementFactory.getPlatformMBeanServer();
@@ -147,22 +155,6 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 			}
 		}
 	}
-
-//	public static final byte THREAD_ALLOCATION = 0;
-//	public static final byte THREAD_CPU = 1;
-//	public static final byte THREAD_BLOCKS = 2;
-//	public static final byte THREAD_BLOCK_TIME = 3;
-//	public static final byte THREAD_WAITS = 4;
-//	public static final byte THREAD_WAIT_TIME = 5;
-
-	
-//	protected final LongAdder priorWaits;
-//	protected final LongAdder priorBlocks;
-//	protected final LongAdder priorWaitTime;
-//	protected final LongAdder priorBlockTime;
-//	protected final LongAdder priorCpuTime;
-//	protected final LongAdder priorAllocation;
-	
 	
 	protected long[] readPrior() {
 		final long[] values = new long[6];
@@ -184,15 +176,21 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 	protected void delta(final long[] values) {
 		values[THREAD_BLOCKS] = priorBlocks.sum() - values[THREAD_BLOCKS]; 
 		values[THREAD_WAITS] = priorWaits.sum() - values[THREAD_WAITS];
+		currentBlocks.set(values[THREAD_BLOCKS]);
+		currentWaits.set(values[THREAD_WAITS]);
 		if(threadAllocatedMemoryEnabled) {
 			values[THREAD_ALLOCATION] = priorAllocation.sum() - values[THREAD_ALLOCATION];
+			currentAllocation.set(values[THREAD_ALLOCATION]);
 		}
 		if(threadCpuTimeEnabled) {
 			values[THREAD_CPU] = priorCpuTime.sum() - values[THREAD_CPU];
+			currentCpuTime.set(values[THREAD_CPU]);
 		}
 		if(threadContentionMonitoringEnabled) {
 			values[THREAD_BLOCK_TIME] = priorBlockTime.sum() - values[THREAD_BLOCK_TIME];
-			values[THREAD_WAIT_TIME] = priorWaitTime.sum() - values[THREAD_WAIT_TIME];			
+			values[THREAD_WAIT_TIME] = priorWaitTime.sum() - values[THREAD_WAIT_TIME];
+			currentBlockTime.set(values[THREAD_BLOCK_TIME]);
+			currentWaitTime.set(values[THREAD_WAIT_TIME]);
 		}		
 	}
 
@@ -203,7 +201,8 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 	public void doCollectStats(final StatsCollector collector) {
 		if(etf!=null) {
 			final long startTime = System.nanoTime();
-			final Set<Long> threadSet = etf.getThreads();
+			final Map<Long, Thread> threadMap = etf.getThreads();
+			final Set<Long> threadSet = threadMap.keySet();
 			final int size = threadSet.size();
 			final long[] threadIds = new long[size];
 			final Iterator<Long> iter = threadSet.iterator();
@@ -237,8 +236,10 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 			}
 			if(!initialized.compareAndSet(false, true)) {
 				collector.addExtraTag("name", name);
+				
 				try {
 					delta(priorValues);
+					collector.record("jvm.thread.pool.active", getActiveCount(), "unit=threads");
 					collector.record("jvm.thread.pool.size", size, "unit=threads");
 					collector.record("jvm.thread.pool.wait.count", priorValues[THREAD_WAITS], null);
 					collector.record("jvm.thread.pool.block.count", priorValues[THREAD_BLOCKS], null);
@@ -517,5 +518,60 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 	public boolean isCpuMonitored() {
 		return threadCpuTimeEnabled;
 	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.stats.ThreadPoolMonitorMBean#getThreadWaits()
+	 */
+	@Override
+	public long getThreadWaits() {		
+		return currentWaits.get();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.stats.ThreadPoolMonitorMBean#getThreadBlocks()
+	 */
+	@Override
+	public long getThreadBlocks() {
+		return currentBlocks.get();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.stats.ThreadPoolMonitorMBean#getThreadWaitTime()
+	 */
+	@Override
+	public long getThreadWaitTime() {
+		return currentWaitTime.get();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.stats.ThreadPoolMonitorMBean#getThreadBlockTime()
+	 */
+	@Override
+	public long getThreadBlockTime() {
+		return currentBlockTime.get();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.stats.ThreadPoolMonitorMBean#getCpuTime()
+	 */
+	@Override
+	public long getCpuTime() {
+		return currentCpuTime.get();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.stats.ThreadPoolMonitorMBean#getMemoryAllocated()
+	 */
+	@Override
+	public long getMemoryAllocated() {		
+		return currentAllocation.get();
+	}
+
 	
 }
