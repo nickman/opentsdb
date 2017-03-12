@@ -21,14 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.stumbleupon.async.Callback;
-import com.stumbleupon.async.Deferred;
-import com.stumbleupon.async.DeferredGroupException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.hbase.async.AppendRequest;
 import org.hbase.async.Bytes;
 import org.hbase.async.Bytes.ByteMap;
@@ -39,23 +34,17 @@ import org.hbase.async.HBaseClient;
 import org.hbase.async.HBaseException;
 import org.hbase.async.KeyValue;
 import org.hbase.async.PutRequest;
-import io.netty.util.HashedWheelTimer;
+import org.hbase.async.TableNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.stumbleupon.async.Callback;
+import com.stumbleupon.async.Deferred;
+import com.stumbleupon.async.DeferredGroupException;
+
 import io.netty.util.Timeout;
 import io.netty.util.Timer;
-
 import net.opentsdb.auth.AuthenticationPlugin;
-import net.opentsdb.tree.TreeBuilder;
-import net.opentsdb.tsd.RTPublisher;
-import net.opentsdb.tsd.StorageExceptionHandler;
-import net.opentsdb.uid.NoSuchUniqueId;
-import net.opentsdb.uid.NoSuchUniqueName;
-import net.opentsdb.uid.UniqueId;
-import net.opentsdb.uid.UniqueIdFilterPlugin;
-import net.opentsdb.uid.UniqueId.UniqueIdType;
-import net.opentsdb.utils.Config;
-import net.opentsdb.utils.DateTime;
-import net.opentsdb.utils.PluginLoader;
-import net.opentsdb.utils.Threads;
 import net.opentsdb.meta.Annotation;
 import net.opentsdb.meta.MetaDataCache;
 import net.opentsdb.meta.TSMeta;
@@ -68,10 +57,23 @@ import net.opentsdb.rollup.RollupUtils;
 import net.opentsdb.search.SearchPlugin;
 import net.opentsdb.search.SearchQuery;
 import net.opentsdb.servers.AbstractTSDServer;
-import net.opentsdb.tools.StartupPlugin;
+import net.opentsdb.servers.TSDBThreadPoolExecutor;
 import net.opentsdb.stats.Histogram;
 import net.opentsdb.stats.QueryStats;
 import net.opentsdb.stats.StatsCollector;
+import net.opentsdb.tools.StartupPlugin;
+import net.opentsdb.tree.TreeBuilder;
+import net.opentsdb.tsd.RTPublisher;
+import net.opentsdb.tsd.StorageExceptionHandler;
+import net.opentsdb.uid.NoSuchUniqueId;
+import net.opentsdb.uid.NoSuchUniqueName;
+import net.opentsdb.uid.UniqueId;
+import net.opentsdb.uid.UniqueId.UniqueIdType;
+import net.opentsdb.uid.UniqueIdFilterPlugin;
+import net.opentsdb.utils.Config;
+import net.opentsdb.utils.DateTime;
+import net.opentsdb.utils.PluginLoader;
+import net.opentsdb.utils.Threads;
 
 /**
  * Thread-safe implementation of the TSDB client.
@@ -199,7 +201,11 @@ public final class TSDB {
           config.getString("tsd.storage.hbase.zk_basedir"));
       async_config.overrideConfig("hbase.zookeeper.quorum", 
           config.getString("tsd.storage.hbase.zk_quorum"));
-      this.client = new HBaseClient(async_config);
+      this.client = new HBaseClient(async_config, TSDBThreadPoolExecutor.newBuilder("AsyncHBaseIOWorker#%d")
+    		  .allowGlobalShutdown(false)
+    		  .build()
+      );
+//      this.client = new HBaseClient(async_config);
     } else {
       this.client = client;
     }
@@ -1507,6 +1513,16 @@ public final class TSDB {
         if (timeouts.size() > 0) {
           LOG.warn("There were " + timeouts.size() + " timer tasks queued");
         }
+        final Deferred<Object> threadPoolShutdown = new Deferred<Object>();
+        deferreds.add(threadPoolShutdown);
+        TSDBThreadPoolExecutor.stopAll().addCallback(new Callback<Void, ArrayList<Object>>() {
+        	@Override
+        	public Void call(final ArrayList<Object> arg) throws Exception {
+        		threadPoolShutdown.callback(null);
+        		return null;
+        	}
+    	});
+        
         LOG.info("Completed shutting down the TSDB");
         return Deferred.fromResult(null);
       }

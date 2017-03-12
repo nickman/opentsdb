@@ -13,6 +13,9 @@
 package net.opentsdb.tsd;
 
 import java.nio.charset.Charset;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,14 +29,18 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.LineBasedFrameDecoder;
+import io.netty.handler.codec.compression.JZlibDecoder;
+import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.string.StringEncoder;
-import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.Timer;
 import net.opentsdb.core.TSDB;
+import net.opentsdb.tsd.optimized.OptimizedTelnetDecoder;
+import net.opentsdb.tsd.optimized.OptimizedTelnetPut;
+import net.opentsdb.tsd.optimized.OptimizedTelnetRpc;
 
 /**
  * Creates a newly configured {@link ChannelPipeline} for a new channel.
@@ -58,6 +65,8 @@ public final class PipelineFactory extends ChannelInitializer<Channel> {
   private final Timer timer;
 //  private final IdleStateHandler timeoutHandler;
 //  private final ChannelHandler timeoutHandlerX;
+  
+  
 
   /** Stateless handler for RPCs. */
   private final RpcHandler rpchandler;
@@ -130,7 +139,7 @@ public final class PipelineFactory extends ChannelInitializer<Channel> {
 	 */
 	public void switchToTelnet(final Channel channel) {
 		final ChannelPipeline p = channel.pipeline();
-		p.addLast("connmgr", connmgr);
+		//p.addLast("connmgr", connmgr);
   		p.addLast("framer", new LineBasedFrameDecoder(1024, true, true));
   		p.addLast("encoder", ENCODER);
   		p.addLast("arrDecoder", new StringArrayDecoder());
@@ -171,6 +180,8 @@ public final class PipelineFactory extends ChannelInitializer<Channel> {
 
   	private void switchToTelnet(final ChannelHandlerContext ctx) {
   		ChannelPipeline p = ctx.pipeline();
+  		p.addLast("decompress", new JZlibDecoder(ZlibWrapper.GZIP));
+  		p.addLast("optimizedDecoder", new OptimizedTelnetDecoder(tsdb, 100)); //FIXME: config
   		p.addLast("framer", new LineBasedFrameDecoder(1024, true, true));
   		p.addLast("encoder", ENCODER);
 //  		p.addLast("decoder", new DelimiterBasedFrameDecoder(1024, true, true, SPACE)); //new DelimiterBasedFrameDecoder(1024, true, SPACE));

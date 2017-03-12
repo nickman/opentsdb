@@ -183,5 +183,34 @@ public interface ThreadPoolMonitorMBean {
 	 */
 	public long getMemoryAllocated();
 	
+	/**
+	 * Returns the total number of rejected task submissions
+	 * @return the total number of rejected task submissions
+	 * @see net.opentsdb.servers.TSDBThreadPoolExecutor#getRejectedCount()
+	 */
+	public long getRejectedCount();
+
+	/**
+	 * Returns the total number of uncaught exceptions
+	 * @return the total number of uncaught exceptions
+	 * @see net.opentsdb.servers.TSDBThreadPoolExecutor#getUncaughtExceptions()
+	 */
+	public long getUncaughtExceptions();
+
+	/**
+	 * Returns the total number of created threads 
+	 * @return the total number of created threads 
+	 * @see net.opentsdb.servers.TSDBThreadPoolExecutor#getCreatedThreadCount()
+	 */
+	public long getCreatedThreadCount();
+
+	/**
+	 * Returns the total number of terminated threads 
+	 * @return the total number of terminated threads 
+	 * @see net.opentsdb.servers.TSDBThreadPoolExecutor#getTerminatedThreadCount()
+	 */
+	public long getTerminatedThreadCount();
+	
+	
 
 }

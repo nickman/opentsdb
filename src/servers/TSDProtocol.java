@@ -16,8 +16,7 @@ import java.lang.reflect.Constructor;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.EnumSet;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
@@ -31,7 +30,6 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
-import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollDatagramChannel;
 import io.netty.channel.epoll.EpollEventLoopGroup;
@@ -43,9 +41,10 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.channel.unix.DomainSocketAddress;
+import io.netty.handler.codec.compression.ZlibCodecFactory;
+import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.netty.util.concurrent.EventExecutorGroup;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.core.Tags;
 import net.opentsdb.tsd.PipelineFactory;
@@ -139,14 +138,14 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 	@Override
 	public EventLoopGroup buildBossGroup(final boolean async, final boolean epoll, final Config config) {
 		if(!async || this==UDP) return null;
-		final ExecutorThreadFactory executorThreadFactory;
+		final ThreadPoolExecutor threadPool = TSDBThreadPoolExecutor.newBuilder(name() + (epoll ? "-EpollBoss#%d" : "-NioBoss#%d"))
+				.corePoolSize(1)					
+				.build();
 		final EventLoopGroup eventLoopGroup;
 		if(epoll) {
-			executorThreadFactory = new ExecutorThreadFactory(name() + "-EpollBoss#%d", true);
-			eventLoopGroup = new EpollEventLoopGroup(1, (Executor)executorThreadFactory);
+			eventLoopGroup = new EpollEventLoopGroup(1, threadPool);
 		} else {
-			executorThreadFactory = new ExecutorThreadFactory(name() + "-NioBoss#%d", true);
-			eventLoopGroup = new NioEventLoopGroup(1, (Executor)executorThreadFactory);
+			eventLoopGroup = new NioEventLoopGroup(1, threadPool);
 		}
 		return eventLoopGroup;
 	}
@@ -157,21 +156,22 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 	 */
 	@Override
 	public EventLoopGroup buildWorkerGroup(final boolean async, final boolean epoll, final Config config) {
-		final ExecutorThreadFactory executorThreadFactory;
-		final EventLoopGroup eventLoopGroup;
 		final int threadCount = config.getInt("tsd.network.worker_threads", 
 				Runtime.getRuntime().availableProcessors() * 2);
+		final ThreadPoolExecutor threadPool = TSDBThreadPoolExecutor.newBuilder(name() + 
+				(async ? epoll ? "-EpollWorker#%d" : "-NioWorker#%d" : "-OioWorker#%d"))
+				.corePoolSize(1)
+				.maxPoolSize(threadCount)
+				.build();
+		final EventLoopGroup eventLoopGroup;
 		if(async) {
 			if(epoll) {
-				executorThreadFactory = new ExecutorThreadFactory(name() + "-EpollWorker#%d", true);
-				eventLoopGroup = new EpollEventLoopGroup(threadCount, (Executor)executorThreadFactory);
+				eventLoopGroup = new EpollEventLoopGroup(1, threadPool);
 			} else {
-				executorThreadFactory = new ExecutorThreadFactory(name() + "-NioWorker#%d", true);
-				eventLoopGroup = new NioEventLoopGroup(threadCount, (Executor)executorThreadFactory);
+				eventLoopGroup = new NioEventLoopGroup(1, threadPool);
 			}
 		} else {
-			executorThreadFactory = new ExecutorThreadFactory(name() + "-OioWorker#%d", true);
-			eventLoopGroup = new OioEventLoopGroup(threadCount, (Executor)executorThreadFactory);
+			eventLoopGroup = new OioEventLoopGroup(threadCount, threadPool);
 		}
 		return eventLoopGroup;
 	}
@@ -261,7 +261,7 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 			if(instance.get()==null) {
 				synchronized(instance) {
 					if(instance.get()==null) {
-						final UDPPacketHandler handler = new UDPPacketHandler(tsdb);
+						final UDPPacketHandler handler = UDPPacketHandler.getInstance(tsdb);
 						final ChannelInitializer<Channel> initializer = new ChannelInitializer<Channel>() {
 							@Override
 							protected void initChannel(final Channel channel) throws Exception {
@@ -269,8 +269,8 @@ public enum TSDProtocol implements InitializerFactory, TSDServerBuilder {
 								final LogLevel level = tsdb.getConfig().getLogLevel("tsd.network.loglevel");
 								if(level!=null) {
 									p.addLast(new LoggingHandler(UDP.tsdClass, level));
-								}								
-								p.addLast(UDPPacketHandler.class.getSimpleName(), handler);
+								}																
+								p.addLast(UDPPacketHandler.class.getSimpleName(), handler);								
 								if(first!=null) {
 									for(ChannelHandler ch: first) {
 										if(ch==null) continue;

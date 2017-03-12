@@ -20,8 +20,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -34,7 +32,7 @@ import org.hbase.async.jsr166e.LongAdder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.opentsdb.servers.ExecutorThreadFactory;
+import net.opentsdb.servers.TSDBThreadPoolExecutor;
 
 /**
  * <p>Title: ThreadPoolMonitor</p>
@@ -44,7 +42,7 @@ import net.opentsdb.servers.ExecutorThreadFactory;
 
 public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 	/** The thread pool being monitored */
-	protected final ThreadPoolExecutor threadPoolExecutor;
+	protected final TSDBThreadPoolExecutor threadPoolExecutor;
 	/** The thread pool name */
 	protected final String name;
 	/** The thread pool name as a collector tag */
@@ -54,8 +52,6 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 	protected final ObjectName objectName;
 	/** The thread pool queue */
 	protected final BlockingQueue<Runnable> queue;
-	/** The executor thread factory (if it is one) */
-	protected final ExecutorThreadFactory etf;
 	
 	/** Static class logger */
 	protected static final Logger LOG = LoggerFactory.getLogger(ThreadPoolMonitor.class);
@@ -238,10 +234,10 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 	 * Collects the stats and metrics for this thread pools
 	 * @param collector The collector to use.
 	 */
-	public void doCollectStats(final StatsCollector collector) {
-		if(etf!=null) {
+	private void doCollectStats(final StatsCollector collector) {
+		try {
 			final long startTime = System.nanoTime();
-			final Map<Long, Thread> threadMap = etf.getThreads();
+			final Map<Long, Thread> threadMap = threadPoolExecutor.getThreads();
 			final Set<Long> threadSet = threadMap.keySet();
 			final int size = threadSet.size();
 			final long[] threadIds = new long[size];
@@ -280,6 +276,10 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 				try {
 					delta(priorValues);
 					collector.record("jvm.thread.pool.active", getActiveCount(), "unit=threads");
+					collector.record("jvm.thread.pool.created", getCreatedThreadCount(), "unit=threads");
+					collector.record("jvm.thread.pool.terminated", getTerminatedThreadCount(), "unit=threads");
+					collector.record("jvm.thread.pool.uncaught", getUncaughtExceptions(), "unit=exceptions");
+					collector.record("jvm.thread.pool.rejected", getRejectedCount(), "unit=tasks");
 					collector.record("jvm.thread.pool.size", size, "unit=threads");
 					collector.record("jvm.thread.pool.wait.count", priorValues[THREAD_WAITS], null);
 					collector.record("jvm.thread.pool.block.count", priorValues[THREAD_BLOCKS], null);
@@ -292,14 +292,16 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 					}
 					if(threadCpuTimeEnabled) {
 						collector.record("jvm.thread.pool.cpu", nanosToMillis(priorValues[THREAD_CPU]), "unit=ms");
-//						System.err.println("CPU secs [" + name + "]:" + nanosToMillis(priorValues[THREAD_CPU]));
 					}
+					
 					collector.record("jvm.thread.pool.monitor", TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - startTime), "unit=micros");
 				} finally {
 					collector.clearExtraTag("name");
 				}
 			}
-		}		
+		} catch (Exception ex) {
+			ex.printStackTrace(System.err);
+		}
 	}
 	
 	private static double bytesToK(final double bytes) {
@@ -319,7 +321,7 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 	 * @param threadPoolExecutor The thread pool to monitor
 	 * @param name The thread pool name
 	 */
-	public static void installMonitor(final ThreadPoolExecutor threadPoolExecutor, final String name) {
+	public static void installMonitor(final TSDBThreadPoolExecutor threadPoolExecutor, final String name) {
 		if(threadPoolExecutor==null) throw new IllegalArgumentException("The passed ThreadPoolExecutor was null");
 		if(name==null || name.trim().isEmpty()) throw new IllegalArgumentException("The passed name was null or empty");
 		final String _name = name.trim().replace("-%d", "").replace("%d", "").replace("#", "");
@@ -344,30 +346,18 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 	 * @param name The thread pool name
 	 * @param objectName The monitor JMX ObjectName
 	 */
-	private ThreadPoolMonitor(final ThreadPoolExecutor threadPoolExecutor, final String name, final ObjectName objectName) {
+	private ThreadPoolMonitor(final TSDBThreadPoolExecutor threadPoolExecutor, final String name, final ObjectName objectName) {
 		this.threadPoolExecutor = threadPoolExecutor;
 		this.name = name;
 		nameTag = "name=" + this.name;
 		this.objectName = objectName;
 		this.queue = threadPoolExecutor.getQueue();
-		final ThreadFactory tf = threadPoolExecutor.getThreadFactory(); 
-		if(tf instanceof ExecutorThreadFactory) {
-			etf = (ExecutorThreadFactory)tf;
-			priorWaits = new LongAdder();
-			priorBlocks = new LongAdder();
-			priorWaitTime = new LongAdder();
-			priorBlockTime = new LongAdder();
-			priorCpuTime = new LongAdder();
-			priorAllocation = new LongAdder();
-		} else {
-			etf = null;
-			priorWaits = null;
-			priorBlocks = null;
-			priorWaitTime = null;
-			priorBlockTime = null;
-			priorCpuTime = null;
-			priorAllocation = null;			
-		}		
+		priorWaits = new LongAdder();
+		priorBlocks = new LongAdder();
+		priorWaitTime = new LongAdder();
+		priorBlockTime = new LongAdder();
+		priorCpuTime = new LongAdder();
+		priorAllocation = new LongAdder();
 	}
 
 	/**
@@ -611,6 +601,42 @@ public class ThreadPoolMonitor implements ThreadPoolMonitorMBean {
 	@Override
 	public long getMemoryAllocated() {		
 		return currentAllocation.get();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.stats.ThreadPoolMonitorMBean#getRejectedCount()
+	 */
+	@Override
+	public long getRejectedCount() {
+		return threadPoolExecutor.getRejectedCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.stats.ThreadPoolMonitorMBean#getUncaughtExceptions()
+	 */
+	@Override
+	public long getUncaughtExceptions() {
+		return threadPoolExecutor.getUncaughtExceptions();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.stats.ThreadPoolMonitorMBean#getCreatedThreadCount()
+	 */
+	@Override
+	public long getCreatedThreadCount() {
+		return threadPoolExecutor.getCreatedThreadCount();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.stats.ThreadPoolMonitorMBean#getTerminatedThreadCount()
+	 */
+	@Override
+	public long getTerminatedThreadCount() {
+		return threadPoolExecutor.getTerminatedThreadCount();
 	}
 
 	

@@ -516,6 +516,22 @@ public final class JSON {
     return jsonMapper.getFactory();
   }
 
+  public final static JsonParser createParser(final InputStream is) {
+	  try {
+		  return getFactory().createParser(is);
+	  } catch (Exception ex) {
+		  throw new JSONException("Failed to create parser for InputStream", ex);
+	  }
+  }
+  
+  public final static JsonParser createParser(final String s) {
+	  try {
+		  return getFactory().createParser(s);
+	  } catch (Exception ex) {
+		  throw new JSONException("Failed to create parser for String", ex);
+	  }
+  }
+  
   /**
    * Helper class for deserializing UID type enum from human readable strings
    */

@@ -21,28 +21,27 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.hbase.async.HBaseException;
+import org.hbase.async.PleaseThrottleException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
 import com.stumbleupon.async.TimeoutException;
 
-import org.hbase.async.HBaseException;
-import org.hbase.async.PleaseThrottleException;
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.util.ReferenceCountUtil;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import net.opentsdb.core.IncomingDataPoint;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.core.Tags;
 import net.opentsdb.rollup.NoSuchRollupForIntervalException;
 import net.opentsdb.rollup.RollUpDataPoint;
 import net.opentsdb.stats.StatsCollector;
+import net.opentsdb.stats.ThreadAllocationReaderImpl;
 import net.opentsdb.uid.NoSuchUniqueName;
 import net.opentsdb.utils.Config;
 
@@ -83,6 +82,8 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
   protected static final AtomicLong writes_blocked = new AtomicLong();
   protected static final AtomicLong writes_timedout = new AtomicLong();
   protected static final AtomicLong requests_timedout = new AtomicLong();
+  
+  protected static final ThreadAllocationReaderImpl allocReader = new ThreadAllocationReaderImpl();
   
   /** Whether or not to send error messages back over telnet */
   private final boolean send_telnet_errors;
@@ -245,6 +246,10 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
   @Override
   public void execute(final TSDB tsdb, final HttpQuery query) 
     throws IOException {
+	final long id = Thread.currentThread().getId();
+	final long startTime = System.nanoTime();
+	final long startMem = allocReader.getAllocatedBytes(id);
+	  
     http_requests.incrementAndGet();
     
     // only accept POST
@@ -258,7 +263,7 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
 //      final int refs = query.hasContent() ?  query.request().content().refCnt() : 0;
       dps = query.serializer()
           .parsePutV1(IncomingDataPoint.class, HttpJsonSerializer.TR_INCOMING);
-      processDataPoint(tsdb, query, dps);
+      processDataPoint(tsdb, query, dps, id, startTime, startMem);
 //      if(refs>0) {
 //    	  final int refs2 = query.hasContent() ?  query.request().content().refCnt() : 0;
 //    	  LOG.info("--------------------Released:[{}]/[{}]", refs, refs2);
@@ -282,11 +287,11 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
    * @since 2.4
    */
   public <T extends IncomingDataPoint> void processDataPoint(final TSDB tsdb, 
-      final HttpQuery query, final List<T> dps) {
+      final HttpQuery query, final List<T> dps, final long id, final long startTime, final long startMem) {
     if (dps.size() < 1) {
       throw new BadRequestException("No datapoints found in content");
     }
-
+    
     final boolean show_details = query.hasQueryStringParam("details");
     final boolean show_summary = query.hasQueryStringParam("summary");
     final boolean synchronous = query.hasQueryStringParam("sync");
@@ -510,7 +515,8 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
           if (show_details) {
             summary.put("errors", details);
           }
-          
+          summary.put("elapsed", System.nanoTime() - startTime);
+          summary.put("allocated", allocReader.getAllocatedBytes(id) - startMem);
           query.sendReply(HttpResponseStatus.BAD_REQUEST, 
               query.serializer().formatPutV1(summary));
         }
@@ -574,7 +580,8 @@ class PutDataPointRpc implements TelnetRpc, HttpRpc {
           if (show_details) {
             summary.put("errors", details);
           }
-          
+          summary.put("elapsed", System.nanoTime() - startTime);
+          summary.put("allocated", allocReader.getAllocatedBytes(id) - startMem);
           if (failures > 0) {
             query.sendReply(HttpResponseStatus.BAD_REQUEST, 
                 query.serializer().formatPutV1(summary));

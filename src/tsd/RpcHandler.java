@@ -14,8 +14,10 @@ package net.opentsdb.tsd;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.hbase.async.jsr166e.LongAdder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +44,7 @@ import io.netty.util.ReferenceCountUtil;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.stats.StatsCollector;
 import net.opentsdb.stats.ThreadPoolMonitor;
+import net.opentsdb.stats.ThreadStat;
 import net.opentsdb.utils.Config;
 
 /**
@@ -184,7 +187,12 @@ final class RpcHandler extends ChannelDuplexHandler {
       rpc = unknown_cmd;
     }
     telnet_rpcs_received.incrementAndGet();
-    rpc.execute(tsdb, ctx, command);    
+	final Map<ThreadStat, LongAdder> rpcStats = threadMonitorEnabled ? rpc_manager.lookupTelnetStats(command[0]) : null;
+	final long[] threadStats = threadMonitorEnabled ? ThreadStat.enter(rpcStats) : null;
+	rpc.execute(tsdb, ctx, command);
+	if(threadMonitorEnabled) {
+		ThreadStat.exit(rpcStats, threadStats);
+	}				  
   }
 
   /**
@@ -288,6 +296,7 @@ final class RpcHandler extends ChannelDuplexHandler {
 	  }
 	  AbstractHttpQuery abstractQuery = null;
 	  final long[] threadStats;
+	  final Map<ThreadStat, LongAdder> rpcStats;
 	  try {		  
 		  abstractQuery = createQueryInstance(tsdb, fullRequest, ctx);
 		  if (!tsdb.getConfig().enable_chunked_requests() && HttpUtil.isTransferEncodingChunked(fullRequest)) {
@@ -307,11 +316,12 @@ final class RpcHandler extends ChannelDuplexHandler {
 			  final HttpRpcPluginQuery pluginQuery = (HttpRpcPluginQuery) abstractQuery;
 			  final HttpRpcPlugin rpc = rpc_manager.lookupHttpRpcPlugin(route);
 			  if (rpc != null) {
-				  threadStats = threadMonitorEnabled ? ThreadPoolMonitor.enter() : null;
+				  rpcStats = threadMonitorEnabled ? rpc_manager.lookupHttpPluginStats(route) : null;
+				  threadStats = threadMonitorEnabled ? ThreadStat.enter(rpcStats) : null;
 				  rpc.execute(tsdb, pluginQuery);
 				  if(threadMonitorEnabled) {
-					  ThreadPoolMonitor.exit(threadStats);
-				  }
+					  ThreadStat.exit(rpcStats, threadStats);
+				  }				  
 			  } else {
 				  pluginQuery.notFound();
 			  }
@@ -321,12 +331,13 @@ final class RpcHandler extends ChannelDuplexHandler {
 			  if (applyCorsConfig(fullRequest, abstractQuery)) {
 				  return;
 			  }
-			  final HttpRpc rpc = rpc_manager.lookupHttpRpc(route);
+			  final HttpRpc rpc = rpc_manager.lookupHttpRpc(route);			  
 			  if (rpc != null) {
-				  threadStats = threadMonitorEnabled ? ThreadPoolMonitor.enter() : null;
+				  rpcStats = threadMonitorEnabled ? rpc_manager.lookupHttpStats(route) : null;
+				  threadStats = threadMonitorEnabled ? ThreadStat.enter(rpcStats) : null;
 				  rpc.execute(tsdb, builtinQuery);
 				  if(threadMonitorEnabled) {
-					  ThreadPoolMonitor.exit(threadStats);
+					  ThreadStat.exit(rpcStats, threadStats);
 				  }				  
 			  } else {
 				  builtinQuery.notFound();
@@ -456,6 +467,7 @@ final class RpcHandler extends ChannelDuplexHandler {
     GraphHandler.collectStats(collector);
     PutDataPointRpc.collectStats(collector);
     QueryRpc.collectStats(collector);
+    
   }
 
   /**

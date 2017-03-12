@@ -13,31 +13,46 @@
 package net.opentsdb.tsd;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPInputStream;
 
+import javax.management.ListenerNotFoundException;
+import javax.management.MBeanNotificationInfo;
+import javax.management.Notification;
+import javax.management.NotificationBroadcaster;
+import javax.management.NotificationBroadcasterSupport;
+import javax.management.NotificationFilter;
+import javax.management.NotificationListener;
+import javax.management.ObjectName;
+
 import org.hbase.async.HBaseClient;
 import org.hbase.async.HBaseRpc;
 import org.hbase.async.PleaseThrottleException;
 import org.hbase.async.PutRequest;
+import org.hbase.async.jsr166e.LongAdder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheStats;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
 
@@ -53,10 +68,14 @@ import net.opentsdb.core.TSDB;
 import net.opentsdb.core.Tags;
 import net.opentsdb.core.WritableDataPoints;
 import net.opentsdb.servers.AbstractTSDServer;
-import net.opentsdb.servers.ExecutorThreadFactory;
+import net.opentsdb.servers.TSDBThreadPoolExecutor;
 import net.opentsdb.stats.Histogram;
 import net.opentsdb.stats.StatsCollector;
+import net.opentsdb.stats.ThreadAllocationReaderImpl;
 import net.opentsdb.stats.ThreadPoolMonitor;
+import net.opentsdb.stats.ThreadStat;
+import net.opentsdb.tsd.UDPPacketHandler.UDPCommand;
+import net.opentsdb.tsd.optimized.ByteBufSplitter;
 import net.opentsdb.utils.buffermgr.BufferManager;
 
 /**
@@ -65,7 +84,43 @@ import net.opentsdb.utils.buffermgr.BufferManager;
  * <p><code>net.opentsdb.tsd.UDPPacketHandler</code></p>
  */
 
-public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket> {
+public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket> implements UDPPacketHandlerMBean, RemovalListener<String, Map<UDPCommand, LongAdder>>, NotificationBroadcaster {
+	/** Singleton instance */
+	private static volatile UDPPacketHandler instance = null;
+	/** Singleton instance ctor lock */
+	private static final Object lock = new Object();
+	
+	/** JMX Notification type prefix */
+	public static final String NOTIF_TYPE_PREFIX = "udp.client.";
+	/** JMX Notification type for new UDP clients */
+	public static final String NOTIF_TYPE_NEW = NOTIF_TYPE_PREFIX + "new";
+	/** JMX Notification type for expired UDP clients */
+	public static final String NOTIF_TYPE_EXPIRED = NOTIF_TYPE_PREFIX + "expired";
+	
+	private static final MBeanNotificationInfo[] NOTIF_INFOS = new MBeanNotificationInfo[]{
+		new MBeanNotificationInfo(new String[]{NOTIF_TYPE_NEW}, Notification.class.getName(), "Notification emitted when a new UDP client starts"),
+		new MBeanNotificationInfo(new String[]{NOTIF_TYPE_EXPIRED}, Notification.class.getName(), "Notification emitted when a UDP client expires")
+	}; 
+	
+	/**
+	 * Acquires the UDPPacketHandler singleton instance
+	 * @param tsdb The parent TSBD instance
+	 * @return the UDPPacketHandler singleton instance
+	 */
+	public static UDPPacketHandler getInstance(final TSDB tsdb) {
+		if(instance==null) {
+			if(tsdb==null) throw new IllegalArgumentException("The passed TSDB instance was null");
+			synchronized(lock) {
+				if(instance==null) {
+					instance = new UDPPacketHandler(tsdb);
+				}
+			}
+		}
+		return instance;
+	}
+	
+	
+	
 	/** A counter of all UDP requests */
 	protected static final AtomicLong all_requests = new AtomicLong();	
 	/** A counter of PUT UDP requests */
@@ -96,6 +151,8 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 	protected static final Histogram put_latency = new Histogram(16000, (short) 2, 100);
 	/** Keep track of the latency of UDP stats requests .  */
 	protected static final Histogram stats_latency = new Histogram(16000, (short) 2, 100);
+	/** Keep track of the latency of UDP cache requests .  */
+	protected static final Histogram cache_latency = new Histogram(16000, (short) 2, 100);
 	
 	/** Keep track of the PUT decompression rate  */
 	protected static final Histogram putDecomp = new Histogram(16000, (short) 2, 100);
@@ -108,9 +165,21 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 	protected final Logger log = LoggerFactory.getLogger(getClass());
 	/** The buffer manager */
 	protected final BufferManager bufferManager;
+    /** Indicates if rpc thread monitoring is enabled */
+    protected final boolean threadMonitorEnabled;
+    /** Thread stats keyed by the UDP rpc */
+    protected final Map<UDPCommand, Map<ThreadStat, LongAdder>> rpcThreadStats;
+	
+	/** Notification serial */
+	protected final AtomicLong notifSerial = new AtomicLong();
 	/** Async execution pool */
-	protected final ExecutorThreadFactory threadPool = new ExecutorThreadFactory(
-			Runtime.getRuntime().availableProcessors(), "UDPPacketAsyncHandler-%d", true);
+	protected final ThreadPoolExecutor threadPool = TSDBThreadPoolExecutor.newBuilder("UDPPacketAsyncHandler-%d")
+			.corePoolSize(5)
+			.daemon(true)
+			.keepAliveTimeSecs(60)
+			.prestart(5)
+			.build();
+	
 	/** Command cache */
 	protected final Cache<String, UDPCommandOptions> commandCache = CacheBuilder.newBuilder()
 			.concurrencyLevel(Runtime.getRuntime().availableProcessors())
@@ -119,6 +188,21 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 			.softValues()
 			.recordStats()
 			.build();
+	
+	/** Remote addresses timedout cache */
+	protected final Cache<String, Map<UDPCommand, LongAdder>> rpcsFromRemotes = CacheBuilder.newBuilder()
+			.concurrencyLevel(Runtime.getRuntime().availableProcessors())
+			.initialCapacity(128)
+			.maximumSize(1024)
+			.expireAfterAccess(120, TimeUnit.SECONDS)
+			.removalListener(this)
+			.recordStats()
+			.build();
+	
+	/** Embedded notification broadcaster */
+	protected final NotificationBroadcasterSupport broadcaster = new NotificationBroadcasterSupport(NOTIF_INFOS);
+	/** The packet handler's JMX ObjectName */
+	protected final ObjectName objectName;
 	
 	/** The UTF8 character set */
 	public static final Charset UTF8 = Charset.forName("UTF8");
@@ -163,7 +247,43 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 			return null;
 		}
 	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see com.google.common.cache.RemovalListener#onRemoval(com.google.common.cache.RemovalNotification)
+	 */
+	@Override
+	public void onRemoval(final RemovalNotification<String, Map<UDPCommand, LongAdder>> notification) {
+		broadcaster.sendNotification(new Notification(NOTIF_TYPE_EXPIRED, objectName, notifSerial.incrementAndGet(), System.currentTimeMillis(), "UDP Client Expired: [" + notification.getKey() + "]"));
+	}
 
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.NotificationBroadcaster#addNotificationListener(javax.management.NotificationListener, javax.management.NotificationFilter, java.lang.Object)
+	 */
+	@Override
+	public void addNotificationListener(final NotificationListener listener, final NotificationFilter filter, final Object handback)
+			throws IllegalArgumentException {
+		broadcaster.addNotificationListener(listener, filter, handback);		
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.NotificationBroadcaster#removeNotificationListener(javax.management.NotificationListener)
+	 */
+	@Override
+	public void removeNotificationListener(final NotificationListener listener) throws ListenerNotFoundException {
+		broadcaster.removeNotificationListener(listener);
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see javax.management.NotificationBroadcaster#getNotificationInfo()
+	 */
+	@Override
+	public MBeanNotificationInfo[] getNotificationInfo() {		
+		return broadcaster.getNotificationInfo();
+	}
 	
 	class UDPCommandOptions  {
 		final UDPCommand command;
@@ -251,7 +371,7 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 	 * <p><code>net.opentsdb.tsd.UDPPacketHandler.UDPCommand</code></p>
 	 */
 	public static enum UDPCommand {
-		PUT(null, new String[]{"--request-id"}, new String[]{"--skip-errors", "--send-response"}),
+		PUTBATCH(null, new String[]{"--request-id"}, new String[]{"--skip-errors", "--send-response"}),
 		CACHE(null, new String[]{"--request-id"}, null),
 		STATS(null, new String[]{"--request-id"}, new String[]{"--canonical"});
 		
@@ -282,7 +402,17 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 		
 		public final Set<String> subCommands;
 		public final Set<String> flags;
-		public final Set<String> options; 
+		public final Set<String> options;
+		
+		private static final UDPCommand[] values = values();
+		
+		public static Map<UDPCommand, LongAdder> newCommandCounter() {
+			final EnumMap<UDPCommand, LongAdder> map = new EnumMap<UDPCommand, LongAdder>(UDPCommand.class);
+			for(UDPCommand uc: values) {
+				map.put(uc, new LongAdder());
+			}
+			return Collections.unmodifiableMap(map);			
+		}
 	}
 	
 	  /**
@@ -304,18 +434,67 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 	 * Creates a new UDPPacketHandler
 	 * @param tsdb The parent TSDB instance
 	 */
-	public UDPPacketHandler(final TSDB tsdb) {
+	private UDPPacketHandler(final TSDB tsdb) {
 		if(tsdb==null) throw new IllegalArgumentException("The passed TSDB was null");
 		this.tsdb = tsdb;
+		threadMonitorEnabled = tsdb.getConfig().getBoolean("tsd.rpc.threadmonitoring", false);
+		if(threadMonitorEnabled) {
+			rpcThreadStats = initRpcThreadStats();
+		} else {
+			rpcThreadStats = null;
+		}
 		bufferManager = BufferManager.getInstance();
+		ObjectName on = null;
+		try {
+			on = new ObjectName(OBJECT_NAME);
+			ManagementFactory.getPlatformMBeanServer().registerMBean(this, on);
+		} catch (Exception ex) {
+			log.warn("Failed to register UDPPacketHandler management interface. Will continue without: [{}]", ex);
+		}
+		objectName = on;
 	}
 	
+	private static Map<UDPCommand, Map<ThreadStat, LongAdder>> initRpcThreadStats() {
+		Map<UDPCommand, Map<ThreadStat, LongAdder>> tmp = new EnumMap<UDPCommand, Map<ThreadStat, LongAdder>>(UDPCommand.class);
+		for(final UDPCommand cmd: UDPCommand.values()) {
+			final Map<ThreadStat, LongAdder> statMap = new EnumMap<ThreadStat, LongAdder>(ThreadStat.class);
+			for(ThreadStat stat: ThreadStat.values()) {
+				statMap.put(stat, new LongAdder());
+			}
+			tmp.put(cmd, statMap);
+		}
+		return Collections.unmodifiableMap(tmp);
+	}
+	
+	
+	/**
+	 * Increments the counter of calls from a specific sender address
+	 * @param sender the sender's address
+	 */
+	protected void updateRemoteCounts(final InetSocketAddress sender, final UDPCommand command) {
+		try {
+			final String remote = sender.toString();			
+			rpcsFromRemotes.get(remote, new Callable<Map<UDPCommand, LongAdder>>(){
+				@Override
+				public Map<UDPCommand, LongAdder> call() throws Exception {
+					broadcaster.sendNotification(new Notification(NOTIF_TYPE_NEW, objectName, notifSerial.incrementAndGet(), System.currentTimeMillis(), "UDP Client Started: [" + sender.toString() + "]"));
+					return UDPCommand.newCommandCounter();
+				}
+			}).get(command).increment();
+		} catch (Exception ex) {
+			log.error("Failed to update remote counts", ex);
+		}
+	}
 
 
+	/**
+	 * {@inheritDoc}
+	 * @see io.netty.channel.SimpleChannelInboundHandler#channelRead0(io.netty.channel.ChannelHandlerContext, java.lang.Object)
+	 */
 	@Override
 	protected void channelRead0(final ChannelHandlerContext ctx, final DatagramPacket msg) throws Exception {
 		final InetSocketAddress sender = msg.sender();
-		final InetSocketAddress recipient = msg.recipient();
+		final InetSocketAddress recipient = msg.recipient();		
 		final long startTime = System.currentTimeMillis();
 		all_requests.incrementAndGet();
 		final ByteBuf content = msg.content().touch("UDPOriginalContent");
@@ -333,7 +512,7 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 		final int d;
 		if(isGzip(magic1, magic2)) {
 			wasGZipped = true;
-			actualContent = ctx.alloc().ioBuffer(size * 10).touch("UDPUnzippedContent");
+			actualContent = bufferManager.buffer(size * 10).touch("UDPUnzippedContent");
 			GZIPInputStream gis = null;
 			ByteBufInputStream bis = null;
 			ByteBufOutputStream bos = null;
@@ -360,13 +539,14 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 				computed = 0;
 			}			
 			d = computed;
+			log.debug("Decomp: final:{}, starting:{} ---> {}", actualContent.readableBytes(), size, d);
 		} else {
 			wasGZipped = false;
 			d = 0;
 			actualContent = content;
 			actualContent.retain();
 			in_bytes.addAndGet(size);
-		}				
+		}						
 		handle(d, actualContent, wasGZipped, ctx, sender, recipient).addCallback(new Callback<Void, Map<UDPCommand, ByteBuf>>() {
 			@Override
 			public Void call(final Map<UDPCommand, ByteBuf> response) throws Exception {
@@ -374,13 +554,16 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 				try { udp_latency.add((int)elapsed); } catch (Exception x) {/* No Op */}
 				
 				if(response!=null && !response.isEmpty()) {
-					final UDPCommand cmd = response.keySet().iterator().next();
+					final UDPCommand cmd = response.keySet().iterator().next();					
 					switch(cmd) {
-					case PUT:
-						put_latency.add((int)elapsed);
+					case PUTBATCH:
+						put_latency.add((int)elapsed);						
 						break;
 					case STATS:
 						stats_latency.add((int)elapsed);
+						break;
+					case CACHE:
+						cache_latency.add((int)elapsed);
 						break;
 					default:
 						break;
@@ -414,6 +597,32 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 	
 	
 	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tsd.UDPPacketHandlerMBean#getActiveRemotes()
+	 */
+	@Override
+	public Set<String> getActiveRemotes() {
+		return new HashSet<String>(rpcsFromRemotes.asMap().keySet());
+	}
+	
+	/**
+	 * {@inheritDoc}
+	 * @see net.opentsdb.tsd.UDPPacketHandlerMBean#getRpcCountsByRemote()
+	 */
+	@Override
+	public Map<String, Long> getRpcCountsByRemote() {
+		final Map<String, Long> rpcCountsByRemote = new TreeMap<String, Long>();		
+		for(Map.Entry<String, Map<UDPCommand, LongAdder>> entry: rpcsFromRemotes.asMap().entrySet()) {
+			final String remote = entry.getKey();			
+			for(Map.Entry<UDPCommand, LongAdder> centry: entry.getValue().entrySet()) {
+				rpcCountsByRemote.put(remote + ":" + centry.getKey().name(), centry.getValue().longValue());
+			}
+		}
+		return rpcCountsByRemote;
+	}
+	
+	
 	protected ByteBuf toBuff(final int[] arr, final StringBuilder b) {
 		final String s = Arrays.toString(arr).replace(" ", "");
 		b.append(Arrays.toString(arr).replace(" ", "").substring(1, s.length()-1));
@@ -423,23 +632,30 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 	protected Deferred<Map<UDPCommand, ByteBuf>> handle(final int decomp, final ByteBuf buf, final boolean wasGZipped, final ChannelHandlerContext ctx, final InetSocketAddress sender, final InetSocketAddress recipient) {
 		final Deferred<Map<UDPCommand, ByteBuf>> def = new Deferred<Map<UDPCommand, ByteBuf>>();
 		try {
+
 			threadPool.execute(new Runnable(){
 				@Override
 				public void run() {
+					final long[] threadStats;
+					final Map<ThreadStat, LongAdder> rpcStats;
+					
 					try {
-						final UDPCommandOptions cmd = parse(buf.slice());	
-						if(cmd==null) return;
-						buf.readerIndex(cmd.readerIndex);
+						threadStats = threadMonitorEnabled ? ThreadStat.enter((LongAdder)null) : null;
+						final UDPCommandOptions cmd = parse(buf.slice());
+						rpcStats = threadMonitorEnabled ? rpcThreadStats.get(cmd.command) : null;
+						if(cmd==null) return;												
+						updateRemoteCounts(sender, cmd.command);
 						switch(cmd.command) {
-							case PUT:
+							case PUTBATCH:
+								buf.readerIndex(cmd.readerIndex);
 								put_requests.incrementAndGet();
 								putDecomp.add(decomp);
 								try {
-									final int[] results = importDataPoints(buf, cmd);
+									final String results = importDataPoints(buf, cmd);
 									if(cmd.flags.contains("--send-response")) {
-										def.callback(Collections.singletonMap(UDPCommand.PUT, toBuff(results, cmd.buildResponse())));
+										def.callback(Collections.singletonMap(UDPCommand.PUTBATCH, bufferManager.wrap(cmd.command.name() + ":\n" + results)));
 									} else {
-										def.callback(Collections.singletonMap(UDPCommand.PUT, null));
+										def.callback(Collections.singletonMap(UDPCommand.PUTBATCH, null));
 									}
 								} catch (Exception ex) {
 									def.callback(ex);
@@ -463,6 +679,10 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 							default:
 								def.callback(new UnsupportedOperationException("No implementation for UDPCommand [" + cmd.command.name() + "]. Programmer Error."));
 						}
+						if(threadMonitorEnabled) {							
+							ThreadStat.exit(rpcStats, threadStats);
+							rpcStats.get(ThreadStat.COUNT).increment();
+						}
 					} catch (Exception ex) {
 						throw new RuntimeException(ex);
 					} finally {
@@ -477,26 +697,40 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 		return def;
 	}
 	
+	private static final byte[] CR = "\n".getBytes(UTF8);
+	private static final int CRLEN = CR.length;
+	
 	protected void sendStats(final ChannelHandlerContext ctx, final InetSocketAddress sender,
 			final InetSocketAddress recipient, final UDPCommandOptions cmd) {
 		ByteBuf statsBuffer = null;
 		try {
 			final byte[] header = cmd.buildResponse().toString().getBytes(UTF8);								
 			statsBuffer = doCollectStats(cmd.flags.contains("--canonical"));
-			int remainingBytes = statsBuffer.readableBytes(); 
-			int index = -1;
-			int priorIndex = 0;
-
 			int total = header.length;			
-			while((index = statsBuffer.forEachByte(priorIndex, remainingBytes, ByteProcessor.FIND_CRLF))!=-1) {
-				int length = index+1-priorIndex;
-				remainingBytes -= length;
-				final ByteBuf sendBuffer = bufferManager.ioBuffer(2048).writeBytes(header).writeBytes(statsBuffer, priorIndex, length);
-				ctx.writeAndFlush(new DatagramPacket(sendBuffer, sender, recipient));
-				total += length;
-				priorIndex = index+1;									
+			int sent = 0;
+			int dps = 0;
+			boolean hasPoints =  false;
+			final ByteBufSplitter splitter = new ByteBufSplitter(statsBuffer, false, ByteProcessor.FIND_CRLF);
+			ByteBuf sendBuffer = bufferManager.ioBuffer(2048).writeBytes(header);
+			while(splitter.hasNext()) {
+				ByteBuf b = splitter.next();
+				if(sendBuffer.readableBytes() + b.readableBytes() + CRLEN > 2048) {
+					ctx.channel().writeAndFlush(new DatagramPacket(sendBuffer, sender));
+					total += sendBuffer.readableBytes();
+					sent++;				
+					hasPoints = false;
+					sendBuffer = bufferManager.ioBuffer(2048).writeBytes(header);
+				}
+				sendBuffer.writeBytes(b).writeBytes(CR);
+				hasPoints = true;
+				dps++;				
+			}
+			if(hasPoints) {
+				ctx.channel().writeAndFlush(new DatagramPacket(sendBuffer, sender));
+				total += sendBuffer.readableBytes();
 			}
 			out_bytes.addAndGet(total);
+			log.info("[{}] Send Count: {}, DPS: {}", sender, sent, dps);
 		} catch (Exception ex) {
 			log.error("Failed to process stats", ex);
 		} finally {
@@ -577,6 +811,7 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 	    return dp;
 	  }
 	
+	protected static final ThreadAllocationReaderImpl allocReader = new ThreadAllocationReaderImpl();
 	
 	/**
 	 * Based on {@link net.opentsdb.tools.TextImporter}
@@ -590,8 +825,7 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 	 * </ul>
 	 * @throws IOException
 	 */
-	private int[] importDataPoints(final ByteBuf buf, final UDPCommandOptions cmdOpts) throws IOException {
-		final long start_time = System.nanoTime();
+	private String importDataPoints(final ByteBuf buf, final UDPCommandOptions cmdOpts) throws IOException {
 		
 		final boolean skip_errors = cmdOpts.flags.contains("--skip-errors");
 		final AtomicBoolean throttle = new AtomicBoolean(false);
@@ -600,9 +834,15 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 		final HashMap<String, WritableDataPoints> datapoints =
 			    new HashMap<String, WritableDataPoints>();
 		String line = null;
-		int total = 0;
-		int points = 0;
-		int errors = 0;
+		final Map<ImportResult, LongAdder> resultMap = ImportResult.resultsMap();
+		final LongAdder total = resultMap.get(ImportResult.TOTAL);
+		final LongAdder points = resultMap.get(ImportResult.COMPLETE);
+		final LongAdder errors = resultMap.get(ImportResult.ERRORS);
+		final LongAdder elapsed = resultMap.get(ImportResult.ELAPSED);
+		final LongAdder allocated = resultMap.get(ImportResult.ALLOCATED);
+		final long id = Thread.currentThread().getId();
+		final long start_time = System.nanoTime();
+		final long start_mem = allocReader.getAllocatedBytes(id);
 		
 		try {
 			final class Errback implements Callback<Object, Exception> {
@@ -628,12 +868,12 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 			for(String sline: lines) {
 				line = sline.trim();
 				if(line.isEmpty()) continue;
-				total++;
+				total.increment();;
 				final String[] words = Tags.splitString(line, ' ');
 				final String metric = words[0];
 				if (metric.length() <= 0) {
 					if (skip_errors) {
-						errors++;
+						errors.increment();
 						log.error("invalid metric: " + metric);
 						log.error("error while processing UDP import "
 								+ " line=" + line + "... Continuing");
@@ -647,7 +887,7 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 					timestamp = Tags.parseLong(words[1]);
 					if (timestamp <= 0) {
 						if (skip_errors) {
-							errors++;
+							errors.increment();
 							log.error("invalid timestamp: " + timestamp);
 							log.error("error while processing UDP import "
 									+ " line=" + line + "... Continuing");
@@ -658,7 +898,7 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 					}
 				} catch (final RuntimeException e) {
 					if (skip_errors) {
-						errors++;
+						errors.increment();
 						log.error("invalid timestamp: " + e.getMessage());
 						log.error("error while processing UDP import  "
 								+ " line=" + line + "... Continuing");
@@ -671,7 +911,7 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 				final String value = words[2];
 				if (value.length() <= 0) {
 					if (skip_errors) {
-						errors++;
+						errors.increment();
 						log.error("invalid value: " + value);
 						log.error("error while processing UDP import "
 								+ " line=" + line + "... Continuing");
@@ -697,7 +937,7 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 						d = dp.addPoint(timestamp, Float.parseFloat(value));
 					}
 					d.addErrback(errback);
-					points++;
+					points.increment();
 					if (throttle.get()) {
 						log.info("Throttling...");
 						long throttle_time = System.nanoTime();
@@ -721,7 +961,7 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 					}
 				} catch (final RuntimeException e) {
 					if (skip_errors) {
-						errors++;
+						errors.increment();
 						log.error("Exception: " + e.getMessage());
 						log.error("error while processing UDP import "
 								+ " line=" + line + "... Continuing");
@@ -736,14 +976,18 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 					+ " line=[" + line + "]", e);
 			throw e;
 		}
-		put_datapoints.addAndGet(points);
-		tsdb.incrementDataPointsAdded(points);
-		final long time_delta = TimeUnit.MICROSECONDS.convert((System.nanoTime() - start_time), TimeUnit.NANOSECONDS);
-		log.info(String.format("Processed UDP Import in %d micros, %d data points"
-				+ " (%.1f points/s)",
-				time_delta, points,
-				(points * 1000000.0 / time_delta)));
-		return new int[]{total, points, errors};
+		final long dpoints = points.longValue();
+		put_datapoints.addAndGet(dpoints);
+		tsdb.incrementDataPointsAdded(dpoints);
+		final long time_delta = System.nanoTime() - start_time;
+		elapsed.add(time_delta);
+		allocated.add(allocReader.getAllocatedBytes(id) - start_mem);
+		
+//		log.info(String.format("Processed UDP Import in %d micros, %d data points"
+//				+ " (%.1f points/s)",
+//				time_delta, points,
+//				(points * 1000000.0 / time_delta)));
+		return ImportResult.format(resultMap);
 	}	
 	
 	  /**
@@ -767,7 +1011,7 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 	  }
 
 	  /**
-	   * Runs through the live threads and counts captures a coune of their
+	   * Runs through the live threads and counts captures a count of their
 	   * states for dumping in the stats page.
 	   * Copied from <code>StatsRpc</code>.
 	   * @param collector The collector to write to
@@ -791,6 +1035,20 @@ public class UDPPacketHandler extends SimpleChannelInboundHandler<DatagramPacket
 	          entry.getKey());
 	    }
 	    collector.record("jvm.thread.count", threads.size());
+	    if(threadMonitorEnabled) {
+		    try {
+		        collector.addExtraTag("type", "udp");
+		        for (final Map.Entry<UDPCommand, Map<ThreadStat, LongAdder>> entry
+		            : rpcThreadStats.entrySet()) {
+		        	final String name = "udp-" + entry.getKey().name().toLowerCase();
+		        	final Map<ThreadStat, LongAdder> statMap = entry.getValue();
+		        	final long[] stats = ThreadStat.compute(statMap, true);
+		        	ThreadStat.record(collector, "rpc", name, stats); 
+		        }
+		      } finally {
+		        collector.clearExtraTag("type");
+		      }
+	    }
 	  }
 
 	

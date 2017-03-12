@@ -92,9 +92,13 @@ final class UidManager {
   }
 
   public static void main(String[] args) throws Exception {
-    ArgP argp = new ArgP();
-    CliOptions.addCommon(argp);
-    CliOptions.addVerbose(argp);
+    ConfigArgP cap = new ConfigArgP(args);
+//    Config config = cap.getConfig();
+    ArgP argp = cap.getArgp();
+    OpenTSDBMain.applyCommandLine(cap, argp);
+    
+//    CliOptions.addCommon(argp);
+//    CliOptions.addVerbose(argp);
     argp.addOption("--idwidth", "N",
                    "Number of bytes on which the UniqueId is encoded.");
     argp.addOption("--ignore-case",
@@ -118,7 +122,9 @@ final class UidManager {
     final boolean ignorecase = argp.has("--ignore-case") || argp.has("-i");
     
     // get a config object
-    Config config = CliOptions.getConfig(argp);
+//    Config config = CliOptions.getConfig(argp);
+    Config config = cap.getConfig();
+    config.loadStaticVariables();   
     final byte[] table = config.getString("tsd.storage.hbase.uid_table")
       .getBytes();
     

@@ -51,6 +51,19 @@ import net.opentsdb.utils.buffermgr.BufferManager;
  */
 
 public abstract class AbstractSocketTSDServer extends AbstractTSDServer implements AbstractSocketTSDServerMBean {
+	/** The channel group event executor */
+	protected static final EventExecutor channelGroupExecutor = new DefaultEventExecutor(TSDBThreadPoolExecutor.newBuilder("ChannelGroupExec")
+		.corePoolSize(1)
+		.maxPoolSize(3)
+		.daemon(true)
+		.keepAliveTimeSecs(60)
+		.prestart(1)
+		.queueSize(100)
+		.build()
+	);
+
+	
+	
 	/** The socket address that the listener will be bound to */
 	protected final SocketAddress bindSocket;	
 	/** Indicates if we're using asynchronous net io */
@@ -64,8 +77,6 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 	
 	/** The channel group to track all connections */
 	protected final ChannelGroup channelGroup;
-	/** The channel group event executor */
-	protected final EventExecutor channelGroupExecutor;
 	
 	// =============================================
 	// Channel Configs
@@ -216,7 +227,6 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 			}
 			serverBootstrap.childOption(ChannelOption.ALLOCATOR, bufferManager);			
 			serverBootstrap.childOption(ChannelOption.WRITE_SPIN_COUNT, writeSpins);			
-			channelGroupExecutor = new DefaultEventExecutor((Executor)new ExecutorThreadFactory(protocol.name() + "-TSDServerChannelGroup-%d", true));
 			channelGroup = new DefaultChannelGroup("TSDServerSocketConnections", channelGroupExecutor);
 			eventMonitor = new TSDServerConnectionMonitor(channelGroup, maxConnections, maxIdleTime);
 			if(async && bossGroup!=null) {
@@ -230,7 +240,6 @@ public abstract class AbstractSocketTSDServer extends AbstractTSDServer implemen
 			serverBootstrap.childHandler(channelInitializer);
 			//serverBootstrap.handler(eventMonitor);
 		} else {
-			channelGroupExecutor = null;
 			channelGroup = null;
 			eventMonitor = null;
 			bootstrap.group(workerGroup);

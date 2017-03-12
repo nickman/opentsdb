@@ -17,11 +17,18 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+
+import org.hbase.async.jsr166e.LongAdder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -34,19 +41,16 @@ import com.google.common.util.concurrent.Atomics;
 import com.stumbleupon.async.Callback;
 import com.stumbleupon.async.Deferred;
 
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import net.opentsdb.tools.BuildData;
 import net.opentsdb.core.Aggregators;
 import net.opentsdb.core.TSDB;
 import net.opentsdb.query.filter.TagVFilter;
 import net.opentsdb.servers.AbstractTSDServer;
 import net.opentsdb.stats.StatsCollector;
+import net.opentsdb.stats.ThreadStat;
+import net.opentsdb.tools.BuildData;
 import net.opentsdb.utils.Config;
 import net.opentsdb.utils.JSON;
 import net.opentsdb.utils.PluginLoader;
@@ -109,9 +113,19 @@ public final class RpcManager {
   private ImmutableMap<String, HttpRpcPlugin> http_plugin_commands;
   /** List of activated RPC plugins */
   private ImmutableList<RpcPlugin> rpc_plugins;
+  
+  /** Commands we can serve on the simple, telnet-style RPC interface. */
+  private ImmutableMap<String, Map<ThreadStat, LongAdder>> telnet_stats;
+  /** Commands we serve on the HTTP interface. */
+  private ImmutableMap<String, Map<ThreadStat, LongAdder>> http_stats;
+  /** HTTP commands from user plugins. */
+  private ImmutableMap<String, Map<ThreadStat, LongAdder>> http_plugin_stats;
+  
 
   /** The TSDB that owns us. */
   private TSDB tsdb;
+  /** Indicates if RPC thread stats are enabled */
+  public final boolean threadMonitorEnabled;
 
   /**
    * Constructor used by singleton factory method.
@@ -119,6 +133,7 @@ public final class RpcManager {
    */
   private RpcManager(final TSDB tsdb) {
     this.tsdb = tsdb;
+    threadMonitorEnabled = tsdb.getConfig().getBoolean("tsd.rpc.threadmonitoring", false);
   }
 
   /**
@@ -129,13 +144,14 @@ public final class RpcManager {
    */
   public static synchronized RpcManager instance(final TSDB tsdb) {
     final RpcManager existing = INSTANCE.get();
+  
     if (existing != null) {
       return existing;
     }
-
+    
     final RpcManager manager = new RpcManager(tsdb);
-    final TSDMode mode = tsdb.getConfig().getTSDMode("tsd.mode");
-
+    final TSDMode mode = tsdb.getConfig().getTSDMode("tsd.mode");    
+    final boolean threadMonitorEnabled = manager.threadMonitorEnabled;
     // Load any plugins that are enabled via Config.  Fail if any plugin cannot be loaded.
 
     final ImmutableList.Builder<RpcPlugin> rpcBuilder = ImmutableList.builder();
@@ -157,9 +173,30 @@ public final class RpcManager {
       manager.initializeHttpRpcPlugins(mode, plugins, httpPluginsBuilder);
     }
     manager.http_plugin_commands = httpPluginsBuilder.build();
+    
+      
+    
+    
+    if(threadMonitorEnabled) {
+    	manager.telnet_stats = initializeStats(manager.telnet_commands.keySet());
+    	manager.http_stats = initializeStats(manager.http_commands.keySet());
+    	manager.http_plugin_stats = initializeStats(manager.http_plugin_commands.keySet());
+    }
 
     INSTANCE.set(manager);
     return manager;
+  }
+  
+  private static ImmutableMap<String, Map<ThreadStat, LongAdder>> initializeStats(final Set<String> keys) {
+	  final ImmutableMap.Builder<String, Map<ThreadStat, LongAdder>> builder = new ImmutableMap.Builder<String, Map<ThreadStat,LongAdder>>();
+	  for(final String key: keys) {
+		  final Map<ThreadStat, LongAdder> statMap = new EnumMap<ThreadStat, LongAdder>(ThreadStat.class);
+		  for(ThreadStat ts: ThreadStat.values()) {
+			  statMap.put(ts, new LongAdder());
+		  }
+		  builder.put(key, Collections.unmodifiableMap(statMap));
+	  }
+	  return builder.build();
   }
 
   /**
@@ -169,7 +206,7 @@ public final class RpcManager {
   public static synchronized boolean isInitialized() {
     return INSTANCE.get() != null;
   }
-
+  
   /**
    * @return list of loaded {@link RpcPlugin}s.  Possibly empty but
    * never {@code null}.
@@ -190,6 +227,10 @@ public final class RpcManager {
   TelnetRpc lookupTelnetRpc(final String command) {
     return telnet_commands.get(command);
   }
+  
+  Map<ThreadStat, LongAdder> lookupTelnetStats(final String command) {
+	  return telnet_stats.get(command);
+  }
 
   /**
    * Lookup a built-in {@link HttpRpc} based on the given {@code queryBaseRoute}.
@@ -203,6 +244,11 @@ public final class RpcManager {
   HttpRpc lookupHttpRpc(final String queryBaseRoute) {
     return http_commands.get(queryBaseRoute);
   }
+  
+  Map<ThreadStat, LongAdder> lookupHttpStats(final String command) {
+	  return http_stats.get(command);
+  }
+  
 
   /**
    * Lookup a user-supplied {@link HttpRpcPlugin} for the given
@@ -216,6 +262,11 @@ public final class RpcManager {
   HttpRpcPlugin lookupHttpRpcPlugin(final String queryBaseRoute) {
     return http_plugin_commands.get(queryBaseRoute);
   }
+  
+  Map<ThreadStat, LongAdder> lookupHttpPluginStats(final String command) {
+	  return http_plugin_stats.get(command);
+  }
+  
 
   /**
    * @param uri HTTP request URI, with or without query parameters.
@@ -468,11 +519,13 @@ public final class RpcManager {
 
     return Deferred.groupInOrder(deferreds);
   }
+  
+  private static final String DEF_KEY = "/";
 
   /**
    * Collect stats on the shared instance of {@link RpcManager}.
    */
-  static void collectStats(final StatsCollector collector) {
+  public static void collectStats(final StatsCollector collector) {
     final RpcManager manager = INSTANCE.get();
     if (manager != null) {
       if (manager.rpc_plugins != null) {
@@ -498,7 +551,56 @@ public final class RpcManager {
         }
       }
     }
+    if(manager.threadMonitorEnabled) {
+	    try {
+	        collector.addExtraTag("type", "httpplugin");
+	        for (final Map.Entry<String, Map<ThreadStat, LongAdder>> entry
+	            : manager.http_plugin_stats.entrySet()) {
+	        	final String name = entry.getKey();
+	        	final Map<ThreadStat, LongAdder> statMap = entry.getValue();
+	        	final long[] stats = ThreadStat.compute(statMap, true);
+	        	ThreadStat.record(collector, "rpc", clean(name), stats); 
+	        }
+	      } finally {
+	        collector.clearExtraTag("type");
+	      }
+	    
+	    try {
+	        collector.addExtraTag("type", "http");
+	        for (final Map.Entry<String, Map<ThreadStat, LongAdder>> entry
+	            : manager.http_stats.entrySet()) {
+	        	final String name = entry.getKey();;
+	        	final Map<ThreadStat, LongAdder> statMap = entry.getValue();
+	        	final long[] stats = ThreadStat.compute(statMap, true);
+	        	ThreadStat.record(collector, "rpc", clean(name), stats); 
+	        }
+	      } finally {
+	        collector.clearExtraTag("type");
+	      }
+	    
+	    try {
+	        collector.addExtraTag("type", "telnet");
+	        for (final Map.Entry<String, Map<ThreadStat, LongAdder>> entry
+	            : manager.telnet_stats.entrySet()) {
+	        	final String name = entry.getKey();
+	        	final Map<ThreadStat, LongAdder> statMap = entry.getValue();
+	        	final long[] stats = ThreadStat.compute(statMap, true);
+	        	ThreadStat.record(collector, "rpc", clean(name), stats); 
+	        }
+	      } finally {
+	        collector.clearExtraTag("type");
+	      }
+    }
   }
+  
+	private static String clean(final String name) {
+		if(name==null) throw new IllegalArgumentException("The passed rpc name was null");
+		if(name.isEmpty()) return "/";
+		final int index = name.indexOf('/');
+		if(index==-1) return name;
+		return name.replace('/', '-');
+	}
+
 
   // ---------------------------- //
   // Individual command handlers. //

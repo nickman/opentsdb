@@ -65,6 +65,10 @@ class RollupDataPointRpc extends PutDataPointRpc
   public void execute(final TSDB tsdb, final HttpQuery query)
           throws IOException {
     http_requests.incrementAndGet();
+	final long id = Thread.currentThread().getId();
+	final long startTime = System.nanoTime();
+	final long startMem = allocReader.getAllocatedBytes(id);
+    
     
     // only accept POST
     if (query.method() != HttpMethod.POST) {
@@ -75,7 +79,7 @@ class RollupDataPointRpc extends PutDataPointRpc
 
     final List<RollUpDataPoint> dps = query.serializer()
         .parsePutV1(RollUpDataPoint.class, HttpJsonSerializer.TR_ROLLUP);
-    processDataPoint(tsdb, query, dps);
+    processDataPoint(tsdb, query, dps, id, startTime, startMem);
   }
 
   /**
